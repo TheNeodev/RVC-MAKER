@@ -66,62 +66,115 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 # Các đường dẫn thư mục chính của mã nguồn:
 
 `assets\\languages`: **Thư mục chứa các tệp ngôn ngữ**
+
 `assets\\logs`: **Thư mục chứa các tệp nhật ký và tệp chỉ mục mô hình**
+
 `assets\\models\\embedders`: **Thư mục chứa các tệp mô hình nhúng**
+
 `assets\\models\\predictors`: **Thư mục chứa một số tệp mô hình trích xuất dữ liệu của crepe, crepe-tiny, harvest, dio, rmvpe, fcpe**
+
 `assets\\models\\pretrained_custom`: **Thư mục chứa các tệp mô hình huấn luyện trước tùy chỉnh**
+
 `assets\\models\\pretrained_v1`: **Thư mục chứa các tệp mô hình huấn luyện trước v1**
+
 `assets\\models\\pretrained_v2`: **Thư mục chứa các tệp mô hình huấn luyện trước v2**
+
 `assets\\models\\uvr5`: **Thư mục chứa các tệp mô hình tách nhạc của Demucs và MDX**
+
 `assets\\presets`: **Thư mục chứa các tệp cài đặt của chuyển đổi âm thanh**
+
 `assets\\weights`: **Thư mục chứa các tệp mô hình**
+
 `audios`: **Thư mục sẽ chứa các tệp âm thanh của bạn**
+
 `dataset`: **Thư mục sẽ chứa các tệp dữ liệu âm thanh dùng cho việc huấn luyện mô hình**
 
 # Các tệp tin cốt lỗi của mã nguồn
 
 `main\\app\\app.py`: **Tệp tin hệ thống, giao diện của mã nguồn**
+
 `main\\app\\tensorboard.py`: **Tệp tin hệ thống tensorboard**
+
 `main\\configs\\v1`: **thư mục chứa các tệp cài đặt tốc độ lấy mẫu huấn luyện v1**
+
 `main\\configs\\v2`: **thư mục chứa các tệp cài đặt tốc độ lấy mẫu huấn luyện v2**
+
 `main\\configs\\config.json`: **Tệp tin cài đặt của giao diện**
+
 `main\\configs\\config.py`: **Tệp khởi chạy các cài đặt**
+
 `main\\inference\\audio_effects.py`: **Tệp tin thực hiện việc áp dụng hiệu ứng cho âm thanh**
+
 `main\\inference\\convert.py`: **Tệp tin thực hiện xử lý và chuyển đổi âm thanh RVC**
+
 `main\\inference\\create_dataset.py`: **Tệp tin thực hiện xử lý và tạo dữ liệu huấn luyện từ đường dẫn Youtube**
+
 `main\\inference\\create_index.py`: **Tệp tin thực hiện việc tạo ra tệp tin chỉ mục**
+
 `main\\inference\\extract.py`: **Tệp tin thực hiện việc trích xuất cao độ và trích xuất nhúng**
+
 `main\\inference\\preprocess.py`: **Tệp tin thực hiện việc xử lý trước âm thanh dữ liệu huấn luyện trước khi trích xuất**
+
 `main\\inference\\separator_music.py`: **Tệp tin thực hiện việc tách nhạc**
+
 `main\\inference\\train.py`: **Tệp tin thực hiện việc huấn luyện mô hình RVC**
+
 `main\\library\\algorithm\\commons.py`: **Tệp tin chức năng chung của RVC**
+
 `main\\library\\algorithm\\modules.py`: **Tệp tin mô đun thuật toán sóng của RVC**
+
 `main\\library\\algorithm\\mrf_hifigan.py`: **Tệp tin thuật toán của bộ mã hóa âm thanh MRF HIFIGAN**
+
 `main\\library\\algorithm\\refinegan.py`: **Tệp tin thuật toán của bộ mã hóa âm thanh REFINEGAN**
+
 `main\\library\\algorithm\\residuals.py`: **Tệp tin chứa các lớp thuật toán như ResBlock,...**
+
 `main\\library\\algorithm\\separator.py`: **Tệp tin thuật toán tách nhạc chính của DEMUCS\MDX**
+
 `main\\library\\algorithm\\synthesizers.py`: **Tệp tin thuật toán tổng hợp**
+
 `main\\library\\architectures\\demucs_separator.py`: **Tệp tin cấu trúc của bộ tách nhạc Demucs**
+
 `main\\library\\architectures\\mdx_separator.py`: **Tệp tin cấu trúc của bộ tách nhạc MDX**
+
 `main\\library\\predictors\\CREPE.py`: **Tệp tin bộ trích xuất cao độ F0 CREPE và CREPE-TINY**
+
 `main\\library\\predictors\\FCPE.py`: **Tệp tin bộ trích xuất cao độ F0 FCPE**
+
 `main\\library\\predictors\\RMVPE.py`: **Tệp tin bộ trích xuất cao độ F0 RMVPE**
+
 `main\\library\\predictors\\WORLD.py`: **Tệp tin bộ trích xuất cao độ F0 HARVEST VÀ DIO**
+
 `main\\library\\uvr5_separator\\demucs\\apply.py`: **Tệp tin áp dụng dành riêng cho DEMUCS**
+
 `main\\library\\uvr5_separator\\demucs\\demucs.py`: **Tệp tin thư viện tách nhạc cho mô hình DEMUCS**
+
 `main\\library\\uvr5_separator\\demucs\\hdemucs.py`: **Tệp tin thư viện tách nhạc cho mô hình HDEMUCS**
+
 `main\\library\\uvr5_separator\\demucs\\htdemucs.py`: **Tệp tin thư viện tách nhạc cho mô hình HTDEMUCS**
+
 `main\\library\\uvr5_separator\\demucs\\states.py`: **Tệp tin trạng thái dành riêng cho DEMUCS**
+
 `main\\library\\uvr5_separator\\demucs\\utils.py`: **Tệp tin tiện ích dành riêng cho DEMUCS**
+
 `main\\library\\uvr5_separator\\common_separator.py`: **Tệp tin chức năng chung của hệ thống tách nhạc MDX và DEMUCS**
+
 `main\\library\\uvr5_separator\\spec_utils.py`: **Tệp tin thông số kỷ thuật của hệ thống tách nhạc**
+
 `main\\tools\\edge_tts.py`: **Tệp tin công cụ chuyển đổi văn bản thành giọng nói của EDGE**
+
 `main\\tools\\gdown.py`: **Tệp tin tải xuống tệp tin từ google drive**
+
 `main\\tools\\google_tts.py`: **Tệp tin công cụ chuyển đổi văn bản thành giọng nói của google**
+
 `main\\tools\\huggingface.py`: **Tệp tin tải xuống tệp tin từ huggingface**
+
 `main\\tools\\mediafire.py`: **Tệp tin tải xuống tệp từ mediafire**
+
 `main\\tools\\meganz.py`: **Tệp tin tải xuống tệp từ MegaNZ**
+
 `main\\tools\\noisereduce.py`: **Tệp tin công cụ giảm tiếng ồn âm thanh**
+
 `main\\tools\\pixeldrain.py`: **Tệp tin tải xuống tệp từ pixeldrain**
 
 # LƯU Ý
