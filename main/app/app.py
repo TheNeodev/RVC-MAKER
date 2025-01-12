@@ -61,7 +61,7 @@ pretrainedD, pretrainedG, Allpretrained = ([model for model in os.listdir(os.pat
 separate_model = sorted([os.path.join("assets", "models", "uvr5", models) for models in os.listdir(os.path.join("assets", "models", "uvr5")) if models.endswith((".th", ".yaml", ".onnx"))])
 presets_file = sorted(list(f for f in os.listdir(os.path.join("assets", "presets")) if f.endswith(".json")))
 language, theme, edge_tts, google_tts_voice, mdx_model, uvr_model = configs.get("language", "vi-VN"), configs.get("theme", "NoCrypt/miku"), configs.get("edge_tts", ["vi-VN-HoaiMyNeural", "vi-VN-NamMinhNeural"]), configs.get("google_tts_voice", ["vi", "en"]), configs.get("mdx_model", "MDXNET_Main"), (configs.get("demucs_model", "HD_MMI") + configs.get("mdx_model", "MDXNET_Main"))
-miku_image = codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Pbyno_EIP_Cebwrpg_2/erfbyir/znva/zvxh.cat", "rot13")
+miku_image = codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/erfbyir/znva/zvxh.cat", "rot13")
 csv_path = os.path.join("assets", "spreadsheet.csv")
 
 if language == "vi-VN":
@@ -82,6 +82,7 @@ for _, row in cached_data.iterrows():
             url = value
             break
     if url: models[filename] = url
+
 
 def gr_info(message):
     gr.Info(message, duration=5)
@@ -232,7 +233,6 @@ def zip_file(name, pth, index):
     pth_path = os.path.join("assets", "weights", pth)
 
     if not pth or not os.path.exists(pth_path) or not pth.endswith(".pth"): return gr_warning(translations["provide_file"].format(filename=translations["model"]))
-    if not index or not os.path.exists(index) or not index.endswith(".index"): return gr_warning(translations["provide_file"].format(filename=translations["index"]))
 
     zip_file_path = os.path.join("assets", name + ".zip")
     gr_info(translations["start"].format(start=translations["zip"]))
