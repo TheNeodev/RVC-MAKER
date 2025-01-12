@@ -1,0 +1,52 @@
+# Platform-specific requirements section
+pip>=23.3
+onnxruntime
+onnxruntime-gpu
+
+# Core dependencies
+PyYAML
+torch==2.3.1
+tqdm
+torchvision==0.18.1
+torchaudio==2.3.1
+faiss-cpu==1.7.3
+
+# Machine learning, NLP and deep learning
+fairseq
+scikit-learn
+einops
+
+# Pitch and sound processing
+librosa>=0.10.2
+pydub
+praat-parselmouth
+soundfile
+pedalboard
+
+# Data processing and calculation
+numpy==1.23.5
+numba
+scipy
+pandas
+matplotlib==3.7.2
+
+# Implementation and web framework
+gradio>=5.9.1
+requests
+aiohttp
+tenacity==5.1.5
+
+# Utility section
+yt-dlp
+ffmpy==0.3.1
+ffmpeg-python>=0.2.0
+beautifulsoup4
+
+# Tensorboard and ONNX
+tensorboard
+tensorboardX
+onnx>=1.14
+onnx2torch>=1.5
+
+# Cryptography section
+pycryptodome==3.9.6
