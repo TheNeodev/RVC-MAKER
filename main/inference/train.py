@@ -21,8 +21,9 @@ import torch.utils.checkpoint as checkpoint
 from tqdm import tqdm
 from collections import OrderedDict
 from random import randint, shuffle
+from torch.cuda.amp import GradScaler, autocast
 from torch.utils.tensorboard import SummaryWriter
- 
+
 from time import time as ttime
 from torch.nn import functional as F
 from distutils.util import strtobool
@@ -31,17 +32,15 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils.parametrizations import spectral_norm, weight_norm
 
 sys.path.append(os.getcwd())
-
 from main.configs.config import Config
 from main.library.algorithm.residuals import LRELU_SLOPE
 from main.library.algorithm.synthesizers import Synthesizer
 from main.library.algorithm.commons import get_padding, slice_segments, clip_grad_value
 
-warnings.filterwarnings("ignore")
-logging.getLogger("torch").setLevel(logging.ERROR)
-
 MATPLOTLIB_FLAG = False
 translations = Config().translations
+warnings.filterwarnings("ignore")
+logging.getLogger("torch").setLevel(logging.ERROR)
 
 class HParams:
     def __init__(self, **kwargs):
@@ -98,7 +97,6 @@ def parse_arguments():
 
 args = parse_arguments()
 model_name, save_every_epoch, total_epoch, pretrainG, pretrainD, version, gpus, batch_size, sample_rate, pitch_guidance, save_only_latest, save_every_weights, cache_data_in_gpu, overtraining_detector, overtraining_threshold, cleanup, model_author, vocoder, checkpointing = args.model_name, args.save_every_epoch, args.total_epoch, args.g_pretrained_path, args.d_pretrained_path, args.rvc_version, args.gpu, args.batch_size, args.sample_rate, args.pitch_guidance, args.save_only_latest, args.save_every_weights, args.cache_data_in_gpu, args.overtraining_detector, args.overtraining_threshold, args.cleanup, args.model_author, args.vocoder, args.checkpointing
-
 experiment_dir = os.path.join("assets", "logs", model_name)
 training_file_path = os.path.join(experiment_dir, "training_data.json")
 config_save_path = os.path.join(experiment_dir, "config.json")
@@ -111,7 +109,6 @@ global_step, last_loss_gen_all, overtrain_save_epoch = 0, 0, 0
 loss_gen_history, smoothed_loss_gen_history, loss_disc_history, smoothed_loss_disc_history = [], [], [], []
 with open(config_save_path, "r") as f:
     config = json.load(f)
-
 config = HParams(**config)
 config.data.training_files = os.path.join(experiment_dir, "filelist.txt")
 logger = logging.getLogger(__name__)
@@ -160,7 +157,6 @@ def main():
     def start():
         children = []
         pid_data = {"process_pids": []}
-
         with open(config_save_path, "r") as pid_file:
             try:
                 pid_data.update(json.load(pid_file))
@@ -173,7 +169,6 @@ def main():
                 children.append(subproc)
                 subproc.start()
                 pid_data["process_pids"].append(subproc.pid)
-
             json.dump(pid_data, pid_file, indent=4)
 
         for i in range(n_gpus):
@@ -192,7 +187,6 @@ def main():
 
     n_gpus = torch.cuda.device_count()
     if not torch.cuda.is_available() and torch.backends.mps.is_available(): n_gpus = 1
-
     if n_gpus < 1:
         logger.warning(translations["not_gpu"])
         n_gpus = 1
@@ -212,7 +206,6 @@ def main():
                         if os.path.isfile(item_path): os.remove(item_path)
 
                     os.rmdir(folder_path)
-
     continue_overtrain_detector(training_file_path)
     start()
 
@@ -233,6 +226,16 @@ def plot_spectrogram_to_numpy(spectrogram):
     plt.close(fig)
 
     return np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8).reshape(fig.canvas.get_width_height()[::-1] + (3,))
+
+def verify_checkpoint_shapes(checkpoint_path, model):
+    checkpoint = torch.load(checkpoint_path, map_location="cpu")
+    checkpoint_state_dict = checkpoint["model"]
+    try:
+        model_state_dict = model.module.load_state_dict(checkpoint_state_dict) if hasattr(model, "module") else model.load_state_dict(checkpoint_state_dict)
+    except RuntimeError:
+        logger.error(translations["checkpointing_err"])
+        sys.exit(1)
+    else: del checkpoint, checkpoint_state_dict, model_state_dict
 
 def summarize(writer, global_step, scalars={}, histograms={}, images={}, audios={}, audio_sample_rate=22050):
     for k, v in scalars.items():
@@ -332,7 +335,6 @@ class TextAudioLoaderMultiNSFsid(tdata.Dataset):
 
     def _filter(self):
         audiopaths_and_text_new, lengths = [], []
-
         for audiopath, text, pitch, pitchf, dv in self.audiopaths_and_text:
             if self.min_text_len <= len(text) and len(text) <= self.max_text_len:
                 audiopaths_and_text_new.append([audiopath, text, pitch, pitchf, dv])
@@ -443,7 +445,6 @@ class TextAudioLoader(tdata.Dataset):
 
     def _filter(self):
         audiopaths_and_text_new, lengths = [], []
-
         for entry in self.audiopaths_and_text:
             if len(entry) >= 3:
                 audiopath, text, dv = entry[:3]
@@ -497,7 +498,6 @@ class TextAudioLoader(tdata.Dataset):
         else:
             spec = torch.squeeze(spectrogram_torch(audio_norm, self.filter_length, self.hop_length, self.win_length, center=False), 0)
             torch.save(spec, spec_filename, _use_new_zipfile_serialization=False)
-
         return spec, audio_norm
 
     def __getitem__(self, index):
@@ -520,7 +520,6 @@ class TextAudioCollate:
         phone_lengths, phone_padded = torch.LongTensor(len(batch)), torch.FloatTensor(len(batch), max_phone_len, batch[0][2].shape[1])
         phone_padded.zero_()
         sid = torch.LongTensor(len(batch))
-
         for i in range(len(ids_sorted_decreasing)):
             row = batch[ids_sorted_decreasing[i]]
             spec = row[0]
@@ -533,7 +532,6 @@ class TextAudioCollate:
             phone_padded[i, : phone.size(0), :] = phone
             phone_lengths[i] = phone.size(0)
             sid[i] = row[3]
-
         return (phone_padded, phone_lengths, spec_padded, spec_lengths, wave_padded, wave_lengths, sid)
 
 class DistributedBucketSampler(tdata.distributed.DistributedSampler):
@@ -568,7 +566,6 @@ class DistributedBucketSampler(tdata.distributed.DistributedSampler):
         g = torch.Generator()
         g.manual_seed(self.epoch)
         indices, batches = [], []
-
         if self.shuffle:
             for bucket in self.buckets:
                 indices.append(torch.randperm(len(bucket), generator=g).tolist())
@@ -612,14 +609,12 @@ class MultiPeriodDiscriminator(torch.nn.Module):
 
     def forward(self, y, y_hat):
         y_d_rs, y_d_gs, fmap_rs, fmap_gs = [], [], [], []
-
         for d in self.discriminators:
             if self.training and self.checkpointing:
                 def forward_discriminator(d, y, y_hat):
                     y_d_r, fmap_r = d(y)
                     y_d_g, fmap_g = d(y_hat)
                     return y_d_r, fmap_r, y_d_g, fmap_g
-                
                 y_d_r, fmap_r, y_d_g, fmap_g = checkpoint.checkpoint(forward_discriminator, d, y, y_hat, use_reentrant=False)
             else:
                 y_d_r, fmap_r = d(y)
@@ -642,7 +637,6 @@ class DiscriminatorS(torch.nn.Module):
 
     def forward(self, x):
         fmap = []
-
         for conv in self.convs:
             x = checkpoint.checkpoint(self.lrelu, checkpoint.checkpoint(conv, x, use_reentrant = False), use_reentrant = False) if self.training and self.checkpointing else self.lrelu(conv(x))
             fmap.append(x)
@@ -664,10 +658,8 @@ class DiscriminatorP(torch.nn.Module):
     def forward(self, x):
         fmap = []
         b, c, t = x.shape
-
         if t % self.period != 0: x = torch.nn.functional.pad(x, (0, (self.period - (t % self.period))), "reflect")
         x = x.view(b, c, -1, self.period)
-
         for conv in self.convs:
             x = checkpoint.checkpoint(self.lrelu, checkpoint.checkpoint(conv, x, use_reentrant = False), use_reentrant = False) if self.training and self.checkpointing else self.lrelu(conv(x))
             fmap.append(x)
@@ -730,26 +722,7 @@ def extract_model(ckpt, sr, pitch_guidance, name, model_path, epoch, step, versi
         os.makedirs(os.path.dirname(model_path), exist_ok=True)
 
         opt = OrderedDict(weight={key: value.half() for key, value in ckpt.items() if "enc_q" not in key})
-        opt["config"] = [
-            hps.data.filter_length // 2 + 1,
-            32,
-            hps.model.inter_channels,
-            hps.model.hidden_channels,
-            hps.model.filter_channels,
-            hps.model.n_heads,
-            hps.model.n_layers,
-            hps.model.kernel_size,
-            hps.model.p_dropout,
-            hps.model.resblock,
-            hps.model.resblock_kernel_sizes,
-            hps.model.resblock_dilation_sizes,
-            hps.model.upsample_rates,
-            hps.model.upsample_initial_channel,
-            hps.model.upsample_kernel_sizes,
-            hps.model.spk_embed_dim,
-            hps.model.gin_channels,
-            hps.data.sample_rate,
-        ]
+        opt["config"] = [hps.data.filter_length // 2 + 1, 32, hps.model.inter_channels, hps.model.hidden_channels, hps.model.filter_channels, hps.model.n_heads, hps.model.n_layers, hps.model.kernel_size, hps.model.p_dropout, hps.model.resblock, hps.model.resblock_kernel_sizes, hps.model.resblock_dilation_sizes, hps.model.upsample_rates, hps.model.upsample_initial_channel, hps.model.upsample_kernel_sizes, hps.model.spk_embed_dim, hps.model.gin_channels, hps.data.sample_rate]
         opt["epoch"] = f"{epoch}epoch"
         opt["step"] = step
         opt["sr"] = sr
@@ -775,10 +748,8 @@ def run(rank, n_gpus, experiment_dir, pretrainG, pretrainD, pitch_guidance, cust
     torch.manual_seed(config.train.seed)
     if torch.cuda.is_available(): torch.cuda.set_device(rank)
 
-    train_dataset = TextAudioLoaderMultiNSFsid(config.data)
-    train_loader = tdata.DataLoader(train_dataset, num_workers=4, shuffle=False, pin_memory=True, collate_fn=TextAudioCollateMultiNSFsid(), batch_sampler=DistributedBucketSampler(train_dataset, batch_size * n_gpus, [100, 200, 300, 400, 500, 600, 700, 800, 900], num_replicas=n_gpus, rank=rank, shuffle=True), persistent_workers=True, prefetch_factor=8)
-    net_g = Synthesizer(config.data.filter_length // 2 + 1, config.train.segment_size // config.data.hop_length, **config.model, use_f0=pitch_guidance, sr=sample_rate, vocoder=vocoder, checkpointing=checkpointing)
-    net_d = MultiPeriodDiscriminator(version, config.model.use_spectral_norm, checkpointing=checkpointing)
+    train_dataset, train_loader = TextAudioLoaderMultiNSFsid(config.data), tdata.DataLoader(train_dataset, num_workers=4, shuffle=False, pin_memory=True, collate_fn=TextAudioCollateMultiNSFsid(), batch_sampler=DistributedBucketSampler(train_dataset, batch_size * n_gpus, [100, 200, 300, 400, 500, 600, 700, 800, 900], num_replicas=n_gpus, rank=rank, shuffle=True), persistent_workers=True, prefetch_factor=8)
+    net_g, net_d = Synthesizer(config.data.filter_length // 2 + 1, config.train.segment_size // config.data.hop_length, **config.model, use_f0=pitch_guidance, sr=sample_rate, vocoder=vocoder, checkpointing=checkpointing), MultiPeriodDiscriminator(version, config.model.use_spectral_norm, checkpointing=checkpointing)
 
     if torch.cuda.is_available(): net_g, net_d = net_g.cuda(rank), net_d.cuda(rank)
     else: net_g.to(device); net_d.to(device)
@@ -793,15 +764,19 @@ def run(rank, n_gpus, experiment_dir, pretrainG, pretrainD, pitch_guidance, cust
         global_step = (epoch_str - 1) * len(train_loader)
     except:
         epoch_str, global_step = 1, 0
-
-        if pretrainG != "":
-            if rank == 0: logger.info(translations["import_pretrain"].format(dg="G", pretrain=pretrainG))
+    
+        if pretrainG != "" and pretrainG != "None":
+            if rank == 0:
+                verify_checkpoint_shapes(pretrainG, net_g)
+                logger.info(translations["import_pretrain"].format(dg="G", pretrain=pretrainG))
             if hasattr(net_g, "module"): net_g.module.load_state_dict(torch.load(pretrainG, map_location="cpu")["model"])
             else: net_g.load_state_dict(torch.load(pretrainG, map_location="cpu")["model"])
         else: logger.warning(translations["not_using_pretrain"].format(dg="G"))
 
-        if pretrainD != "":
-            if rank == 0: logger.info(translations["import_pretrain"].format(dg="D", pretrain=pretrainD))
+        if pretrainD != "" and pretrainD != "None":
+            if rank == 0:
+                verify_checkpoint_shapes(pretrainD, net_d)
+                logger.info(translations["import_pretrain"].format(dg="D", pretrain=pretrainD))
             if hasattr(net_d, "module"): net_d.module.load_state_dict(torch.load(pretrainD, map_location="cpu")["model"])
             else: net_d.load_state_dict(torch.load(pretrainD, map_location="cpu")["model"])
         else: logger.warning(translations["not_using_pretrain"].format(dg="D"))
@@ -810,6 +785,7 @@ def run(rank, n_gpus, experiment_dir, pretrainG, pretrainD, pitch_guidance, cust
 
     optim_d.step()
     optim_g.step()
+    scaler = GradScaler(enabled=False)
     cache = []
 
     for info in train_loader:
@@ -818,11 +794,11 @@ def run(rank, n_gpus, experiment_dir, pretrainG, pretrainD, pitch_guidance, cust
         break
 
     for epoch in range(epoch_str, total_epoch + 1):
-        train_and_evaluate(rank, epoch, config, [net_g, net_d], [optim_g, optim_d], train_loader, writer_eval, cache, custom_save_every_weights, custom_total_epoch, device, reference, model_author, vocoder) 
+        train_and_evaluate(rank, epoch, config, [net_g, net_d], [optim_g, optim_d], scaler, train_loader, writer_eval, cache, custom_save_every_weights, custom_total_epoch, device, reference, model_author, vocoder) 
         scheduler_g.step()
         scheduler_d.step()
 
-def train_and_evaluate(rank, epoch, hps, nets, optims, train_loader, writer, cache, custom_save_every_weights, custom_total_epoch, device, reference, model_author, vocoder):
+def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, writer, cache, custom_save_every_weights, custom_total_epoch, device, reference, model_author, vocoder):
     global global_step, lowest_value, loss_disc, consecutive_increases_gen, consecutive_increases_disc
 
     if epoch == 1:
@@ -853,44 +829,50 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, train_loader, writer, cac
             pitch = pitch if pitch_guidance else None
             pitchf = pitchf if pitch_guidance else None
 
-            model_output = net_g(phone, phone_lengths, pitch, pitchf, spec, spec_lengths, sid)
-            y_hat, ids_slice, _, z_mask, (_, z_p, m_p, logs_p, _, logs_q) = model_output 
-            mel = spec_to_mel_torch(spec, config.data.filter_length, config.data.n_mel_channels, config.data.sample_rate, config.data.mel_fmin, config.data.mel_fmax)
-            y_mel = slice_segments(mel, ids_slice, config.train.segment_size // config.data.hop_length, dim=3)
-
-            y_hat_mel = mel_spectrogram_torch(y_hat.float().squeeze(1), config.data.filter_length, config.data.n_mel_channels, config.data.sample_rate, config.data.hop_length, config.data.win_length, config.data.mel_fmin, config.data.mel_fmax)
-            wave = slice_segments(wave, ids_slice * config.data.hop_length, config.train.segment_size, dim=3)
-            y_d_hat_r, y_d_hat_g, _, _ = net_d(wave, y_hat.detach())
-            loss_disc, losses_disc_r, losses_disc_g = discriminator_loss(y_d_hat_r, y_d_hat_g)
+            with autocast(enabled=False):
+                model_output = net_g(phone, phone_lengths, pitch, pitchf, spec, spec_lengths, sid)
+                y_hat, ids_slice, _, z_mask, (_, z_p, m_p, logs_p, _, logs_q) = model_output 
+                mel = spec_to_mel_torch(spec, config.data.filter_length, config.data.n_mel_channels, config.data.sample_rate, config.data.mel_fmin, config.data.mel_fmax)
+                y_mel = slice_segments(mel, ids_slice, config.train.segment_size // config.data.hop_length, dim=3)
+                with autocast(enabled=False):
+                    y_hat_mel = mel_spectrogram_torch(y_hat.float().squeeze(1), config.data.filter_length, config.data.n_mel_channels, config.data.sample_rate, config.data.hop_length, config.data.win_length, config.data.mel_fmin, config.data.mel_fmax)
+                wave = slice_segments(wave, ids_slice * config.data.hop_length, config.train.segment_size, dim=3)
+                y_d_hat_r, y_d_hat_g, _, _ = net_d(wave, y_hat.detach())
+                with autocast(enabled=False):
+                    loss_disc, losses_disc_r, losses_disc_g = discriminator_loss(y_d_hat_r, y_d_hat_g)
 
             optim_d.zero_grad()
+            scaler.scale(loss_disc).backward()
+            scaler.unscale_(optim_d)
             grad_norm_d = clip_grad_value(net_d.parameters(), None)
-            optim_d.step()
+            scaler.step(optim_d)
 
-            y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = net_d(wave, y_hat)
-            loss_mel = F.l1_loss(y_mel, y_hat_mel) * config.train.c_mel
-            loss_kl = (kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * config.train.c_kl)
-            loss_fm = feature_loss(fmap_r, fmap_g)
-            loss_gen, losses_gen = generator_loss(y_d_hat_g)
-            loss_gen_all = loss_gen + loss_fm + loss_mel + loss_kl
-
-            if loss_gen_all < lowest_value["value"]:
-                lowest_value["value"] = loss_gen_all
-                lowest_value["step"] = global_step
-                lowest_value["epoch"] = epoch
-                if epoch > lowest_value["epoch"]: logger.warning(translations["training_warning"])
+            with autocast(enabled=False):
+                y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = net_d(wave, y_hat)
+                with autocast(enabled=False):
+                    loss_mel = F.l1_loss(y_mel, y_hat_mel) * config.train.c_mel
+                    loss_kl = (kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * config.train.c_kl)
+                    loss_fm = feature_loss(fmap_r, fmap_g)
+                    loss_gen, losses_gen = generator_loss(y_d_hat_g)
+                    loss_gen_all = loss_gen + loss_fm + loss_mel + loss_kl
+                    if loss_gen_all < lowest_value["value"]:
+                        lowest_value["value"] = loss_gen_all
+                        lowest_value["step"] = global_step
+                        lowest_value["epoch"] = epoch
+                        if epoch > lowest_value["epoch"]: logger.warning(translations["training_warning"])
 
             optim_g.zero_grad()
+            scaler.scale(loss_gen_all).backward()
+            scaler.unscale_(optim_g)
             grad_norm_g = clip_grad_value(net_g.parameters(), None)
-            optim_g.step()
+            scaler.step(optim_g)
+            scaler.update()
 
             if rank == 0:
                 if global_step % config.train.log_interval == 0:
                     if loss_mel > 75: loss_mel = 75
                     if loss_kl > 9: loss_kl = 9
-
                     scalar_dict = {"loss/g/total": loss_gen_all, "loss/d/total": loss_disc, "learning_rate": optim_g.param_groups[0]["lr"], "grad/norm_d": grad_norm_d, "grad/norm_g": grad_norm_g, "loss/g/fm": loss_fm, "loss/g/mel": loss_mel, "loss/g/kl": loss_kl}
-
                     scalar_dict.update({f"loss/g/{i}": v for i, v in enumerate(losses_gen)})
                     scalar_dict.update({f"loss/d_r/{i}": v for i, v in enumerate(losses_disc_r)})
                     scalar_dict.update({f"loss/d_g/{i}": v for i, v in enumerate(losses_disc_g)})
@@ -899,7 +881,6 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, train_loader, writer, cac
                         o, *_ = net_g.module.infer(*reference) if hasattr(net_g, "module") else net_g.infer(*reference)
 
                     summarize(writer=writer, global_step=global_step, images={"slice/mel_org": plot_spectrogram_to_numpy(y_mel[0].data.cpu().numpy()), "slice/mel_gen": plot_spectrogram_to_numpy(y_hat_mel[0].data.cpu().numpy()), "all/mel": plot_spectrogram_to_numpy(mel[0].data.cpu().numpy())}, scalars=scalar_dict, audios={f"gen/audio_{global_step:07d}": o[0, :, :]}, audio_sample_rate=config.data.sample_rate)
-
             global_step += 1
             pbar.update(1)
 
@@ -962,7 +943,6 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, train_loader, writer, cac
             logger.info(translations["success_training"].format(epoch=epoch, global_step=global_step, loss_gen_all=round(loss_gen_all.item(), 3)))
             logger.info(translations["training_info"].format(lowest_value_rounded=round(float(lowest_value["value"]), 3), lowest_value_epoch=lowest_value['epoch'], lowest_value_step=lowest_value['step']))
             pid_file_path = os.path.join(experiment_dir, "config.json")
-
             with open(pid_file_path, "r") as pid_file:
                 pid_data = json.load(pid_file)
             with open(pid_file_path, "w") as pid_file:

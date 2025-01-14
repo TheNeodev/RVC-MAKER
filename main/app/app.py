@@ -84,6 +84,7 @@ for _, row in cached_data.iterrows():
     if url: models[filename] = url
 
 
+
 def gr_info(message):
     gr.Info(message, duration=5)
     logger.info(message)
@@ -834,8 +835,8 @@ def convert_selection(clean, autotune, use_audio, use_original, convert_backing,
 
             return [{"choices": [], "value": "", "interactive": False, "visible": False, "__type__": "update"}, None, None, None, None, None, {"visible": True, "__type__": "update"}]
         elif len(choice) == 1:
-            main_convert, backing_convert, main_backing, original_convert, vocal_instrument = convert_audio(clean, autotune, use_audio, use_original, convert_backing, not_merge_backing, merge_instrument, pitch, clean_strength, model, index, index_rate, None, None, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, choice[0], checkpointing)
-            return [{"choices": [], "value": "", "interactive": False, "visible": False, "__type__": "update"}, main_convert, backing_convert, main_backing, original_convert, vocal_instrument, {"visible": True, "__type__": "update"}]
+            convert_output = convert_audio(clean, autotune, use_audio, use_original, convert_backing, not_merge_backing, merge_instrument, pitch, clean_strength, model, index, index_rate, None, None, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, choice[0], checkpointing)
+            return [{"choices": [], "value": "", "interactive": False, "visible": False, "__type__": "update"}, convert_output[0], convert_output[1], convert_output[2], convert_output[3], convert_output[4], {"visible": True, "__type__": "update"}]
         else: return [{"choices": choice, "value": "", "interactive": True, "visible": True, "__type__": "update"}, None, None, None, None, None, {"visible": False, "__type__": "update"}]
     else:
         main_convert = convert_audio(clean, autotune, use_audio, use_original, convert_backing, not_merge_backing, merge_instrument, pitch, clean_strength, model, index, index_rate, input, output, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, None, checkpointing)
@@ -985,11 +986,11 @@ def training(model_name, rvc_version, save_every_epoch, save_only_latest, save_e
             try:
                 if not os.path.exists(pretrained_G):
                     gr_info(translations["download_pretrained"].format(dg="G", rvc_version=rvc_version))
-                    hgf(f"{download_version}{pg}", os.path.join("assets", "models", f"pretrained_{rvc_version}", pg))
+                    hgf(f"{download_version}{pg}", os.path.join("assets", "models", f"pretrained_{rvc_version}", f"{vocoder if vocoder != 'Default' else ''}{pg}"))
                         
                 if not os.path.exists(pretrained_D):
                     gr_info(translations["download_pretrained"].format(dg="D", rvc_version=rvc_version))
-                    hgf(f"{download_version}{pd}", os.path.join("assets", "models", f"pretrained_{rvc_version}", pd))
+                    hgf(f"{download_version}{pd}", os.path.join("assets", "models", f"pretrained_{rvc_version}", f"{vocoder if vocoder != 'Default' else ''}{pd}"))
             except:
                 gr_warning(translations["not_use_pretrain_error_download"])
                 pretrained_G, pretrained_D = None, None
@@ -1045,7 +1046,6 @@ def stop_train(model_name):
                 os.kill(pid, 9)
 
             gr_info(translations["end_pid"])     
-            if os.path.exists(pid_file_path): os.remove(pid_file_path)
     except:
         pass
 

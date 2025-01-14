@@ -127,7 +127,7 @@ def process_audio(input_path, output_path, resample, resample_sr, chorus_depth, 
         raise RuntimeError(translations["errors_loading_audio"].format(e=e))
 
     try:
-        board = Pedalboard(HighpassFilter())
+        board = Pedalboard([HighpassFilter()])
 
         if chorus: board.append(Chorus(depth=chorus_depth, rate_hz=chorus_rate, mix=chorus_mix, centre_delay_ms=chorus_delay, feedback=chorus_feedback))
         if distortion: board.append(Distortion(drive_db=distortion_drive))

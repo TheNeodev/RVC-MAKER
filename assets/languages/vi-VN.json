@@ -790,5 +790,6 @@
     "sr_info": "LƯU Ý: MỘT SỐ ĐỊNH DẠNG KHÔNG HỖ TRỢ TRÊN 48000",
     "report_info": "Nếu được bạn hãy đồng ý cung cấp các tệp nhật ký để hỗ trợ quá trình sửa lỗi\n\nNếu không cung cấp các tệp nhật ký bạn hãy mô tả chi tiết lỗi, lỗi xảy ra khi nào ở đâu\n\nNếu hệ thống báo cáo này bị lỗi nốt thì bạn có thể liên hệ qua [ISSUE]({github}) hoặc discord: `pham_huynh_anh`",
     "default_setting": "Đã xảy ra lỗi khi sử dụng tách, đặt tất cả cài đặt về mặc định...",
-    "dataset_folder1": "Vui lòng nhập tên thư mục dữ liệu"
+    "dataset_folder1": "Vui lòng nhập tên thư mục dữ liệu",
+    "checkpointing_err": "Các tham số của mô hình đào tạo trước như tốc độ mẫu hoặc kiến trúc không khớp với mô hình đã chọn."
 }
