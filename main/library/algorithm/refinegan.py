@@ -66,6 +66,7 @@ class SineGenerator(torch.nn.Module):
         self.dim = self.harmonic_num + 1
         self.sampling_rate = samp_rate
         self.voiced_threshold = voiced_threshold
+        self.merge = torch.nn.Sequential(torch.nn.Linear(self.dim, 1, bias=False), torch.nn.Tanh())   
 
     def _f02uv(self, f0):
         return torch.ones_like(f0) * (f0 > self.voiced_threshold)
@@ -89,21 +90,10 @@ class SineGenerator(torch.nn.Module):
                 f0_buf[:, :, idx + 1] = f0_buf[:, :, 0] * (idx + 2)
             sine_waves = self._f02sine(f0_buf) * self.sine_amp
             uv = self._f02uv(f0)
-            sine_waves = sine_waves * uv + ((uv * self.noise_std + (1 - uv) * self.sine_amp / 3) * torch.randn_like(sine_waves)) * (1 - uv)
+            sine_waves = sine_waves * uv + (uv * self.noise_std + (1 - uv) * self.sine_amp / 3) * torch.randn_like(sine_waves)
+            sine_waves = sine_waves - sine_waves.mean(dim=1, keepdim=True)
 
-        return sine_waves
-    
-class SourceModuleHnNSF(torch.nn.Module):
-    def __init__(self, sampling_rate, harmonic_num=0, sine_amp=0.1, add_noise_std=0.003, voiced_threshold=0):
-        super(SourceModuleHnNSF, self).__init__()
-        self.sine_amp = sine_amp
-        self.noise_std = add_noise_std
-        self.l_sin_gen = SineGenerator(sampling_rate, harmonic_num, sine_amp, add_noise_std, voiced_threshold)
-        self.l_linear = torch.nn.Linear(harmonic_num + 1, 1)
-        self.l_tanh = torch.nn.Tanh()
-
-    def forward(self, x):
-        return self.l_tanh(self.l_linear(self.l_sin_gen(x).to(dtype=self.l_linear.weight.dtype)))
+        return self.merge(sine_waves)
     
 class RefineGANGenerator(torch.nn.Module):
     def __init__(self, *, sample_rate = 44100, downsample_rates = (2, 2, 8, 8), upsample_rates = (8, 8, 2, 2), leaky_relu_slope = 0.2, num_mels = 128, start_channels = 16, gin_channels = 256, checkpointing = False):
@@ -112,9 +102,9 @@ class RefineGANGenerator(torch.nn.Module):
         self.upsample_rates = upsample_rates
         self.checkpointing = checkpointing
         self.leaky_relu_slope = leaky_relu_slope
-        self.f0_upsample = torch.nn.Upsample(scale_factor=np.prod(upsample_rates))
-        self.m_source = SourceModuleHnNSF(sample_rate, harmonic_num=8)
-        self.source_conv = weight_norm(torch.nn.Conv1d(in_channels=1, out_channels=start_channels, kernel_size=7, stride=1, padding=3))
+        self.upp = np.prod(upsample_rates)
+        self.m_source = SineGenerator(sample_rate)
+        self.source_conv = weight_norm(torch.nn.Conv1d(in_channels=1, out_channels=start_channels, kernel_size=7, stride=1, padding=3, bias=False))
         channels = start_channels
         self.downsample_blocks = torch.nn.ModuleList([])
 
@@ -139,7 +129,7 @@ class RefineGANGenerator(torch.nn.Module):
         self.conv_post = weight_norm(torch.nn.Conv1d(in_channels=channels, out_channels=1, kernel_size=7, stride=1, padding=3))
 
     def forward(self, mel, f0, g = None):
-        har_source = self.m_source(self.f0_upsample(f0[:, None, :]).transpose(-1, -2)).transpose(-1, -2)
+        har_source = self.m_source(torch.nn.functional.interpolate(f0.unsqueeze(1), size=mel.shape[-1] * self.upp, mode="linear").transpose(1, 2)).transpose(1, 2)
         x = self.source_conv(har_source)
         downs = []
 

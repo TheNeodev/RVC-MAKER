@@ -177,24 +177,34 @@ class MelSpectrogram(torch.nn.Module):
         return torch.log(torch.clamp(mel_output, min=self.clamp))
 
 class RMVPE:
-    def __init__(self, model_path, device=None):
+    def __init__(self, model_path, device=None, providers=None, onnx=False):
         self.resample_kernel = {}
-        model = E2E(4, 1, (2, 2))
-        ckpt = torch.load(model_path, map_location="cpu")
-        model.load_state_dict(ckpt)
-        model.eval()
-        self.model = model
+        self.onnx = onnx
+
+        if self.onnx:
+            import onnxruntime as ort
+
+            self.model = ort.InferenceSession(model_path, providers=providers)
+        else:
+            model = E2E(4, 1, (2, 2))
+            ckpt = torch.load(model_path, map_location="cpu")
+            model.load_state_dict(ckpt)
+            model.eval()
+            self.model = model.to(device)
+
         self.resample_kernel = {}
         self.device = device
         self.mel_extractor = MelSpectrogram(N_MELS, 16000, 1024, 160, None, 30, 8000).to(device)
-        self.model = self.model.to(device)
         cents_mapping = 20 * np.arange(N_CLASS) + 1997.3794084376191
         self.cents_mapping = np.pad(cents_mapping, (4, 4))
 
     def mel2hidden(self, mel):
         with torch.no_grad():
             n_frames = mel.shape[-1]
-            return self.model(F.pad(mel, (0, 32 * ((n_frames - 1) // 32 + 1) - n_frames), mode="reflect"))[:, :n_frames]
+            mel = F.pad(mel, (0, 32 * ((n_frames - 1) // 32 + 1) - n_frames), mode="reflect")
+            hidden = self.model.run([self.model.get_outputs()[0].name], input_feed={self.model.get_inputs()[0].name: mel.cpu().numpy()})[0] if self.onnx else self.model(mel.float())
+
+            return hidden[:, :n_frames]
 
     def decode(self, hidden, thred=0.03):
         f0 = 10 * (2 ** (self.to_local_average_cents(hidden, thred=thred) / 1200))
@@ -202,7 +212,17 @@ class RMVPE:
         return f0
 
     def infer_from_audio(self, audio, thred=0.03):
-        return self.decode(self.mel2hidden(self.mel_extractor(torch.from_numpy(audio).float().to(self.device).unsqueeze(0), center=True)).squeeze(0).cpu().numpy(), thred=thred)
+        hidden = self.mel2hidden(self.mel_extractor(torch.from_numpy(audio).float().to(self.device).unsqueeze(0), center=True))
+
+        return self.decode(hidden.squeeze(0).cpu().numpy() if not self.onnx else hidden[0], thred=thred)
+    
+    def infer_from_audio_with_pitch(self, audio, thred=0.03, f0_min=50, f0_max=1100):
+        hidden = self.mel2hidden(self.mel_extractor(torch.from_numpy(audio).float().to(self.device).unsqueeze(0), center=True))
+
+        f0 = self.decode(hidden.squeeze(0).cpu().numpy() if not self.onnx else hidden[0], thred=thred)
+        f0[(f0 < f0_min) | (f0 > f0_max)] = 0  
+
+        return f0
 
     def to_local_average_cents(self, salience, thred=0.05):
         center = np.argmax(salience, axis=1)

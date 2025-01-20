@@ -6,8 +6,8 @@ Công cụ chuyển đổi giọng nói chất lượng và hiệu suất cao đ
 [![Vietnamese RVC](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/PhamHuynhAnh16/Vietnamese-RVC)
 [![Open In Colab](https://img.shields.io/badge/Colab-F9AB00?style=for-the-badge&logo=googlecolab&color=525252)](https://colab.research.google.com/drive/18Ed5HbwcX0di6aJymX0EaUNz-xXU5uUc?hl=vi#scrollTo=ers351v_CMGN)
 [![Licence](https://img.shields.io/github/license/saltstack/salt?style=for-the-badge)](https://github.com/PhamHuynhAnh16/Vietnamese-RVC/blob/main/LICENSE)
-</div>
 
+</div>
 
 <div align="center">
 
@@ -45,7 +45,7 @@ Dự án này là một công cụ chuyển đổi giọng nói đơn giản, d�
 - B2: **Cài đặt ffmpeg từ [FFMPEG](https://github.com/BtbN/FFmpeg-Builds/releases) giải nén và thêm vào PATH**
 - B2: **Tải mã nguồn về và giải nén ra**
 - B3: **Vào thư mục mã nguồn và mở Command Prompt hoặc Terminal**
-- B4: **Nhập lệnh để cài đặt thư viện cần thiết để hoặc động**
+- B4: **Nhập lệnh để cài đặt thư viện cần thiết để hoạt động**
 ```
 python -m venv env
 env\\Scripts\\activate
@@ -181,9 +181,7 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 
 - **Hiện tại các bộ mã hóa mới như MRF HIFIGAN và REFINEGAN vẫn chưa đầy đủ các bộ huấn luyện trước**
 - **Bộ mã hóa MRF HIFIGAN và REFINEGAN không hỗ trợ huấn luyện khi không không huấn luyện cao độ**
-
-- **MRF HIFIGAN chưa có bất cứ huấn luyện trước nào**
-- **REFINEGAN thiếu các huấn luyện v1, các huấn luyện không cao độ và mô hình 32k của v2**
+- **MRF HIFIGAN và REFINEGAN chưa có bất cứ huấn luyện trước nào**
 
 # Điều khoản sử dụng
 
@@ -198,20 +196,21 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 # Dự án dựa trên các dự án chính như
 
 - **[Applio](https://github.com/IAHispano/Applio/tree/main)**
-- **[Retrieval-based-Voice-Conversion-WebUI](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/tree/main)**
 - **[Python-audio-separator](https://github.com/nomadkaraoke/python-audio-separator/tree/main)**
+- **[Retrieval-based-Voice-Conversion-WebUI](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/tree/main)**
 
 **và một số dự án khác**
 
-- **[Local attention](https://github.com/lucidrains/local-attention)**
-- **[Noise reduce](https://github.com/timsainb/noisereduce)**
-- **[Torchcrepe](https://github.com/maxrmorrison/torchcrepe)**
+- **[Torch-Onnx-Crepe](https://github.com/PhamHuynhAnh16/TORCH-ONNX-CREPE)**
+- **[Local-attention](https://github.com/lucidrains/local-attention)**
+- **[FcpeONNX](https://huggingface.co/deiteris/weights/tree/main)**
+- **[ContentVec](https://github.com/auspicious3000/contentvec)**
 - **[Mediafiredl](https://github.com/Gann4Life/mediafiredl)**
-- **[Edge TTS](https://github.com/rany2/edge-tts)**
+- **[Noisereduce](https://github.com/timsainb/noisereduce)**
+- **[World.py](https://github.com/PhamHuynhAnh16/world.py)**
 - **[Mega.py](https://github.com/odwyersoftware/mega.py)**
+- **[Edge-TTS](https://github.com/rany2/edge-tts)**
 - **[Gdown](https://github.com/wkentaro/gdown)**
-- **[World](https://github.com/PhamHuynhAnh16/world.py)**
-- **[Content Vec](https://github.com/auspicious3000/contentvec)**
 
 # Báo cáo lỗi
 

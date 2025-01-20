@@ -10,7 +10,7 @@ from main.configs.config import Config
 translations = Config().translations
 
 @torch.no_grad()
-def amp_to_db(x, eps = torch.finfo(torch.float64).eps, top_db = 40):
+def amp_to_db(x, eps = torch.finfo(torch.float32).eps, top_db = 40):
     x_db = 20 * torch.log10(x.abs() + eps)
     return torch.max(x_db, (x_db.max(-1).values - top_db).unsqueeze(-1))
 

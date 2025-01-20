@@ -76,12 +76,12 @@ class LocalAttention(nn.Module):
         mask = default(mask, input_mask)
         assert not (exists(window_size) and not self.use_xpos)
 
-        shape, autopad, pad_value, window_size, causal, look_backward, look_forward, shared_qk = q.shape, self.autopad, -1, default(window_size, self.window_size), self.causal, self.look_backward, self.look_forward, self.shared_qk
+        _, autopad, pad_value, window_size, causal, look_backward, look_forward, shared_qk = q.shape, self.autopad, -1, default(window_size, self.window_size), self.causal, self.look_backward, self.look_forward, self.shared_qk
         (q, packed_shape), (k, _), (v, _) = map(lambda t: pack([t], '* n d'), (q, k, v))
 
         if autopad:
             orig_seq_len = q.shape[1]
-            (needed_pad, q), (_, k), (_, v) = map(lambda t: pad_to_multiple(t, self.window_size, dim = -2), (q, k, v))
+            (_, q), (_, k), (_, v) = map(lambda t: pad_to_multiple(t, self.window_size, dim = -2), (q, k, v))
 
         b, n, dim_head, device, dtype = *q.shape, q.device, q.dtype
         scale = default(self.scale, dim_head ** -0.5)
@@ -140,7 +140,6 @@ class LocalAttention(nn.Module):
 
         out = rearrange(einsum('b h i j, b h j e -> b h i e', self.dropout(sim.softmax(dim = -1)), bv), 'b w n d -> b (w n) d')
         if autopad: out = out[:, :orig_seq_len, :]
-
         out, *_ = unpack(out, packed_shape, '* n d')
         return out
     
@@ -393,7 +392,6 @@ class FastAttention(nn.Module):
     def redraw_projection_matrix(self):
         projections = self.create_projection()
         self.projection_matrix.copy_(projections)
-
         del projections
 
     def forward(self, q, k, v):
@@ -427,7 +425,6 @@ class SelfAttention(nn.Module):
 
     def forward(self, x, context=None, mask=None, context_mask=None, name=None, inference=False, **kwargs):
         _, _, _, h, gh = *x.shape, self.heads, self.global_heads
-
         cross_attend = exists(context)
         context = default(context, x)
         context_mask = default(context_mask, mask) if not cross_attend else context_mask
@@ -466,7 +463,6 @@ class _FCPE(nn.Module):
         super().__init__()
         if use_siren: raise ValueError("Siren not support")
         if use_full: raise ValueError("Model full not support")
-
         self.loss_mse_scale = loss_mse_scale if (loss_mse_scale is not None) else 10
         self.loss_l2_regularization = (loss_l2_regularization if (loss_l2_regularization is not None) else False)
         self.loss_l2_regularization_scale = (loss_l2_regularization_scale if (loss_l2_regularization_scale is not None) else 1)
@@ -494,9 +490,7 @@ class _FCPE(nn.Module):
 
         if not infer:
             loss_all = self.loss_mse_scale * F.binary_cross_entropy(x, self.gaussian_blurred_cent(self.f0_to_cent(gt_f0)))
-
             if self.loss_l2_regularization: loss_all = loss_all + l2_regularization(model=self, l2_alpha=self.loss_l2_regularization_scale)
-
             x = loss_all
 
         if infer:
@@ -540,37 +534,46 @@ class _FCPE(nn.Module):
 
     def gaussian_blurred_cent(self, cents):
         B, N, _ = cents.size()
-
         return torch.exp(-torch.square(self.cent_table[None, None, :].expand(B, N, -1) - cents) / 1250) * (cents > 0.1) & (cents < (1200.0 * np.log2(self.f0_max / 10.0))).float()
 
 class FCPEInfer:
-    def __init__(self, model_path, device=None, dtype=torch.float32):
+    def __init__(self, model_path, device=None, dtype=torch.float32, providers=None, onnx=False):
         if device is None: device = "cuda" if torch.cuda.is_available() else "cpu"
-
+        self.wav2mel = Wav2Mel(device=device, dtype=dtype)
         self.device = device
-        ckpt = torch.load(model_path, map_location=torch.device(self.device))
-        self.args = DotDict(ckpt["config"])
         self.dtype = dtype
-        model = _FCPE(input_channel=self.args.model.input_channel, out_dims=self.args.model.out_dims, n_layers=self.args.model.n_layers, n_chans=self.args.model.n_chans, use_siren=self.args.model.use_siren, use_full=self.args.model.use_full, loss_mse_scale=self.args.loss.loss_mse_scale, loss_l2_regularization=self.args.loss.loss_l2_regularization, loss_l2_regularization_scale=self.args.loss.loss_l2_regularization_scale, loss_grad1_mse=self.args.loss.loss_grad1_mse, loss_grad1_mse_scale=self.args.loss.loss_grad1_mse_scale, f0_max=self.args.model.f0_max, f0_min=self.args.model.f0_min, confidence=self.args.model.confidence)
-        model.to(self.device).to(self.dtype)
-        model.load_state_dict(ckpt["model"])
-        model.eval()
-        self.model = model
-        self.wav2mel = Wav2Mel(self.args, dtype=self.dtype, device=self.device)
+        self.onnx = onnx
+
+        if self.onnx:
+            import onnxruntime as ort
+
+            self.model = ort.InferenceSession(model_path, providers=providers)
+        else:
+            ckpt = torch.load(model_path, map_location=torch.device(self.device))
+            self.args = DotDict(ckpt["config"])
+            model = _FCPE(input_channel=self.args.model.input_channel, out_dims=self.args.model.out_dims, n_layers=self.args.model.n_layers, n_chans=self.args.model.n_chans, use_siren=self.args.model.use_siren, use_full=self.args.model.use_full, loss_mse_scale=self.args.loss.loss_mse_scale, loss_l2_regularization=self.args.loss.loss_l2_regularization, loss_l2_regularization_scale=self.args.loss.loss_l2_regularization_scale, loss_grad1_mse=self.args.loss.loss_grad1_mse, loss_grad1_mse_scale=self.args.loss.loss_grad1_mse_scale, f0_max=self.args.model.f0_max, f0_min=self.args.model.f0_min, confidence=self.args.model.confidence)
+
+            model.to(self.device).to(self.dtype)
+            model.load_state_dict(ckpt["model"])
+
+            model.eval()
+            self.model = model
 
     @torch.no_grad()
     def __call__(self, audio, sr, threshold=0.05):
-        self.model.threshold = threshold
-        return self.model(mel=self.wav2mel(audio=audio[None, :], sample_rate=sr).to(self.dtype), infer=True, return_hz_f0=True)
+        if not self.onnx: self.model.threshold = threshold
+        mel = self.wav2mel(audio=audio[None, :], sample_rate=sr).to(self.dtype)
+
+        return torch.as_tensor(self.model.run(["pitchf"], {"mel": mel.detach().cpu().numpy(), "threshold": np.array(threshold, dtype=np.float32)})[0], dtype=self.dtype, device=self.device).squeeze() if self.onnx else self.model(mel=mel, infer=True, return_hz_f0=True)
 
 class Wav2Mel:
-    def __init__(self, args, device=None, dtype=torch.float32):
-        self.sample_rate = args.mel.sampling_rate
-        self.hop_size = args.mel.hop_size
+    def __init__(self, device=None, dtype=torch.float32):
+        self.sample_rate = 16000
+        self.hop_size = 160
         if device is None: device = "cuda" if torch.cuda.is_available() else "cpu"
         self.device = device
         self.dtype = dtype
-        self.stft = STFT(args.mel.sampling_rate, args.mel.num_mels, args.mel.n_fft, args.mel.win_size, args.mel.hop_size, args.mel.fmin, args.mel.fmax)
+        self.stft = STFT(16000, 128, 1024, 1024, 160, 0, 8000)
         self.resample_kernel = {}
 
     def extract_nvstft(self, audio, keyshift=0, train=False):
@@ -607,16 +610,9 @@ class DotDict(dict):
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
 
-class F0Predictor(object):
-    def compute_f0(self, wav, p_len): 
-        pass
-
-    def compute_f0_uv(self, wav, p_len): 
-        pass
-
-class FCPE(F0Predictor):
-    def __init__(self, model_path, hop_length=512, f0_min=50, f0_max=1100, dtype=torch.float32, device=None, sample_rate=44100, threshold=0.05):
-        self.fcpe = FCPEInfer(model_path, device=device, dtype=dtype)
+class FCPE:
+    def __init__(self, model_path, hop_length=512, f0_min=50, f0_max=1100, dtype=torch.float32, device=None, sample_rate=44100, threshold=0.05, providers=None, onnx=False):
+        self.fcpe = FCPEInfer(model_path, device=device, dtype=dtype, providers=providers, onnx=onnx)
         self.hop_length = hop_length
         self.f0_min = f0_min
         self.f0_max = f0_max
@@ -656,15 +652,9 @@ class FCPE(F0Predictor):
     def compute_f0(self, wav, p_len=None):
         x = torch.FloatTensor(wav).to(self.dtype).to(self.device)
         p_len = x.shape[0] // self.hop_length if p_len is None else p_len
-        f0 = self.fcpe(x, sr=self.sample_rate, threshold=self.threshold)[0, :, 0]
+
+        f0 = self.fcpe(x, sr=self.sample_rate, threshold=self.threshold)
+        f0 = f0[:] if f0.dim() == 1 else f0[0, :, 0]
 
         if torch.all(f0 == 0): return f0.cpu().numpy() if p_len is None else np.zeros(p_len), (f0.cpu().numpy() if p_len is None else np.zeros(p_len))
         return self.post_process(x, self.sample_rate, f0, p_len)[0]
-    
-    def compute_f0_uv(self, wav, p_len=None):
-        x = torch.FloatTensor(wav).to(self.dtype).to(self.device)
-        p_len = x.shape[0] // self.hop_length if p_len is None else p_len
-        f0 = self.fcpe(x, sr=self.sample_rate, threshold=self.threshold)[0, :, 0]
-
-        if torch.all(f0 == 0): return f0.cpu().numpy() if p_len is None else np.zeros(p_len), (f0.cpu().numpy() if p_len is None else np.zeros(p_len))
-        return self.post_process(x, self.sample_rate, f0, p_len)
