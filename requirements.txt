@@ -1,5 +1,5 @@
 # Platform-specific requirements section
-pip>=23.3
+pip==23.3
 onnxruntime
 onnxruntime-gpu
 
