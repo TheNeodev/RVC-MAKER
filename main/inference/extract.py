@@ -8,6 +8,7 @@ import librosa
 import logging
 import argparse
 import warnings
+import parselmouth
 import logging.handlers
 
 import numpy as np
@@ -15,11 +16,19 @@ import soundfile as sf
 import torch.nn.functional as F
 
 from random import shuffle
+from multiprocessing import Pool
 from distutils.util import strtobool
+from fairseq import checkpoint_utils
+from functools import partial, lru_cache
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.append(os.getcwd())
 
 from main.configs.config import Config
+from main.library.predictors.FCPE import FCPE
+from main.library.predictors.RMVPE import RMVPE
+from main.library.predictors.CREPE import predict, mean, median
+from main.library.predictors.WORLD import harvest, dio, stonemask
 from main.library.utils import check_predictors, check_embedders, load_audio
 
 logger = logging.getLogger(__name__)
@@ -225,18 +234,16 @@ class FeatureInput:
         elif "hybrid" in f0_method: return self.compute_f0_hybrid(f0_method, np_arr, int(hop_length))
         else: raise ValueError(translations["method_not_valid"])
 
+    @lru_cache
     def get_pm(self, x):
-        import parselmouth
-        
         f0 = (parselmouth.Sound(x, self.fs).to_pitch_ac(time_step=(160 / 16000 * 1000) / 1000, voicing_threshold=0.6, pitch_floor=50, pitch_ceiling=1100).selected_array["frequency"])
         pad_size = ((x.size // self.hop) - len(f0) + 1) // 2
 
         if pad_size > 0 or (x.size // self.hop) - len(f0) - pad_size > 0: f0 = np.pad(f0, [[pad_size, (x.size // self.hop) - len(f0) - pad_size]], mode="constant")
         return f0
     
+    @lru_cache
     def get_mangio_crepe(self, x, hop_length, model="full", onnx=False):
-        from main.library.predictors.CREPE import predict
-
         providers = self.get_providers() if onnx else None
 
         audio = torch.from_numpy(x.astype(np.float32)).to(self.device)
@@ -248,9 +255,8 @@ class FeatureInput:
 
         return np.nan_to_num(np.interp(np.arange(0, len(source) * (x.size // self.hop), len(source)) / (x.size // self.hop), np.arange(0, len(source)), source))
     
+    @lru_cache
     def get_crepe(self, x, model="full", onnx=False):
-        from main.library.predictors.CREPE import predict, mean, median
-
         providers = self.get_providers() if onnx else None
         
         f0, pd = predict(torch.tensor(np.copy(x))[None].float(), self.fs, 160, self.f0_min, self.f0_max, model, batch_size=512, device=self.device, return_periodicity=True, providers=providers, onnx=onnx)
@@ -259,9 +265,8 @@ class FeatureInput:
 
         return f0[0].cpu().numpy()
     
+    @lru_cache
     def get_fcpe(self, x, hop_length, legacy=False, onnx=False):
-        from main.library.predictors.FCPE import FCPE
-
         providers = self.get_providers() if onnx else None
 
         model_fcpe = FCPE(os.path.join("assets", "models", "predictors", "fcpe" + (".onnx" if onnx else ".pt")), hop_length=int(hop_length), f0_min=int(self.f0_min), f0_max=int(self.f0_max), dtype=torch.float32, device=self.device, sample_rate=self.fs, threshold=0.03, providers=providers, onnx=onnx) if legacy else FCPE(os.path.join("assets", "models", "predictors", "fcpe" + (".onnx" if onnx else ".pt")), hop_length=160, f0_min=0, f0_max=8000, dtype=torch.float32, device=self.device, sample_rate=self.fs, threshold=0.006, providers=providers, onnx=onnx)
@@ -269,10 +274,9 @@ class FeatureInput:
 
         del model_fcpe
         return f0
-
+    
+    @lru_cache
     def get_rmvpe(self, x, legacy=False, onnx=False):
-        from main.library.predictors.RMVPE import RMVPE
-
         providers = self.get_providers() if onnx else None
 
         rmvpe_model = RMVPE(os.path.join("assets", "models", "predictors", "rmvpe" + (".onnx" if onnx else ".pt")), device=self.device, onnx=onnx, providers=providers)
@@ -280,22 +284,23 @@ class FeatureInput:
 
         del rmvpe_model
         return f0
-
+    
+    @lru_cache
     def get_pyworld(self, x, model="harvest"):
-        import main.library.predictors.WORLD as pw
-
-        if model == "harvest":  f0, t = pw.harvest(x.astype(np.double),  fs=self.fs, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=1000 * self.hop / self.fs)
-        elif model == "dio": f0, t = pw.dio(x.astype(np.double), fs=self.fs, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=1000 * self.hop / self.fs)
+        if model == "harvest":  f0, t = harvest(x.astype(np.double),  fs=self.fs, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=1000 * self.hop / self.fs)
+        elif model == "dio": f0, t = dio(x.astype(np.double), fs=self.fs, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=1000 * self.hop / self.fs)
         else: raise ValueError(translations["method_not_valid"])
 
-        return pw.stonemask(x.astype(np.double), self.fs, t, f0)
+        return stonemask(x.astype(np.double), self.fs, t, f0)
     
+    @lru_cache
     def get_yin(self, x, hop_length):
         source = np.array(librosa.yin(x.astype(np.double), sr=self.fs, fmin=self.f0_min, fmax=self.f0_max, hop_length=hop_length))
         source[source < 0.001] = np.nan
 
         return np.nan_to_num(np.interp(np.arange(0, len(source) * (x.size // self.hop), len(source)) / (x.size // self.hop), np.arange(0, len(source)), source))
     
+    @lru_cache
     def get_pyin(self, x, hop_length):
         f0, _, _ = librosa.pyin(x.astype(np.double), fmin=self.f0_min, fmax=self.f0_max, sr=self.fs, hop_length=hop_length)
 
@@ -343,8 +348,6 @@ def run_pitch_extraction(exp_dir, f0_method, hop_length, num_processes, gpus):
             feature_input = FeatureInput(device=get_device(gpu))
             process_partials.append((feature_input, paths[idx::len(gpus)]))
 
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-
         with ThreadPoolExecutor() as executor:
             for future in as_completed([executor.submit(FeatureInput.process_files, feature_input, part_paths, f0_method, hop_length, pbar) for feature_input, part_paths in process_partials]):
                 pbar.update(1)
@@ -353,9 +356,6 @@ def run_pitch_extraction(exp_dir, f0_method, hop_length, num_processes, gpus):
 
         pbar.close()
     else:
-        from functools import partial
-        from multiprocessing import Pool
-
         with tqdm.tqdm(total=len(paths), desc=translations["extract_f0"], ncols=100, unit="p") as pbar:
             with Pool(processes=num_processes) as pool:
                 for _ in pool.imap_unordered(partial(FeatureInput(device="cpu").process_file, f0_method=f0_method, hop_length=hop_length), paths):
@@ -389,7 +389,6 @@ def run_embedding_extraction(exp_dir, version, gpus, embedder_model):
     start_time = time.time()
 
     try:
-        from fairseq import checkpoint_utils
         models, saved_cfg, _ = checkpoint_utils.load_model_ensemble_and_task([os.path.join("assets", "models", "embedders", embedder_model + '.pt')], suffix="")
     except Exception as e:
         raise ImportError(translations["read_model_error"].format(e=e))
@@ -439,16 +438,8 @@ if __name__ == "__main__":
         logger.addHandler(file_handler)
         logger.setLevel(logging.DEBUG)
 
-    logger.debug(f"{translations['modelname']}: {args.model_name}")
-    logger.debug(f"{translations['export_process']}: {exp_dir}")
-    logger.debug(f"{translations['f0_method']}: {f0_method}")
-    logger.debug(f"{translations['pretrain_sr']}: {sample_rate}")
-    logger.debug(f"{translations['cpu_core']}: {num_processes}")
-    logger.debug(f"Gpu: {gpus}")
-    logger.debug(f"Hop length: {hop_length}")
-    logger.debug(f"{translations['training_version']}: {version}")
-    logger.debug(f"{translations['extract_f0']}: {pitch_guidance}")
-    logger.debug(f"{translations['hubert_model']}: {embedder_model}")
+    log_data = {translations['modelname']: args.model_name, translations['export_process']: exp_dir, translations['f0_method']: f0_method, translations['pretrain_sr']: sample_rate, translations['cpu_core']: num_processes, "Gpu": gpus, "Hop length": hop_length, translations['training_version']: version, translations['extract_f0']: pitch_guidance, translations['hubert_model']: embedder_model}
+    logger.debug("\n\n".join([f"{key}: {value}" for key, value in log_data.items()]))
 
     pid_path = os.path.join(exp_dir, "extract_pid.txt")
     with open(pid_path, "w") as pid_file:
@@ -457,7 +448,6 @@ if __name__ == "__main__":
     try:
         run_pitch_extraction(exp_dir, f0_method, hop_length, num_processes, gpus)
         run_embedding_extraction(exp_dir, version, gpus, embedder_model)
-
         generate_config(version, sample_rate, exp_dir)
         generate_filelist(pitch_guidance, exp_dir, version, sample_rate)
     except Exception as e:

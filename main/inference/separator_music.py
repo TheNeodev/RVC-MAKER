@@ -5,11 +5,13 @@ import logging
 import argparse
 import logging.handlers
 
+from pydub import AudioSegment
 from distutils.util import strtobool
 
 sys.path.append(os.getcwd())
 
 from main.configs.config import Config
+from main.library.utils import convert_to_float32
 from main.library.algorithm.separator import Separator
 
 translations = Config().translations 
@@ -64,23 +66,7 @@ def main():
 
     try:
         args = parse_arguments()
-        input_path = args.input_path
-        output_path = args.output_path
-        export_format = args.format
-        shifts = args.shifts
-        segments_size = args.segments_size
-        overlap = args.overlap
-        hop_length = args.mdx_hop_length
-        batch_size = args.mdx_batch_size
-        clean_audio = args.clean_audio
-        clean_strength = args.clean_strength
-        model_name = args.model_name
-        kara_model = args.kara_model
-        backing = args.backing
-        mdx_denoise = args.mdx_denoise
-        reverb = args.reverb
-        backing_reverb = args.backing_reverb
-        sample_rate = args.sample_rate
+        input_path, output_path, export_format, shifts, segments_size, overlap, hop_length, batch_size, clean_audio, clean_strength, model_name, kara_model, backing, mdx_denoise, reverb, backing_reverb, sample_rate = args.input_path, args.output_path, args.format, args.shifts, args.segments_size, args.overlap, args.mdx_hop_length, args.mdx_batch_size, args.clean_audio, args.clean_strength, args.model_name, args.kara_model, args.backing, args.mdx_denoise, args.reverb, args.backing_reverb, args.sample_rate
 
         if backing_reverb and not reverb: 
             logger.warning(translations["turn_on_dereverb"])
@@ -90,23 +76,21 @@ def main():
             logger.warning(translations["turn_on_separator_backing"])
             sys.exit(1)
 
-        logger.debug(f"{translations['audio_path']}: {input_path}")
-        logger.debug(f"{translations['output_path']}: {output_path}")
-        logger.debug(f"{translations['export_format']}: {export_format}")
-        logger.debug(f"{translations['shift']}: {shifts}") 
-        logger.debug(f"{translations['segments_size']}: {segments_size}")
-        logger.debug(f"{translations['overlap']}: {overlap}")
-        if clean_audio: logger.debug(f"{translations['clear_audio']}: {clean_audio}")
-        if clean_audio: logger.debug(f"{translations['clean_strength']}: {clean_strength}")
-        logger.debug(f"{translations['modelname']}: {model_name}")
-        if backing: logger.debug(f"{translations['backing_model_ver']}: {kara_model}")
-        if backing: logger.debug(f"{translations['separator_backing']}: {backing}")
-        logger.debug(f"{translations['denoise_mdx']}: {mdx_denoise}")
-        logger.debug(f"Hop length: {hop_length}")
-        logger.debug(f"{translations['batch_size']}: {batch_size}")
-        if reverb: logger.debug(f"{translations['dereveb_audio']}: {reverb}")
-        if reverb: logger.debug(f"{translations['dereveb_backing']}: {backing_reverb}")
-        logger.debug(f"{translations['sr']}: {sample_rate}")
+        log_data = {translations['audio_path']: input_path, translations['output_path']: output_path, translations['export_format']: export_format, translations['shift']: shifts, translations['segments_size']: segments_size, translations['overlap']: overlap, translations['modelname']: model_name, translations['denoise_mdx']: mdx_denoise, "Hop length": hop_length, translations['batch_size']: batch_size, translations['sr']: sample_rate}
+
+        if clean_audio:
+            log_data[translations['clear_audio']] = clean_audio
+            log_data[translations['clean_strength']] = clean_strength
+
+        if backing:
+            log_data[translations['backing_model_ver']] = kara_model
+            log_data[translations['separator_backing']] = backing
+
+        if reverb:
+            log_data[translations['dereveb_audio']] = reverb
+            log_data[translations['dereveb_backing']] = backing_reverb
+
+        logger.debug("\n\n".join([f"{key}: {value}" for key, value in log_data.items()]))
 
         if model_name in ["HT-Tuned", "HT-Normal", "HD_MMI", "HT_6S"]: vocals, instruments = separator_music_demucs(input_path, output_path, export_format, shifts, overlap, segments_size, model_name, sample_rate)
         else: vocals, instruments = separator_music_mdx(input_path, output_path, export_format, segments_size, overlap, mdx_denoise, model_name, hop_length, batch_size, sample_rate)
@@ -122,6 +106,7 @@ def main():
             import soundfile as sf
 
             logger.info(f"{translations['clear_audio']}...")
+
             vocal_data, vocal_sr = sf.read(vocals_no_reverb if reverb else vocals)
             main_data, main_sr = sf.read(main_vocals_no_reverb if reverb and backing else main_vocals)
             backing_data, backing_sr = sf.read(backing_vocals_no_reverb if reverb and backing_reverb else backing_vocals)
@@ -131,7 +116,8 @@ def main():
 
             if backing:
                 sf.write(main_output, reduce_noise(y=main_data, sr=main_sr, prop_decrease=clean_strength), main_sr, format=export_format)
-                sf.write(backing_output, reduce_noise(y=backing_data, sr=backing_sr, prop_decrease=clean_strength), backing_sr, format=export_format)          
+                sf.write(backing_output, reduce_noise(y=backing_data, sr=backing_sr, prop_decrease=clean_strength), backing_sr, format=export_format)  
+
             logger.info(translations["clean_audio_success"])
             return original_output, instruments, main_output, backing_output
     except Exception as e:
@@ -162,13 +148,13 @@ def separator_music_demucs(input, output, format, shifts, overlap, segments_size
     for f in demucs_output:
         path = os.path.join(output, f)
         if not os.path.exists(path): logger.error(translations["not_found"].format(name=path))
+
         if '_(Drums)_' in f: drums = path
         elif '_(Bass)_' in f: bass = path
         elif '_(Other)_' in f: other = path
         elif '_(Vocals)_' in f: os.rename(path, os.path.join(output, f"Original_Vocals.{format}"))
 
-    from pydub import AudioSegment
-    AudioSegment.from_file(drums).overlay(AudioSegment.from_file(bass)).overlay(AudioSegment.from_file(other)).export(os.path.join(output, f"Instruments.{format}"), format=format)
+    convert_to_float32(AudioSegment.from_file(drums)).overlay(convert_to_float32(AudioSegment.from_file(bass))).overlay(convert_to_float32(AudioSegment.from_file(other))).export(os.path.join(output, f"Instruments.{format}"), format=format)
 
     for f in [drums, bass, other]:
         if os.path.exists(f): os.remove(f)
@@ -190,6 +176,7 @@ def separator_backing(input, output, format, segments_size, overlap, denoise, ka
 
     model_2 = kara_models.get(kara_model)
     logger.info(f"{translations['separator_process_backing']}...")
+
     backing_outputs = separator_main(audio_file=input, model_filename=model_2, output_format=format, output_dir=output, mdx_segment_size=segments_size, mdx_overlap=overlap, mdx_batch_size=batch_size, mdx_hop_length=hop_length, mdx_enable_denoise=denoise, sample_rate=sample_rate)
     main_output = os.path.join(output, f"Main_Vocals.{format}")
     backing_output = os.path.join(output, f"Backing_Vocals.{format}")
@@ -217,6 +204,7 @@ def separator_music_mdx(input, output, format, segments_size, overlap, denoise, 
     
     model_3 = mdx_models.get(mdx_model)
     logger.info(f"{translations['separator_process_2']}...")
+
     output_music = separator_main(audio_file=input, model_filename=model_3, output_format=format, output_dir=output, mdx_segment_size=segments_size, mdx_overlap=overlap, mdx_batch_size=batch_size, mdx_hop_length=hop_length, mdx_enable_denoise=denoise, sample_rate=sample_rate)
     original_output, instruments_output = os.path.join(output, f"Original_Vocals.{format}"), os.path.join(output, f"Instruments.{format}")
 
@@ -277,9 +265,11 @@ def separator_reverb(output, format, segments_size, overlap, denoise, original, 
 
         logger.info(start_title)
         output_dereveb = separator_main(audio_file=path, model_filename="Reverb_HQ_By_FoxJoy.onnx", output_format=format, output_dir=output, mdx_segment_size=segments_size, mdx_overlap=overlap, mdx_batch_size=batch_size, mdx_hop_length=hop_length, mdx_enable_denoise=denoise, sample_rate=sample_rate)
+
         for f in output_dereveb:
             path = os.path.join(output, f)
             if not os.path.exists(path): logger.error(translations["not_found"].format(name=path))
+
             if '_(Reverb)_' in f: os.rename(path, reverb_path)
             elif '_(No Reverb)_' in f: os.rename(path, no_reverb_path)
 

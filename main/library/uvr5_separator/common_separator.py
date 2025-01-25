@@ -161,7 +161,7 @@ class CommonSeparator:
         self.logger.info(translations["duration"].format(duration_hours=f"{duration_hours:.2f}", duration_seconds=f"{duration_seconds:.2f}"))
 
         if duration_hours >= 1:
-            self.logger.warning(translations["write"].format(name="soundfile"))
+            self.logger.debug(translations["write"].format(name="soundfile"))
             self.write_audio_soundfile(stem_path, stem_source)
         else:
             self.logger.info(translations["write"].format(name="pydub"))

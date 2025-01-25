@@ -39,19 +39,16 @@ class Crepe(torch.nn.Module):
 
         self.conv1 = torch.nn.Conv2d(in_channels=in_channels[0], out_channels=out_channels[0], kernel_size=kernel_sizes[0], stride=strides[0])
         self.conv1_BN = batch_norm_fn(num_features=out_channels[0])
-
         self.conv2 = torch.nn.Conv2d(in_channels=in_channels[1], out_channels=out_channels[1], kernel_size=kernel_sizes[1], stride=strides[1])
         self.conv2_BN = batch_norm_fn(num_features=out_channels[1])
 
         self.conv3 = torch.nn.Conv2d(in_channels=in_channels[2], out_channels=out_channels[2], kernel_size=kernel_sizes[2], stride=strides[2])
         self.conv3_BN = batch_norm_fn(num_features=out_channels[2])
-
         self.conv4 = torch.nn.Conv2d(in_channels=in_channels[3], out_channels=out_channels[3], kernel_size=kernel_sizes[3], stride=strides[3])
         self.conv4_BN = batch_norm_fn(num_features=out_channels[3])
 
         self.conv5 = torch.nn.Conv2d(in_channels=in_channels[4], out_channels=out_channels[4], kernel_size=kernel_sizes[4], stride=strides[4])
         self.conv5_BN = batch_norm_fn(num_features=out_channels[4])
-
         self.conv6 = torch.nn.Conv2d(in_channels=in_channels[5], out_channels=out_channels[5], kernel_size=kernel_sizes[5], stride=strides[5])
         self.conv6_BN = batch_norm_fn(num_features=out_channels[5])
 
@@ -89,7 +86,10 @@ def predict(audio, sample_rate, hop_length=None, fmin=50, fmax=MAX_FMAX, model='
     if onnx:
         import onnxruntime as ort
 
-        session = ort.InferenceSession(os.path.join("assets", "models", "predictors", f"crepe_{model}.onnx"), providers=providers)
+        sess_options = ort.SessionOptions()
+        sess_options.log_severity_level = 3
+
+        session = ort.InferenceSession(os.path.join("assets", "models", "predictors", f"crepe_{model}.onnx"), sess_options=sess_options, providers=providers)
 
         for frames in preprocess(audio, sample_rate, hop_length, batch_size, device, pad):
             result = postprocess(torch.tensor(session.run([session.get_outputs()[0].name], {session.get_inputs()[0].name: frames.cpu().numpy()})[0].transpose(1, 0)[None]), fmin, fmax, return_periodicity)

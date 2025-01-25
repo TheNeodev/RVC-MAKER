@@ -13,6 +13,8 @@ from pedalboard import Pedalboard, Chorus, Distortion, Reverb, PitchShift, Delay
 sys.path.append(os.getcwd())
 
 from main.configs.config import Config
+from main.library.utils import convert_to_float32
+
 translations = Config().translations
 
 def parse_arguments():
@@ -80,14 +82,12 @@ def process_audio(input_path, output_path, resample, resample_sr, chorus_depth, 
     def bass_boost(audio, gain_db, frequency, sample_rate):
         if gain_db >= 1:
             b, a = butter(4, frequency / (0.5 * sample_rate), btype='low')
-
             return filtfilt(b, a, audio) * 10 ** (gain_db / 20)
         else: return audio
     
     def treble_boost(audio, gain_db, frequency, sample_rate):
         if gain_db >=1:
             b, a = butter(4, frequency / (0.5 * sample_rate), btype='high')
-            
             return filtfilt(b, a, audio) * 10 ** (gain_db / 20)
         else: return audio
 
@@ -160,7 +160,7 @@ def process_audio(input_path, output_path, resample, resample_sr, chorus_depth, 
 
         if audio_combination: 
             from pydub import AudioSegment
-            AudioSegment.from_file(audio_combination_input).overlay(AudioSegment.from_file(output_path)).export(output_path, format=export_format)
+            convert_to_float32(AudioSegment.from_file(audio_combination_input)).overlay(convert_to_float32(AudioSegment.from_file(output_path))).export(output_path, format=export_format)
     except Exception as e:
         raise RuntimeError(translations["apply_error"].format(e=e))
     return output_path

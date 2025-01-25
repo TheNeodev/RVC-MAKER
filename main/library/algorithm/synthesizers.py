@@ -3,6 +3,7 @@ import sys
 import math
 import torch
 
+import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
 
 from torch.nn.utils import remove_weight_norm
@@ -11,6 +12,8 @@ from torch.nn.utils.parametrizations import weight_norm
 sys.path.append(os.getcwd())
 
 from .modules import WaveNet
+from .refinegan import RefineGANGenerator
+from .mrf_hifigan import HiFiGANMRFGenerator
 from .residuals import ResidualCouplingBlock, ResBlock, LRELU_SLOPE
 from .commons import init_weights, slice_segments, rand_slice_segments, sequence_mask, convert_pad_shape
 
@@ -39,7 +42,7 @@ class Generator(torch.nn.Module):
             resblock_idx = 0
 
             for _ in range(self.num_upsamples):
-                x = self.ups_and_resblocks[resblock_idx](torch.nn.functional.leaky_relu(x, LRELU_SLOPE))
+                x = self.ups_and_resblocks[resblock_idx](F.leaky_relu(x, LRELU_SLOPE))
                 resblock_idx += 1
                 xs = 0
 
@@ -49,7 +52,7 @@ class Generator(torch.nn.Module):
 
                 x = xs / self.num_kernels
 
-            return torch.tanh(self.conv_post(torch.nn.functional.leaky_relu(x)))
+            return torch.tanh(self.conv_post(F.leaky_relu(x)))
 
     def __prepare_scriptable__(self):
         for l in self.ups_and_resblocks:
@@ -78,22 +81,28 @@ class SineGen(torch.nn.Module):
     def forward(self, f0, upp):
         with torch.no_grad():
             f0 = f0[:, None].transpose(1, 2)
+
             f0_buf = torch.zeros(f0.shape[0], f0.shape[1], self.dim, device=f0.device)
             f0_buf[:, :, 0] = f0[:, :, 0]
             f0_buf[:, :, 1:] = (f0_buf[:, :, 0:1] * torch.arange(2, self.harmonic_num + 2, device=f0.device)[None, None, :])
+
             rad_values = (f0_buf / float(self.sample_rate)) % 1
             rand_ini = torch.rand(f0_buf.shape[0], f0_buf.shape[2], device=f0_buf.device)
             rand_ini[:, 0] = 0
             rad_values[:, 0, :] = rad_values[:, 0, :] + rand_ini
+
             tmp_over_one = torch.cumsum(rad_values, 1)
             tmp_over_one *= upp
-            tmp_over_one = torch.nn.functional.interpolate(tmp_over_one.transpose(2, 1), scale_factor=float(upp), mode="linear", align_corners=True).transpose(2, 1)
-            rad_values = torch.nn.functional.interpolate(rad_values.transpose(2, 1), scale_factor=float(upp), mode="nearest").transpose(2, 1)
+            tmp_over_one = F.interpolate(tmp_over_one.transpose(2, 1), scale_factor=float(upp), mode="linear", align_corners=True).transpose(2, 1)
+
+            rad_values = F.interpolate(rad_values.transpose(2, 1), scale_factor=float(upp), mode="nearest").transpose(2, 1)
             tmp_over_one %= 1
+
             cumsum_shift = torch.zeros_like(rad_values)
             cumsum_shift[:, 1:, :] = ((tmp_over_one[:, 1:, :] - tmp_over_one[:, :-1, :]) < 0) * -1.0
+
+            uv = F.interpolate(self._f02uv(f0).transpose(2, 1), scale_factor=float(upp), mode="nearest").transpose(2, 1)
             sine_waves = torch.sin(torch.cumsum(rad_values + cumsum_shift, dim=1) * 2 * torch.pi) * self.sine_amp
-            uv = torch.nn.functional.interpolate(self._f02uv(f0).transpose(2, 1), scale_factor=float(upp), mode="nearest").transpose(2, 1)
             sine_waves = sine_waves * uv + ((uv * self.noise_std + (1 - uv) * self.sine_amp / 3) * torch.randn_like(sine_waves))
             
         return sine_waves
@@ -131,6 +140,7 @@ class GeneratorNSF(torch.nn.Module):
         self.resblocks = torch.nn.ModuleList([ResBlock(channels[i], k, d) for i in range(len(self.ups)) for k, d in zip(resblock_kernel_sizes, resblock_dilation_sizes)])
         self.conv_post = torch.nn.Conv1d(channels[-1], 1, 7, 1, padding=3, bias=False)
         self.ups.apply(init_weights)
+
         if gin_channels != 0: self.cond = torch.nn.Conv1d(gin_channels, upsample_initial_channel, 1)
 
         self.upp = math.prod(upsample_rates)
@@ -142,7 +152,7 @@ class GeneratorNSF(torch.nn.Module):
         if g is not None: x = x + self.cond(g)
 
         for i, (ups, noise_convs) in enumerate(zip(self.ups, self.noise_convs)):
-            x = torch.nn.functional.leaky_relu(x, self.lrelu_slope)
+            x = F.leaky_relu(x, self.lrelu_slope)
             x = checkpoint.checkpoint(ups, x, use_reentrant=False) if self.training and self.checkpointing else ups(x)      
             x += noise_convs(har_source)
 
@@ -152,7 +162,7 @@ class GeneratorNSF(torch.nn.Module):
             blocks = self.resblocks[i * self.num_kernels:(i + 1) * self.num_kernels]
             x = checkpoint.checkpoint(resblock_forward, x, blocks, use_reentrant=False)if self.training and self.checkpointing else resblock_forward(x, blocks)
 
-        return torch.tanh(self.conv_post(torch.nn.functional.leaky_relu(x)))
+        return torch.tanh(self.conv_post(F.leaky_relu(x)))
 
     def remove_weight_norm(self):
         for l in self.ups:
@@ -170,7 +180,7 @@ class LayerNorm(torch.nn.Module):
 
     def forward(self, x):
         x = x.transpose(1, -1)
-        return torch.nn.functional.layer_norm(x, (x.size(-1),), self.gamma, self.beta, self.eps).transpose(1, -1)
+        return F.layer_norm(x, (x.size(-1),), self.gamma, self.beta, self.eps).transpose(1, -1)
 
 class MultiHeadAttention(torch.nn.Module):
     def __init__(self, channels, out_channels, n_heads, p_dropout=0.0, window_size=None, heads_share=True, block_length=None, proximal_bias=False, proximal_init=False):
@@ -233,7 +243,7 @@ class MultiHeadAttention(torch.nn.Module):
                 assert (t_s == t_t), "(t_s == t_t)"
                 scores = scores.masked_fill((torch.ones_like(scores).triu(-self.block_length).tril(self.block_length)) == 0, -1e4)
 
-        p_attn = self.drop(torch.nn.functional.softmax(scores, dim=-1)  )
+        p_attn = self.drop(F.softmax(scores, dim=-1)  )
         output = torch.matmul(p_attn, value.view(b, self.n_heads, self.k_channels, t_s).transpose(2, 3))
 
         if self.window_size is not None: output = output + self._matmul_with_relative_values(self._absolute_position_to_relative_position(p_attn), self._get_relative_embeddings(self.emb_rel_v, t_s))
@@ -248,15 +258,15 @@ class MultiHeadAttention(torch.nn.Module):
     def _get_relative_embeddings(self, relative_embeddings, length):
         pad_length = max(length - (self.window_size + 1), 0)
         slice_start_position = max((self.window_size + 1) - length, 0)
-        return (torch.nn.functional.pad(relative_embeddings, convert_pad_shape([[0, 0], [pad_length, pad_length], [0, 0]])) if pad_length > 0 else relative_embeddings)[:, slice_start_position:(slice_start_position + 2 * length - 1)]
+        return (F.pad(relative_embeddings, convert_pad_shape([[0, 0], [pad_length, pad_length], [0, 0]])) if pad_length > 0 else relative_embeddings)[:, slice_start_position:(slice_start_position + 2 * length - 1)]
 
     def _relative_position_to_absolute_position(self, x):
         batch, heads, length, _ = x.size()
-        return torch.nn.functional.pad(torch.nn.functional.pad(x, convert_pad_shape([[0, 0], [0, 0], [0, 0], [0, 1]])).view([batch, heads, length * 2 * length]), convert_pad_shape([[0, 0], [0, 0], [0, length - 1]])).view([batch, heads, length + 1, 2 * length - 1])[:, :, :length, length - 1 :]
+        return F.pad(F.pad(x, convert_pad_shape([[0, 0], [0, 0], [0, 0], [0, 1]])).view([batch, heads, length * 2 * length]), convert_pad_shape([[0, 0], [0, 0], [0, length - 1]])).view([batch, heads, length + 1, 2 * length - 1])[:, :, :length, length - 1 :]
 
     def _absolute_position_to_relative_position(self, x):
         batch, heads, length, _ = x.size()
-        return torch.nn.functional.pad(torch.nn.functional.pad(x, convert_pad_shape([[0, 0], [0, 0], [0, 0], [0, length - 1]])).view([batch, heads, length**2 + length * (length - 1)]), convert_pad_shape([[0, 0], [0, 0], [length, 0]])).view([batch, heads, length, 2 * length])[:, :, :, 1:]
+        return F.pad(F.pad(x, convert_pad_shape([[0, 0], [0, 0], [0, 0], [0, length - 1]])).view([batch, heads, length**2 + length * (length - 1)]), convert_pad_shape([[0, 0], [0, 0], [length, 0]])).view([batch, heads, length, 2 * length])[:, :, :, 1:]
 
     def _attention_bias_proximal(self, length):
         r = torch.arange(length, dtype=torch.float32)
@@ -283,11 +293,13 @@ class FFN(torch.nn.Module):
 
     def _causal_padding(self, x):
         if self.kernel_size == 1: return x
-        return torch.nn.functional.pad(x, convert_pad_shape([[0, 0], [0, 0], [(self.kernel_size - 1), 0]]))
+
+        return F.pad(x, convert_pad_shape([[0, 0], [0, 0], [(self.kernel_size - 1), 0]]))
 
     def _same_padding(self, x):
         if self.kernel_size == 1: return x
-        return torch.nn.functional.pad(x, convert_pad_shape([[0, 0], [0, 0], [((self.kernel_size - 1) // 2), (self.kernel_size // 2)]]))
+        
+        return F.pad(x, convert_pad_shape([[0, 0], [0, 0], [((self.kernel_size - 1) // 2), (self.kernel_size // 2)]]))
 
 class Encoder(torch.nn.Module):
     def __init__(self, hidden_channels, filter_channels, n_heads, n_layers, kernel_size=1, p_dropout=0.0, window_size=10, **kwargs):
@@ -308,12 +320,14 @@ class Encoder(torch.nn.Module):
         for _ in range(self.n_layers):
             self.attn_layers.append(MultiHeadAttention(hidden_channels, hidden_channels, n_heads, p_dropout=p_dropout, window_size=window_size))
             self.norm_layers_1.append(LayerNorm(hidden_channels))
+
             self.ffn_layers.append(FFN(hidden_channels, hidden_channels, filter_channels, kernel_size, p_dropout=p_dropout))
             self.norm_layers_2.append(LayerNorm(hidden_channels))
 
     def forward(self, x, x_mask):
         attn_mask = x_mask.unsqueeze(2) * x_mask.unsqueeze(-1)
         x = x * x_mask
+        
         for i in range(self.n_layers):
             x = self.norm_layers_1[i](x + self.drop(self.attn_layers[i](x, x, attn_mask)))
             x = self.norm_layers_2[i](x + self.drop(self.ffn_layers[i](x, x_mask)))
@@ -388,12 +402,8 @@ class Synthesizer(torch.nn.Module):
         self.enc_p = TextEncoder(inter_channels, hidden_channels, filter_channels, n_heads, n_layers, kernel_size, float(p_dropout), text_enc_hidden_dim, f0=use_f0)
 
         if use_f0:
-            if vocoder == "RefineGAN": 
-                from .refinegan import RefineGANGenerator
-                self.dec = RefineGANGenerator(sample_rate=sr, downsample_rates=upsample_rates[::-1], upsample_rates=upsample_rates, start_channels=16, num_mels=inter_channels, checkpointing=checkpointing)
-            elif vocoder == "MRF HiFi-GAN": 
-                from .mrf_hifigan import HiFiGANMRFGenerator
-                self.dec = HiFiGANMRFGenerator(in_channel=inter_channels, upsample_initial_channel=upsample_initial_channel, upsample_rates=upsample_rates, upsample_kernel_sizes=upsample_kernel_sizes, resblock_kernel_sizes=resblock_kernel_sizes, resblock_dilations=resblock_dilation_sizes, gin_channels=gin_channels, sample_rate=sr, harmonic_num=8, checkpointing=checkpointing)
+            if vocoder == "RefineGAN":  self.dec = RefineGANGenerator(sample_rate=sr, upsample_rates=upsample_rates, num_mels=inter_channels, checkpointing=checkpointing)
+            elif vocoder == "MRF HiFi-GAN": self.dec = HiFiGANMRFGenerator(in_channel=inter_channels, upsample_initial_channel=upsample_initial_channel, upsample_rates=upsample_rates, upsample_kernel_sizes=upsample_kernel_sizes, resblock_kernel_sizes=resblock_kernel_sizes, resblock_dilations=resblock_dilation_sizes, gin_channels=gin_channels, sample_rate=sr, harmonic_num=8, checkpointing=checkpointing)
             else: self.dec = GeneratorNSF(inter_channels, resblock_kernel_sizes, resblock_dilation_sizes, upsample_rates, upsample_initial_channel, upsample_kernel_sizes, gin_channels=gin_channels, sr=sr, checkpointing=checkpointing)
         else: self.dec = Generator(inter_channels, resblock_kernel_sizes, resblock_dilation_sizes, upsample_rates, upsample_initial_channel, upsample_kernel_sizes, gin_channels=gin_channels)
 

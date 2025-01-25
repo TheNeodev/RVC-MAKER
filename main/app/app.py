@@ -11,6 +11,7 @@ import platform
 import requests
 import warnings
 import threading
+import gradio.strings
 import logging.handlers
 
 import gradio as gr
@@ -20,12 +21,14 @@ from time import sleep
 from subprocess import Popen
 from bs4 import BeautifulSoup
 from datetime import datetime
+from pydub import AudioSegment
 from multiprocessing import cpu_count
 
 sys.path.append(os.getcwd())
 
 from main.configs.config import Config
-from main.tools.huggingface import HF_download_file as hgf
+from main.library.utils import convert_to_float32
+from main.tools import gdown, meganz, mediafire, pixeldrain, huggingface, edge_tts, google_tts
 
 ssl._create_default_https_context = ssl._create_unverified_context
 logger = logging.getLogger(__name__)
@@ -65,11 +68,9 @@ language, theme, edge_tts, google_tts_voice, mdx_model, uvr_model = configs.get(
 miku_image = codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/erfbyir/znva/zvxh.cat", "rot13")
 csv_path = os.path.join("assets", "spreadsheet.csv")
 
-if language == "vi-VN":
-    import gradio.strings
-    gradio.strings.en = {"RUNNING_LOCALLY": "* Chạy trên liên kết nội bộ:  {}://{}:{}", "RUNNING_LOCALLY_SSR": "* Chạy trên liên kết nội bộ:  {}://{}:{}, với SSR ⚡ (thử nghiệm, để tắt hãy dùng `ssr=False` trong `launch()`)", "SHARE_LINK_DISPLAY": "* Chạy trên liên kết công khai: {}", "COULD_NOT_GET_SHARE_LINK": "\nKhông thể tạo liên kết công khai. Vui lòng kiểm tra kết nối mạng của bạn hoặc trang trạng thái của chúng tôi: https://status.gradio.app.", "COULD_NOT_GET_SHARE_LINK_MISSING_FILE": "\nKhông thể tạo liên kết công khai. Thiếu tập tin: {}. \n\nVui lòng kiểm tra kết nối internet của bạn. Điều này có thể xảy ra nếu phần mềm chống vi-rút của bạn chặn việc tải xuống tệp này. Bạn có thể cài đặt thủ công bằng cách làm theo các bước sau: \n\n1. Tải xuống tệp này: {}\n2. Đổi tên tệp đã tải xuống thành: {}\n3. Di chuyển tệp đến vị trí này: {}", "COLAB_NO_LOCAL": "Không thể hiển thị giao diện nội bộ trên google colab, liên kết công khai đã được tạo.", "PUBLIC_SHARE_TRUE": "\nĐể tạo một liên kết công khai, hãy đặt `share=True` trong `launch()`.", "MODEL_PUBLICLY_AVAILABLE_URL": "Mô hình được cung cấp công khai tại: {} (có thể mất tới một phút để sử dụng được liên kết)", "GENERATING_PUBLIC_LINK": "Đang tạo liên kết công khai (có thể mất vài giây...):", "BETA_INVITE": "\nCảm ơn bạn đã là người dùng Gradio! Nếu bạn có thắc mắc hoặc phản hồi, vui lòng tham gia máy chủ Discord của chúng tôi và trò chuyện với chúng tôi: https://discord.gg/feTf9x3ZSB", "COLAB_DEBUG_TRUE": "Đã phát hiện thấy sổ tay Colab. Ô này sẽ chạy vô thời hạn để bạn có thể xem lỗi và nhật ký. " "Để tắt, hãy đặt debug=False trong launch().", "COLAB_DEBUG_FALSE": "Đã phát hiện thấy sổ tay Colab. Để hiển thị lỗi trong sổ ghi chép colab, hãy đặt debug=True trong launch()", "COLAB_WARNING": "Lưu ý: việc mở Chrome Inspector có thể làm hỏng bản demo trong sổ tay Colab.", "SHARE_LINK_MESSAGE": "\nLiên kết công khai sẽ hết hạn sau 72 giờ. Để nâng cấp GPU và lưu trữ vĩnh viễn miễn phí, hãy chạy `gradio deploy` từ terminal trong thư mục làm việc để triển khai lên huggingface (https://huggingface.co/spaces)", "INLINE_DISPLAY_BELOW": "Đang tải giao diện bên dưới...", "COULD_NOT_GET_SHARE_LINK_CHECKSUM": "\nKhông thể tạo liên kết công khai. Tổng kiểm tra không khớp cho tập tin: {}."}
+if language == "vi-VN": gradio.strings.en = {"RUNNING_LOCALLY": "* Chạy trên liên kết nội bộ:  {}://{}:{}", "RUNNING_LOCALLY_SSR": "* Chạy trên liên kết nội bộ:  {}://{}:{}, với SSR ⚡ (thử nghiệm, để tắt hãy dùng `ssr=False` trong `launch()`)", "SHARE_LINK_DISPLAY": "* Chạy trên liên kết công khai: {}", "COULD_NOT_GET_SHARE_LINK": "\nKhông thể tạo liên kết công khai. Vui lòng kiểm tra kết nối mạng của bạn hoặc trang trạng thái của chúng tôi: https://status.gradio.app.", "COULD_NOT_GET_SHARE_LINK_MISSING_FILE": "\nKhông thể tạo liên kết công khai. Thiếu tập tin: {}. \n\nVui lòng kiểm tra kết nối internet của bạn. Điều này có thể xảy ra nếu phần mềm chống vi-rút của bạn chặn việc tải xuống tệp này. Bạn có thể cài đặt thủ công bằng cách làm theo các bước sau: \n\n1. Tải xuống tệp này: {}\n2. Đổi tên tệp đã tải xuống thành: {}\n3. Di chuyển tệp đến vị trí này: {}", "COLAB_NO_LOCAL": "Không thể hiển thị giao diện nội bộ trên google colab, liên kết công khai đã được tạo.", "PUBLIC_SHARE_TRUE": "\nĐể tạo một liên kết công khai, hãy đặt `share=True` trong `launch()`.", "MODEL_PUBLICLY_AVAILABLE_URL": "Mô hình được cung cấp công khai tại: {} (có thể mất tới một phút để sử dụng được liên kết)", "GENERATING_PUBLIC_LINK": "Đang tạo liên kết công khai (có thể mất vài giây...):", "BETA_INVITE": "\nCảm ơn bạn đã là người dùng Gradio! Nếu bạn có thắc mắc hoặc phản hồi, vui lòng tham gia máy chủ Discord của chúng tôi và trò chuyện với chúng tôi: https://discord.gg/feTf9x3ZSB", "COLAB_DEBUG_TRUE": "Đã phát hiện thấy sổ tay Colab. Ô này sẽ chạy vô thời hạn để bạn có thể xem lỗi và nhật ký. " "Để tắt, hãy đặt debug=False trong launch().", "COLAB_DEBUG_FALSE": "Đã phát hiện thấy sổ tay Colab. Để hiển thị lỗi trong sổ ghi chép colab, hãy đặt debug=True trong launch()", "COLAB_WARNING": "Lưu ý: việc mở Chrome Inspector có thể làm hỏng bản demo trong sổ tay Colab.", "SHARE_LINK_MESSAGE": "\nLiên kết công khai sẽ hết hạn sau 72 giờ. Để nâng cấp GPU và lưu trữ vĩnh viễn miễn phí, hãy chạy `gradio deploy` từ terminal trong thư mục làm việc để triển khai lên huggingface (https://huggingface.co/spaces)", "INLINE_DISPLAY_BELOW": "Đang tải giao diện bên dưới...", "COULD_NOT_GET_SHARE_LINK_CHECKSUM": "\nKhông thể tạo liên kết công khai. Tổng kiểm tra không khớp cho tập tin: {}."}
 
-if not os.path.exists(os.path.join("assets", "miku.png")): hgf(miku_image, os.path.join("assets", "miku.png"))
+if not os.path.exists(os.path.join("assets", "miku.png")): huggingface.HF_download_file(miku_image, os.path.join("assets", "miku.png"))
 if os.path.exists(csv_path): cached_data = pd.read_csv(csv_path) 
 else:
     cached_data = pd.read_csv(codecs.decode("uggcf://qbpf.tbbtyr.pbz/fcernqfurrgf/q/1gNHnDeRULtEfz1Yieaw14USUQjWJy0Oq9k0DrCrjApb/rkcbeg?sbezng=pfi&tvq=1977693859", "rot13"))
@@ -84,17 +85,16 @@ for _, row in cached_data.iterrows():
             break
     if url: models[filename] = url
 
-
 def gr_info(message):
-    gr.Info(message, duration=5)
+    gr.Info(message, duration=2)
     logger.info(message)
 
 def gr_warning(message):
-    gr.Warning(message, duration=5)
+    gr.Warning(message, duration=2)
     logger.warning(message)
 
 def gr_error(message):
-    gr.Error(message=message, duration=15)
+    gr.Error(message=message, duration=6)
     logger.error(message)
 
 def get_gpu_info():
@@ -166,8 +166,8 @@ def hoplength_show(method, hybrid_method=None):
     elif method == "hybrid":
         methods_str = re.search("hybrid\[(.+)\]", hybrid_method)
         if methods_str: methods = [method.strip() for method in methods_str.group(1).split("+")]
-        for i in range(len(methods)):
-            visible = methods[i] in show_hop_length_method
+        for i in methods:
+            visible = i in show_hop_length_method
             if visible: break
     else: visible = False
     
@@ -192,7 +192,6 @@ def process_input(file_path):
 def fetch_pretrained_data():
     response = requests.get(codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/erfbyir/znva/wfba/phfgbz_cergenvarq.wfba", "rot13"))
     response.raise_for_status()
-
     return response.json()
 
 def update_sample_rate_dropdown(model):
@@ -237,7 +236,6 @@ def change_theme(theme):
 
 def zip_file(name, pth, index):
     pth_path = os.path.join("assets", "weights", pth)
-
     if not pth or not os.path.exists(pth_path) or not pth.endswith(".pth"): return gr_warning(translations["provide_file"].format(filename=translations["model"]))
 
     zip_file_path = os.path.join("assets", name + ".zip")
@@ -346,17 +344,16 @@ def download_model(url=None, model=None):
     if not os.path.exists(logs_dir): os.makedirs(logs_dir, exist_ok=True)
     
     try:
-        from main.tools import gdown, meganz, mediafire, pixeldrain
         gr_info(translations["start"].format(start=translations["download"]))
 
-        if url.endswith(".pth"): hgf(url, os.path.join(weights_dir, f"{model}.pth"))
+        if url.endswith(".pth"): huggingface.HF_download_file(url, os.path.join(weights_dir, f"{model}.pth"))
         elif url.endswith(".index"):
             model_log_dir = os.path.join(logs_dir, model)
             os.makedirs(model_log_dir, exist_ok=True)
 
-            hgf(url, os.path.join(model_log_dir, f"{model}.index"))
+            huggingface.HF_download_file(url, os.path.join(model_log_dir, f"{model}.index"))
         elif url.endswith(".zip"):
-            output_path = hgf(url, os.path.join(download_dir, model + ".zip"))
+            output_path = huggingface.HF_download_file(url, os.path.join(download_dir, model + ".zip"))
             shutil.unpack_archive(output_path, download_dir)
 
             move_files_from_directory(download_dir, weights_dir, logs_dir, model)
@@ -457,7 +454,7 @@ def download_pretrained_model(choices, model, sample_rate):
         url = codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/erfbyir/znva/cergenvarq_phfgbz/", "rot13") + paths
 
         gr_info(translations["download_pretrain"])
-        file = hgf(url.replace("/blob/", "/resolve/").replace("?download=true", "").strip(), os.path.join(pretraineds_custom_path, paths))
+        file = huggingface.HF_download_file(url.replace("/blob/", "/resolve/").replace("?download=true", "").strip(), os.path.join(pretraineds_custom_path, paths))
 
         if file.endswith(".zip"): 
             shutil.unpack_archive(file, pretraineds_custom_path)
@@ -471,8 +468,8 @@ def download_pretrained_model(choices, model, sample_rate):
 
         gr_info(translations["download_pretrain"])
 
-        hgf(model.replace("/blob/", "/resolve/").replace("?download=true", "").strip(), pretraineds_custom_path)
-        hgf(sample_rate.replace("/blob/", "/resolve/").replace("?download=true", "").strip(), pretraineds_custom_path)
+        huggingface.HF_download_file(model.replace("/blob/", "/resolve/").replace("?download=true", "").strip(), pretraineds_custom_path)
+        huggingface.HF_download_file(sample_rate.replace("/blob/", "/resolve/").replace("?download=true", "").strip(), pretraineds_custom_path)
 
         gr_info(translations["success"])
         return translations["success"]
@@ -482,7 +479,7 @@ def hubert_download(hubert):
         gr_warning(translations["provide_hubert"])
         return translations["provide_hubert"]
 
-    hgf(hubert.replace("/blob/", "/resolve/").replace("?download=true", "").strip(), os.path.join("assets", "models", "embedders"))
+    huggingface.HF_download_file(hubert.replace("/blob/", "/resolve/").replace("?download=true", "").strip(), os.path.join("assets", "models", "embedders"))
 
     gr_info(translations["success"])
     return translations["success"]
@@ -503,6 +500,7 @@ def fushion_model(name, pth_1, pth_2, ratio):
         return [translations["provide_file"].format(filename=translations["model"] + " 2"), None]
     
     from collections import OrderedDict
+
     def extract(ckpt):
         a = ckpt["model"]
         opt = OrderedDict()
@@ -642,12 +640,8 @@ async def TTS(prompt, voice, speed, output, pitch, google):
     output_dir = os.path.dirname(output) or output
     if not os.path.exists(output_dir): os.makedirs(output_dir, exist_ok=True)
 
-    if not google:
-        from main.tools.edge_tts import Communicate
-        await Communicate(text=prompt, voice=voice, rate=f"+{speed}%" if speed >= 0 else f"{speed}%", pitch=f"+{pitch}Hz" if pitch >= 0 else f"{pitch}Hz").save(output)
-    else:
-        from main.tools.google_tts import google_tts
-        google_tts(text=prompt, lang=voice, speed=speed, pitch=pitch, output_file=output)
+    if not google: await edge_tts.Communicate(text=prompt, voice=voice, rate=f"+{speed}%" if speed >= 0 else f"{speed}%", pitch=f"+{pitch}Hz" if pitch >= 0 else f"{pitch}Hz").save(output)
+    else: google_tts.google_tts(text=prompt, lang=voice, speed=speed, pitch=pitch, output_file=output)
 
     gr_info(translations["success"])
     return output
@@ -699,8 +693,7 @@ def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not
         gr_warning(translations["provide_file"].format(filename=translations["model"]))
         return return_none
 
-    f0method = method if method != "hybrid" else hybrid_method
-    embedder_model = embedders if embedders != "custom" else custom_embedders
+    f0method, embedder_model = (method if method != "hybrid" else hybrid_method), (embedders if embedders != "custom" else custom_embedders)
 
     if use_audio:
         output_audio = os.path.join("audios", input_audio_name)
@@ -762,8 +755,6 @@ def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not
 
             gr_info(translations["convert_backup_success"])
 
-        from pydub import AudioSegment
-
         if not not_merge_backing and not use_original:
             backing_source = output_backing if convert_backing else backing_vocal
 
@@ -771,7 +762,7 @@ def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not
 
             gr_info(translations["merge_backup"])
 
-            AudioSegment.from_file(output_path).overlay(AudioSegment.from_file(backing_source)).export(output_merge_backup, format=format)
+            convert_to_float32(AudioSegment.from_file(output_path)).overlay(convert_to_float32(AudioSegment.from_file(backing_source))).export(output_merge_backup, format=format)
 
             gr_info(translations["merge_success"])
 
@@ -991,11 +982,11 @@ def training(model_name, rvc_version, save_every_epoch, save_only_latest, save_e
             try:
                 if not os.path.exists(pretrained_G):
                     gr_info(translations["download_pretrained"].format(dg="G", rvc_version=rvc_version))
-                    hgf(f"{download_version}{pg}", os.path.join("assets", "models", f"pretrained_{rvc_version}", f"{vocoder if vocoder != 'Default' else ''}{pg}"))
+                    huggingface.HF_download_file(f"{download_version}{pg}", os.path.join("assets", "models", f"pretrained_{rvc_version}", f"{vocoder if vocoder != 'Default' else ''}{pg}"))
                         
                 if not os.path.exists(pretrained_D):
                     gr_info(translations["download_pretrained"].format(dg="D", rvc_version=rvc_version))
-                    hgf(f"{download_version}{pd}", os.path.join("assets", "models", f"pretrained_{rvc_version}", f"{vocoder if vocoder != 'Default' else ''}{pd}"))
+                    huggingface.HF_download_file(f"{download_version}{pd}", os.path.join("assets", "models", f"pretrained_{rvc_version}", f"{vocoder if vocoder != 'Default' else ''}{pd}"))
             except:
                 gr_warning(translations["not_use_pretrain_error_download"])
                 pretrained_G, pretrained_D = None, None
@@ -1423,11 +1414,11 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                         pitch = gr.Slider(minimum=-20, maximum=20, step=1, info=translations["pitch_info"], label=translations["pitch"], value=0, interactive=True)
                         clean_strength0 = gr.Slider(label=translations["clean_strength"], info=translations["clean_strength_info"], minimum=0, maximum=1, value=0.5, step=0.1, interactive=True, visible=cleaner0.value)
                     with gr.Row(): 
-                        with gr.Group():
+                        with gr.Column():
                             audio_select = gr.Dropdown(label=translations["select_separate"], choices=[], value="", interactive=True, allow_custom_value=True, visible=False)
                             convert_button_2 = gr.Button(translations["convert_audio"], visible=False)
             with gr.Row():
-                with gr.Row():
+                with gr.Column():
                     convert_button = gr.Button(translations["convert_audio"], variant="primary")
             with gr.Row():
                 with gr.Column():
@@ -1465,7 +1456,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                                     refesh_click = gr.Button(translations["refesh"])
                             with gr.Accordion(translations["export_file"], open=False):
                                 with gr.Row():
-                                    with gr.Row():
+                                    with gr.Column():
                                         with gr.Group():
                                             with gr.Row():
                                                 cleaner_chbox = gr.Checkbox(label=translations["save_clean"], value=True, interactive=True)
@@ -1478,7 +1469,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                                                 protect_chbox = gr.Checkbox(label=translations["save_protect"], value=True, interactive=True)
                                                 split_audio_chbox = gr.Checkbox(label=translations["save_split"], value=True, interactive=True)
                                 with gr.Row():
-                                    with gr.Row():
+                                    with gr.Column():
                                         name_to_save_file = gr.Textbox(label=translations["filename_to_save"])
                                         save_file_button = gr.Button(translations["export_file"])
                             with gr.Row():
@@ -1728,13 +1719,14 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
             with gr.Row():
                 gr.Markdown(translations["audio_effects_edit"])
             with gr.Row():
-                with gr.Row():
-                    reverb_check_box = gr.Checkbox(label=translations["reverb"], value=False, interactive=True)
-                    chorus_check_box = gr.Checkbox(label=translations["chorus"], value=False, interactive=True)
-                    delay_check_box = gr.Checkbox(label=translations["delay"], value=False, interactive=True)
-                    phaser_check_box = gr.Checkbox(label=translations["phaser"], value=False, interactive=True)
-                    compressor_check_box = gr.Checkbox(label=translations["compressor"], value=False, interactive=True)
-                    more_options = gr.Checkbox(label=translations["more_option"], value=False, interactive=True)    
+                with gr.Column():
+                    with gr.Row():
+                        reverb_check_box = gr.Checkbox(label=translations["reverb"], value=False, interactive=True)
+                        chorus_check_box = gr.Checkbox(label=translations["chorus"], value=False, interactive=True)
+                        delay_check_box = gr.Checkbox(label=translations["delay"], value=False, interactive=True)
+                        phaser_check_box = gr.Checkbox(label=translations["phaser"], value=False, interactive=True)
+                        compressor_check_box = gr.Checkbox(label=translations["compressor"], value=False, interactive=True)
+                        more_options = gr.Checkbox(label=translations["more_option"], value=False, interactive=True)    
             with gr.Row():
                 with gr.Accordion(translations["input_output"], open=False):
                     with gr.Row():
@@ -1924,34 +1916,33 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                 dataset_url = gr.Textbox(label=translations["url_audio"], info=translations["create_dataset_url"], value="", placeholder="https://www.youtube.com/...", interactive=True)
                 output_dataset = gr.Textbox(label=translations["output_data"], info=translations["output_data_info"], value="dataset", placeholder="dataset", interactive=True)
             with gr.Row():
-                with gr.Row():
-                    with gr.Column():
-                        with gr.Group():
-                            with gr.Row():
-                                separator_reverb = gr.Checkbox(label=translations["dereveb_audio"], value=False, interactive=True)
-                                denoise_mdx = gr.Checkbox(label=translations["denoise"], value=False, interactive=True)
-                            with gr.Row():
-                                kim_vocal_version = gr.Radio(label=translations["model_ver"], info=translations["model_ver_info"], choices=["Version-1", "Version-2"], value="Version-2", interactive=True)
-                                kim_vocal_overlap = gr.Radio(label=translations["overlap"], info=translations["overlap_info"], choices=["0.25", "0.5", "0.75", "0.99"], value="0.25", interactive=True)
-                            with gr.Row():    
-                                kim_vocal_hop_length = gr.Slider(label="Hop length", info=translations["hop_length_info"], minimum=1, maximum=8192, value=1024, step=1, interactive=True)
-                                kim_vocal_batch_size = gr.Slider(label=translations["batch_size"], info=translations["mdx_batch_size_info"], minimum=1, maximum=64, value=1, step=1, interactive=True) 
-                            with gr.Row():
-                                kim_vocal_segments_size = gr.Slider(label=translations["segments_size"], info=translations["segments_size_info"], minimum=32, maximum=3072, value=256, step=32, interactive=True)
-                            with gr.Row():
-                                sample_rate0 = gr.Slider(minimum=0, maximum=96000, step=1, value=44100, label=translations["sr"], info=translations["sr_info"], interactive=True)
-                    with gr.Column():
-                        create_button = gr.Button(translations["createdataset"], variant="primary", scale=2, min_width=4000)
-                        with gr.Group():
-                            with gr.Row():
-                                clean_audio = gr.Checkbox(label=translations["clear_audio"], value=False, interactive=True)
-                                skip = gr.Checkbox(label=translations["skip"], value=False, interactive=True)
-                            with gr.Row():   
-                                dataset_clean_strength = gr.Slider(minimum=0, maximum=1, step=0.1, value=0.5, label=translations["clean_strength"], info=translations["clean_strength_info"], interactive=True, visible=clean_audio.value)
-                            with gr.Row():
-                                skip_start = gr.Textbox(label=translations["skip_start"], info=translations["skip_start_info"], value="", placeholder="0,...", interactive=True, visible=skip.value)
-                                skip_end = gr.Textbox(label=translations["skip_end"], info=translations["skip_end_info"], value="", placeholder="0,...", interactive=True, visible=skip.value)
-                        create_dataset_info = gr.Textbox(label=translations["create_dataset_info"], value="", interactive=False)
+                with gr.Column():
+                    with gr.Group():
+                        with gr.Row():
+                            separator_reverb = gr.Checkbox(label=translations["dereveb_audio"], value=False, interactive=True)
+                            denoise_mdx = gr.Checkbox(label=translations["denoise"], value=False, interactive=True)
+                        with gr.Row():
+                            kim_vocal_version = gr.Radio(label=translations["model_ver"], info=translations["model_ver_info"], choices=["Version-1", "Version-2"], value="Version-2", interactive=True)
+                            kim_vocal_overlap = gr.Radio(label=translations["overlap"], info=translations["overlap_info"], choices=["0.25", "0.5", "0.75", "0.99"], value="0.25", interactive=True)
+                        with gr.Row():    
+                            kim_vocal_hop_length = gr.Slider(label="Hop length", info=translations["hop_length_info"], minimum=1, maximum=8192, value=1024, step=1, interactive=True)
+                            kim_vocal_batch_size = gr.Slider(label=translations["batch_size"], info=translations["mdx_batch_size_info"], minimum=1, maximum=64, value=1, step=1, interactive=True) 
+                        with gr.Row():
+                            kim_vocal_segments_size = gr.Slider(label=translations["segments_size"], info=translations["segments_size_info"], minimum=32, maximum=3072, value=256, step=32, interactive=True)
+                        with gr.Row():
+                            sample_rate0 = gr.Slider(minimum=0, maximum=96000, step=1, value=44100, label=translations["sr"], info=translations["sr_info"], interactive=True)
+                with gr.Column():
+                    create_button = gr.Button(translations["createdataset"], variant="primary", scale=2, min_width=4000)
+                    with gr.Group():
+                        with gr.Row():
+                            clean_audio = gr.Checkbox(label=translations["clear_audio"], value=False, interactive=True)
+                            skip = gr.Checkbox(label=translations["skip"], value=False, interactive=True)
+                        with gr.Row():   
+                            dataset_clean_strength = gr.Slider(minimum=0, maximum=1, step=0.1, value=0.5, label=translations["clean_strength"], info=translations["clean_strength_info"], interactive=True, visible=clean_audio.value)
+                        with gr.Row():
+                            skip_start = gr.Textbox(label=translations["skip_start"], info=translations["skip_start_info"], value="", placeholder="0,...", interactive=True, visible=skip.value)
+                            skip_end = gr.Textbox(label=translations["skip_end"], info=translations["skip_end_info"], value="", placeholder="0,...", interactive=True, visible=skip.value)
+                    create_dataset_info = gr.Textbox(label=translations["create_dataset_info"], value="", interactive=False)
             with gr.Row():
                 clean_audio.change(fn=visible, inputs=[clean_audio], outputs=[dataset_clean_strength])
                 skip.change(fn=lambda a: [valueEmpty_visible1(a)]*2, inputs=[skip], outputs=[skip_start, skip_end])
@@ -2044,11 +2035,10 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                                         cpu_core = gr.Slider(label=translations["cpu_core"], info=translations["cpu_core_info"], minimum=0, maximum=cpu_count(), value=cpu_count(), step=1, interactive=True)          
                                         train_batch_size = gr.Slider(label=translations["batch_size"], info=translations["batch_size_info"], minimum=1, maximum=64, value=8, step=1, interactive=True)
                             with gr.Row():
-                                with gr.Row():
-                                    save_only_latest = gr.Checkbox(label=translations["save_only_latest"], info=translations["save_only_latest_info"], value=True, interactive=True)
-                                    save_every_weights = gr.Checkbox(label=translations["save_every_weights"], info=translations["save_every_weights_info"], value=True, interactive=True)
-                                    not_use_pretrain = gr.Checkbox(label=translations["not_use_pretrain_2"], info=translations["not_use_pretrain_info"], value=False, interactive=True)
-                                    custom_pretrain = gr.Checkbox(label=translations["custom_pretrain"], info=translations["custom_pretrain_info"], value=False, interactive=True)
+                                save_only_latest = gr.Checkbox(label=translations["save_only_latest"], info=translations["save_only_latest_info"], value=True, interactive=True)
+                                save_every_weights = gr.Checkbox(label=translations["save_every_weights"], info=translations["save_every_weights_info"], value=True, interactive=True)
+                                not_use_pretrain = gr.Checkbox(label=translations["not_use_pretrain_2"], info=translations["not_use_pretrain_info"], value=False, interactive=True)
+                                custom_pretrain = gr.Checkbox(label=translations["custom_pretrain"], info=translations["custom_pretrain_info"], value=False, interactive=True)
                             with gr.Row():
                                 vocoders = gr.Radio(label=translations["vocoder"], info=translations["vocoder_info"], choices=["Default", "MRF HiFi-GAN", "RefineGAN"], value="Default", interactive=True) 
                             with gr.Row():

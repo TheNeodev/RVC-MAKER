@@ -133,12 +133,16 @@ class Slicer:
 def get_rms(y, frame_length=2048, hop_length=512, pad_mode="constant"):
     y = np.pad(y, (int(frame_length // 2), int(frame_length // 2)), mode=pad_mode)
     axis = -1
+
     x_shape_trimmed = list(y.shape)
     x_shape_trimmed[axis] -= frame_length - 1
+
     xw = np.lib.stride_tricks.as_strided(y, shape=tuple(x_shape_trimmed) + tuple([frame_length]), strides=y.strides + tuple([y.strides[axis]]))
     xw = np.moveaxis(xw, -1, axis - 1 if axis < 0 else axis + 1)
+
     slices = [slice(None)] * xw.ndim
     slices[axis] = slice(0, None, hop_length)
+
     return np.sqrt(np.mean(np.abs(xw[tuple(slices)]) ** 2, axis=-2, keepdims=True))
 
 class PreProcess:
@@ -251,6 +255,7 @@ if __name__ == "__main__":
     clean_strength = args.clean_strength
 
     os.makedirs(experiment_directory, exist_ok=True)
+    
     if logger.hasHandlers(): logger.handlers.clear()
     else:
         console_handler = logging.StreamHandler()
@@ -265,15 +270,10 @@ if __name__ == "__main__":
         logger.addHandler(file_handler)
         logger.setLevel(logging.DEBUG)
 
-    logger.debug(f"{translations['modelname']}: {args.model_name}")
-    logger.debug(f"{translations['export_process']}: {experiment_directory}")
-    logger.debug(f"{translations['dataset_folder']}: {dataset}")
-    logger.debug(f"{translations['pretrain_sr']}: {sample_rate}")
-    logger.debug(f"{translations['cpu_core']}: {num_processes}")
-    logger.debug(f"{translations['split_audio']}: {cut_preprocess}")
-    logger.debug(f"{translations['preprocess_effect']}: {preprocess_effects}")
-    logger.debug(f"{translations['clear_audio']}: {clean_dataset}")
-    if clean_dataset: logger.debug(f"{translations['clean_strength']}: {clean_strength}")
+    log_data = {translations['modelname']: args.model_name, translations['export_process']: experiment_directory, translations['dataset_folder']: dataset, translations['pretrain_sr']: sample_rate, translations['cpu_core']: num_processes, translations['split_audio']: cut_preprocess, translations['preprocess_effect']: preprocess_effects, translations['clear_audio']: clean_dataset}
+    if clean_dataset: log_data[translations['clean_strength']] = clean_strength
+
+    logger.debug("\n\n".join([f"{key}: {value}" for key, value in log_data.items()]))
 
     pid_path = os.path.join(experiment_directory, "preprocess_pid.txt")
     with open(pid_path, "w") as pid_file:

@@ -2,8 +2,7 @@ import os
 import sys
 import torch
 
-now_dir = os.getcwd()
-sys.path.append(now_dir)
+sys.path.append(os.getcwd())
 
 from .commons import fused_add_tanh_sigmoid_multiply
 
@@ -34,6 +33,7 @@ class WaveNet(torch.nn.Module):
 
             res_skip_channels = (hidden_channels if i == n_layers - 1 else 2 * hidden_channels)
             res_skip_layer = torch.nn.Conv1d(hidden_channels, res_skip_channels, 1)
+
             res_skip_layer = torch.nn.utils.parametrizations.weight_norm(res_skip_layer, name="weight")
             self.res_skip_layers.append(res_skip_layer)
 

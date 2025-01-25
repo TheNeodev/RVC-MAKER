@@ -3,6 +3,7 @@ import re
 import sys
 import json
 import tqdm
+import time
 import codecs
 import random
 import base64
@@ -13,10 +14,8 @@ import tempfile
 
 from Crypto.Cipher import AES
 from Crypto.Util import Counter
-from tenacity import retry, wait_exponential, retry_if_exception_type
 
-now_dir = os.getcwd()
-sys.path.append(now_dir)
+sys.path.append(os.getcwd())
 
 from main.configs.config import Config
 translations = Config().translations
@@ -39,33 +38,37 @@ def get_chunks(size):
     yield (p, size - p)
 
 def decrypt_attr(attr, key):
-    attr = AES.new(a32_to_str(key), AES.MODE_CBC, makebyte('\0' * 16)).decrypt(attr)
-    attr = codecs.latin_1_decode(attr)[0]
-    attr = attr.rstrip('\0')
+    attr = codecs.latin_1_decode(AES.new(a32_to_str(key), AES.MODE_CBC, makebyte('\0' * 16)).decrypt(attr))[0].rstrip('\0')
 
     return json.loads(attr[4:]) if attr[:6] == 'MEGA{"' else False
 
-@retry(retry=retry_if_exception_type(RuntimeError), wait=wait_exponential(multiplier=2, min=2, max=60))
 def _api_request(data):
     sequence_num = random.randint(0, 0xFFFFFFFF)
     params = {'id': sequence_num}
     sequence_num += 1
 
     if not isinstance(data, list): data = [data]
-    json_resp = json.loads(requests.post(f'https://g.api.mega.co.nz/cs', params=params, data=json.dumps(data), timeout=160).text)
 
-    try:
-        if isinstance(json_resp, list): int_resp = json_resp[0] if isinstance(json_resp[0], int) else None
-        elif isinstance(json_resp, int): int_resp = json_resp
-    except IndexError:
-        int_resp = None
+    for attempt in range(60):
+        try:
+            json_resp = json.loads(requests.post(f'https://g.api.mega.co.nz/cs', params=params, data=json.dumps(data), timeout=160).text)
 
-    if int_resp is not None:
-        if int_resp == 0: return int_resp
-        if int_resp == -3: raise RuntimeError('int_resp==-3')
-        raise Exception(int_resp)
-    
-    return json_resp[0]
+            try:
+                if isinstance(json_resp, list): int_resp = json_resp[0] if isinstance(json_resp[0], int) else None
+                elif isinstance(json_resp, int): int_resp = json_resp
+            except IndexError:
+                int_resp = None
+
+            if int_resp is not None:
+                if int_resp == 0: return int_resp
+                if int_resp == -3: raise RuntimeError('int_resp==-3')
+                raise Exception(int_resp)
+            
+            return json_resp[0]
+        except (RuntimeError, requests.exceptions.RequestException):
+            if attempt == 60 - 1: raise  
+            delay = 2 * (2 ** attempt) 
+            time.sleep(delay) 
 
 def base64_url_decode(data):
     data += '=='[(2 - len(data) * 3) % 4:]
@@ -98,8 +101,7 @@ def mega_download_file(file_handle, file_key, dest_path=None, dest_filename=None
     if 'g' not in file_data: raise Exception(translations["file_not_access"])
     file_size = file_data['s']
 
-    attribs = base64_url_decode(file_data['at'])
-    attribs = decrypt_attr(attribs, k)
+    attribs = decrypt_attr(base64_url_decode(file_data['at']), k)
 
     file_name = dest_filename if dest_filename is not None else attribs['n']
     input_file = requests.get(file_data['g'], stream=True).raw
@@ -110,9 +112,7 @@ def mega_download_file(file_handle, file_key, dest_path=None, dest_filename=None
     temp_output_file = tempfile.NamedTemporaryFile(mode='w+b', prefix='megapy_', delete=False)
     k_str = a32_to_str(k)
 
-    counter = Counter.new(128, initial_value=((iv[0] << 32) + iv[1]) << 64)
-    aes = AES.new(k_str, AES.MODE_CTR, counter=counter)
-
+    aes = AES.new(k_str, AES.MODE_CTR, counter=Counter.new(128, initial_value=((iv[0] << 32) + iv[1]) << 64))
     mac_str = b'\0' * 16
     mac_encryptor = AES.new(k_str, AES.MODE_CBC, mac_str)
     

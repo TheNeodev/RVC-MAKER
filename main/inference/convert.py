@@ -2,12 +2,15 @@ import re
 import os
 import sys
 import time
+import faiss
 import torch
 import shutil
 import librosa
 import logging
 import argparse
 import warnings
+import parselmouth
+import onnxruntime
 import logging.handlers
 
 import numpy as np
@@ -16,13 +19,20 @@ import torch.nn.functional as F
 
 from tqdm import tqdm
 from scipy import signal
+from functools import lru_cache
 from distutils.util import strtobool
+from fairseq import checkpoint_utils
 
 warnings.filterwarnings("ignore")
 sys.path.append(os.getcwd())
 
 from main.configs.config import Config
-from main.library.utils import check_predictors, check_embedders, load_audio
+from main.library.predictors.FCPE import FCPE
+from main.library.predictors.RMVPE import RMVPE
+from main.library.algorithm.synthesizers import Synthesizer
+from main.library.predictors.CREPE import predict, mean, median
+from main.library.predictors.WORLD import harvest, dio, stonemask
+from main.library.utils import check_predictors, check_embedders, load_audio, process_audio, merge_audio
 
 bh, ah = signal.butter(N=5, Wn=48, btype="high", fs=16000)
 config = Config()
@@ -46,7 +56,6 @@ else:
     logger.addHandler(console_handler)
     logger.addHandler(file_handler)
     logger.setLevel(logging.DEBUG)
-
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -77,27 +86,13 @@ def main():
     args = parse_arguments()
     pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0_method, input_path, output_path, pth_path, index_path, f0_autotune, f0_autotune_strength, clean_audio, clean_strength, export_format, embedder_model, resample_sr, split_audio, checkpointing = args.pitch, args.filter_radius, args.index_rate, args.volume_envelope,args.protect, args.hop_length, args.f0_method, args.input_path, args.output_path, args.pth_path, args.index_path, args.f0_autotune, args.f0_autotune_strength, args.clean_audio, args.clean_strength, args.export_format, args.embedder_model, args.resample_sr, args.split_audio, args.checkpointing
 
-    logger.debug(f"{translations['pitch']}: {pitch}")
-    logger.debug(f"{translations['filter_radius']}: {filter_radius}")
-    logger.debug(f"{translations['index_strength']} {index_rate}")
-    logger.debug(f"{translations['volume_envelope']}: {volume_envelope}")
-    logger.debug(f"{translations['protect']}: {protect}")
-    logger.debug(f"Hop length: {hop_length}")
-    logger.debug(f"{translations['f0_method']}: {f0_method}")
-    logger.debug(f"f0_method: {input_path}")
-    logger.debug(f"{translations['audio_path']}: {input_path}")
-    logger.debug(f"{translations['output_path']}: {output_path.replace('wav', export_format)}")
-    logger.debug(f"{translations['model_path']}: {pth_path}")
-    logger.debug(f"{translations['indexpath']}: {index_path}")
-    logger.debug(f"{translations['autotune']}: {f0_autotune}")
-    logger.debug(f"{translations['clear_audio']}: {clean_audio}")
-    if clean_audio: logger.debug(f"{translations['clean_strength']}: {clean_strength}")
-    logger.debug(f"{translations['export_format']}: {export_format}")
-    logger.debug(f"{translations['hubert_model']}: {embedder_model}")
-    if resample_sr != 0: logger.debug(f"{translations['sample_rate']}: {resample_sr}")
-    logger.debug(f"{translations['split_audio']}: {split_audio}")
-    if f0_autotune: logger.debug(f"{translations['autotune_rate_info']}: {f0_autotune_strength}")
-    logger.debug(f"{translations['memory_efficient_training']}: {checkpointing}")
+    log_data = {translations['pitch']: pitch, translations['filter_radius']: filter_radius, translations['index_strength']: index_rate, translations['volume_envelope']: volume_envelope, translations['protect']: protect, "Hop length": hop_length, translations['f0_method']: f0_method, translations['audio_path']: input_path, translations['output_path']: output_path.replace('wav', export_format), translations['model_path']: pth_path, translations['indexpath']: index_path, translations['autotune']: f0_autotune, translations['clear_audio']: clean_audio, translations['export_format']: export_format, translations['hubert_model']: embedder_model, translations['split_audio']: split_audio, translations['memory_efficient_training']: checkpointing}
+
+    if clean_audio: log_data[translations['clean_strength']] = clean_strength
+    if resample_sr != 0: log_data[translations['sample_rate']] = resample_sr
+    if f0_autotune: log_data[translations['autotune_rate_info']] = f0_autotune_strength
+
+    logger.debug("\n\n".join([f"{key}: {value}" for key, value in log_data.items()]))
 
     check_predictors(f0_method)
     check_embedders(embedder_model)
@@ -119,8 +114,6 @@ def run_batch_convert(params):
         sys.exit(1)
 
 def run_convert_script(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0_method, input_path, output_path, pth_path, index_path, f0_autotune, f0_autotune_strength, clean_audio, clean_strength, export_format, embedder_model, resample_sr, split_audio, checkpointing):
-    if split_audio: from main.library.utils import process_audio, merge_audio
-
     cvt = VoiceConverter()
     start_time = time.time()
 
@@ -273,8 +266,6 @@ class VC:
         self.note_dict = self.autotune.note_dict
 
     def get_providers(self):
-        import onnxruntime
-
         ort_providers = onnxruntime.get_available_providers()
 
         if "CUDAExecutionProvider" in ort_providers: providers = ["CUDAExecutionProvider"]
@@ -283,18 +274,16 @@ class VC:
 
         return providers
 
+    @lru_cache
     def get_f0_pm(self, x, p_len):
-        import parselmouth
-
         f0 = (parselmouth.Sound(x, self.sample_rate).to_pitch_ac(time_step=self.window / self.sample_rate * 1000 / 1000, voicing_threshold=0.6, pitch_floor=self.f0_min, pitch_ceiling=self.f0_max).selected_array["frequency"])
         pad_size = (p_len - len(f0) + 1) // 2
 
         if pad_size > 0 or p_len - len(f0) - pad_size > 0: f0 = np.pad(f0, [[pad_size, p_len - len(f0) - pad_size]], mode="constant")
         return f0
-
+ 
+    @lru_cache
     def get_f0_mangio_crepe(self, x, p_len, hop_length, model="full", onnx=False):
-        from main.library.predictors.CREPE import predict
-
         providers = self.get_providers() if onnx else None
 
         x = x.astype(np.float32)
@@ -308,9 +297,8 @@ class VC:
         source[source < 0.001] = np.nan
         return np.nan_to_num(np.interp(np.arange(0, len(source) * p_len, len(source)) / p_len, np.arange(0, len(source)), source))
 
+    @lru_cache
     def get_f0_crepe(self, x, model="full", onnx=False):
-        from main.library.predictors.CREPE import predict, mean, median
-
         providers = self.get_providers() if onnx else None
         
         f0, pd = predict(torch.tensor(np.copy(x))[None].float(), self.sample_rate, self.window, self.f0_min, self.f0_max, model, batch_size=512, device=self.device, return_periodicity=True, providers=providers, onnx=onnx)
@@ -319,9 +307,8 @@ class VC:
 
         return f0[0].cpu().numpy()
 
+    @lru_cache
     def get_f0_fcpe(self, x, p_len, hop_length, onnx=False, legacy=False):
-        from main.library.predictors.FCPE import FCPE
-
         providers = self.get_providers() if onnx else None
 
         model_fcpe = FCPE(os.path.join("assets", "models", "predictors", "fcpe" + (".onnx" if onnx else ".pt")), hop_length=int(hop_length), f0_min=int(self.f0_min), f0_max=int(self.f0_max), dtype=torch.float32, device=self.device, sample_rate=self.sample_rate, threshold=0.03, providers=providers, onnx=onnx) if legacy else FCPE(os.path.join("assets", "models", "predictors", "fcpe" + (".onnx" if onnx else ".pt")), hop_length=self.window, f0_min=0, f0_max=8000, dtype=torch.float32, device=self.device, sample_rate=self.sample_rate, threshold=0.006, providers=providers, onnx=onnx)
@@ -330,9 +317,8 @@ class VC:
         del model_fcpe
         return f0
     
+    @lru_cache
     def get_f0_rmvpe(self, x, legacy=False, onnx=False):
-        from main.library.predictors.RMVPE import RMVPE
-
         providers = self.get_providers() if onnx else None
 
         rmvpe_model = RMVPE(os.path.join("assets", "models", "predictors", "rmvpe" + (".onnx" if onnx else ".pt")), device=self.device, onnx=onnx, providers=providers)
@@ -341,24 +327,25 @@ class VC:
         del rmvpe_model
         return f0
     
+    @lru_cache
     def get_f0_pyworld(self, x, filter_radius, model="harvest"):
-        import main.library.predictors.WORLD as pw
-
-        if model == "harvest": f0, t = pw.harvest(x.astype(np.double),  fs=self.sample_rate, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=10)
-        elif model == "dio": f0, t = pw.dio(x.astype(np.double), fs=self.sample_rate, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=10)
+        if model == "harvest": f0, t = harvest(x.astype(np.double),  fs=self.sample_rate, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=10)
+        elif model == "dio": f0, t = dio(x.astype(np.double), fs=self.sample_rate, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=10)
         else: raise ValueError(translations["method_not_valid"])
 
-        f0 = pw.stonemask(x.astype(np.double), self.sample_rate, t, f0)
+        f0 = stonemask(x.astype(np.double), self.sample_rate, t, f0)
 
         if filter_radius > 2 or model == "dio": f0 = signal.medfilt(f0, 3)
         return f0
     
+    @lru_cache
     def get_f0_yin(self, x, hop_length, p_len):
         source = np.array(librosa.yin(x.astype(np.double), sr=self.sample_rate, fmin=self.f0_min, fmax=self.f0_max, hop_length=hop_length))
         source[source < 0.001] = np.nan
 
         return np.nan_to_num(np.interp(np.arange(0, len(source) * p_len, len(source)) / p_len, np.arange(0, len(source)), source))
     
+    @lru_cache
     def get_f0_pyin(self, x, hop_length, p_len):
         f0, _, _ = librosa.pyin(x.astype(np.double), fmin=self.f0_min, fmax=self.f0_max, sr=self.sample_rate, hop_length=hop_length)
 
@@ -523,8 +510,6 @@ class VC:
     def pipeline(self, model, net_g, sid, audio, pitch, f0_method, file_index, index_rate, pitch_guidance, filter_radius, tgt_sr, resample_sr, volume_envelope, version, protect, hop_length, f0_autotune, f0_autotune_strength):
         if file_index != "" and os.path.exists(file_index) and index_rate != 0:
             try:
-                import faiss
-
                 index = faiss.read_index(file_index)
                 big_npy = index.reconstruct_n(0, index.ntotal)
             except Exception as e:
@@ -571,10 +556,7 @@ class VC:
         if resample_sr >= self.sample_rate and tgt_sr != resample_sr: audio_opt = librosa.resample(audio_opt, orig_sr=tgt_sr, target_sr=resample_sr, res_type="soxr_vhq")
 
         audio_max = np.abs(audio_opt).max() / 0.99
-        max_int16 = 32768
-
-        if audio_max > 1: max_int16 /= audio_max
-        audio_opt = (audio_opt * max_int16).astype(np.int16)
+        if audio_max > 1: audio_opt /= audio_max
 
         if pitch_guidance: del pitch, pitchf
         del sid
@@ -599,7 +581,6 @@ class VoiceConverter:
 
     def load_embedders(self, embedder_model):
         try:
-            from fairseq import checkpoint_utils
             models, _, _ = checkpoint_utils.load_model_ensemble_and_task([os.path.join("assets", "models", "embedders", embedder_model + '.pt')], suffix="")
         except Exception as e:
             logger.error(translations["read_model_error"].format(e=e))
@@ -659,7 +640,6 @@ class VoiceConverter:
 
     def setup(self):
         if self.cpt is not None:
-            from main.library.algorithm.synthesizers import Synthesizer
             self.tgt_sr = self.cpt["config"][-1]
             self.cpt["config"][-3] = self.cpt["weight"]["emb_g.weight"].shape[0]
 

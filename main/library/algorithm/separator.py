@@ -28,6 +28,7 @@ class Separator:
 
         if self.log_formatter is None: self.log_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(module)s - %(message)s")
         self.log_handler.setFormatter(self.log_formatter)
+
         if not self.logger.hasHandlers(): self.logger.addHandler(self.log_handler)
         if log_level > logging.DEBUG: warnings.filterwarnings("ignore")
 
@@ -42,6 +43,7 @@ class Separator:
 
         os.makedirs(self.model_file_dir, exist_ok=True)
         os.makedirs(self.output_dir, exist_ok=True)
+
         self.output_format = output_format
         self.output_bitrate = output_bitrate
 
@@ -51,6 +53,7 @@ class Separator:
 
         self.output_single_stem = output_single_stem
         if output_single_stem is not None: self.logger.debug(translations["output_single"].format(output_single_stem=output_single_stem))
+
         self.invert_using_spec = invert_using_spec
         if self.invert_using_spec: self.logger.debug(translations["step2"])
 
@@ -252,6 +255,7 @@ class Separator:
     def load_model_data_from_yaml(self, yaml_config_filename):
         model_data_yaml_filepath = os.path.join(self.model_file_dir, yaml_config_filename) if not os.path.exists(yaml_config_filename) else yaml_config_filename
         self.logger.debug(translations["load_yaml"].format(model_data_yaml_filepath=model_data_yaml_filepath))
+        
         model_data = yaml.load(open(model_data_yaml_filepath, encoding="utf-8"), Loader=yaml.FullLoader)
         self.logger.debug(translations["load_yaml_2"].format(model_data=model_data))
 
@@ -261,12 +265,14 @@ class Separator:
     def load_model_data_using_hash(self, model_path):
         self.logger.debug(translations["hash_md5"])
         model_hash = self.get_model_hash(model_path)
+
         self.logger.debug(translations["model_hash"].format(model_path=model_path, model_hash=model_hash))
         mdx_model_data_path = codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/enj/znva/wfba/zbqry_qngn.wfba", "rot13")
         self.logger.debug(translations["mdx_data"].format(mdx_model_data_path=mdx_model_data_path))
 
         response = requests.get(mdx_model_data_path)
         response.raise_for_status()
+
         mdx_model_data_object = response.json()
         self.logger.debug(translations["load_mdx"])
 
@@ -284,25 +290,7 @@ class Separator:
 
         if model_path.lower().endswith(".yaml"): yaml_config_filename = model_path
 
-        common_params = {
-            "logger": self.logger,
-            "log_level": self.log_level,
-            "torch_device": self.torch_device,
-            "torch_device_cpu": self.torch_device_cpu,
-            "torch_device_mps": self.torch_device_mps,
-            "onnx_execution_provider": self.onnx_execution_provider,
-            "model_name": model_filename.split(".")[0],
-            "model_path": model_path,
-            "model_data": self.load_model_data_from_yaml(yaml_config_filename) if yaml_config_filename is not None else self.load_model_data_using_hash(model_path),
-            "output_format": self.output_format,
-            "output_bitrate": self.output_bitrate,
-            "output_dir": self.output_dir,
-            "normalization_threshold": self.normalization_threshold,
-            "output_single_stem": self.output_single_stem,
-            "invert_using_spec": self.invert_using_spec,
-            "sample_rate": self.sample_rate,
-        }
-
+        common_params = {"logger": self.logger, "log_level": self.log_level, "torch_device": self.torch_device, "torch_device_cpu": self.torch_device_cpu, "torch_device_mps": self.torch_device_mps, "onnx_execution_provider": self.onnx_execution_provider, "model_name": model_filename.split(".")[0], "model_path": model_path, "model_data": self.load_model_data_from_yaml(yaml_config_filename) if yaml_config_filename is not None else self.load_model_data_using_hash(model_path), "output_format": self.output_format, "output_bitrate": self.output_bitrate, "output_dir": self.output_dir, "normalization_threshold": self.normalization_threshold, "output_single_stem": self.output_single_stem, "invert_using_spec": self.invert_using_spec, "sample_rate": self.sample_rate}
         separator_classes = {"MDX": "mdx_separator.MDXSeparator", "Demucs": "demucs_separator.DemucsSeparator"}
 
         if model_type not in self.arch_specific_params or model_type not in separator_classes: raise ValueError(translations["model_type_not_support"].format(model_type=model_type))
@@ -314,6 +302,7 @@ class Separator:
 
         self.logger.debug(f"{translations['initialization']} {model_type}: {separator_class}")
         self.model_instance = separator_class(common_config=common_params, arch_config=self.arch_specific_params[model_type])
+
         self.logger.debug(translations["loading_model_success"])
         self.logger.info(f"{translations['loading_model_duration']}: {time.strftime('%H:%M:%S', time.gmtime(int(time.perf_counter() - load_model_start_time)))}")
 
@@ -336,5 +325,6 @@ class Separator:
     def download_model_and_data(self, model_filename):
         self.logger.info(translations["loading_separator_model"].format(model_filename=model_filename))
         model_filename, model_type, model_friendly_name, model_path, yaml_config_filename = self.download_model_files(model_filename)
+
         if model_path.lower().endswith(".yaml"): yaml_config_filename = model_path
         self.logger.info(translations["downloading_model"].format(model_type=model_type, model_friendly_name=model_friendly_name, model_path=model_path, model_data_dict_size=len(self.load_model_data_from_yaml(yaml_config_filename) if yaml_config_filename is not None else self.load_model_data_using_hash(model_path))))

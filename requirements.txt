@@ -1,7 +1,7 @@
 # Platform-specific requirements section
 pip==23.3
-onnxruntime
-onnxruntime-gpu
+onnxruntime; sys_platform == 'darwin'
+onnxruntime-gpu; sys_platform != 'darwin'
 
 # Core dependencies
 PyYAML
@@ -9,10 +9,10 @@ torch==2.3.1
 tqdm
 torchvision==0.18.1
 torchaudio==2.3.1
-faiss-cpu==1.7.3
+faiss-cpu>=1.7.3
 
 # Machine learning, NLP and deep learning
-fairseq
+fairseq @ git+https://github.com/One-sixth/fairseq.git
 scikit-learn
 einops
 
@@ -24,17 +24,16 @@ soundfile
 pedalboard
 
 # Data processing and calculation
-numpy==1.23.5
+numpy==1.25.2
 numba
 scipy
 pandas
 matplotlib==3.7.2
 
 # Implementation and web framework
-gradio>=5.9.1
+gradio>=5.12.0
 requests
 aiohttp
-tenacity==5.1.5
 
 # Utility section
 yt-dlp

@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from contextlib import nullcontext
 from xml.sax.saxutils import escape
 
+
 @dataclass
 class TTSConfig:
     def __init__(self, voice, rate, volume, pitch):
@@ -153,8 +154,7 @@ class Communicate:
                     content_type = parameters.get(b"Content-Type", None)
                     if content_type not in [b"audio/mpeg", None]: raise Exception("content_type != audio/mpeg")
 
-                    if content_type is None:
-                        if len(data) == 0: continue
+                    if content_type is None and len(data) == 0: continue
 
                     if len(data) == 0: raise Exception("data = 0")
                     audio_was_received = True

@@ -97,18 +97,24 @@ def parse_arguments():
 
 args = parse_arguments()
 model_name, save_every_epoch, total_epoch, pretrainG, pretrainD, version, gpus, batch_size, sample_rate, pitch_guidance, save_only_latest, save_every_weights, cache_data_in_gpu, overtraining_detector, overtraining_threshold, cleanup, model_author, vocoder, checkpointing = args.model_name, args.save_every_epoch, args.total_epoch, args.g_pretrained_path, args.d_pretrained_path, args.rvc_version, args.gpu, args.batch_size, args.sample_rate, args.pitch_guidance, args.save_only_latest, args.save_every_weights, args.cache_data_in_gpu, args.overtraining_detector, args.overtraining_threshold, args.cleanup, args.model_author, args.vocoder, args.checkpointing
+
 experiment_dir = os.path.join("assets", "logs", model_name)
 training_file_path = os.path.join(experiment_dir, "training_data.json")
 config_save_path = os.path.join(experiment_dir, "config.json")
+
 os.environ["CUDA_VISIBLE_DEVICES"] = gpus.replace("-", ",")
 n_gpus = len(gpus.split("-"))
+
 torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = False
+
 lowest_value = {"step": 0, "value": float("inf"), "epoch": 0}
 global_step, last_loss_gen_all, overtrain_save_epoch = 0, 0, 0
 loss_gen_history, smoothed_loss_gen_history, loss_disc_history, smoothed_loss_disc_history = [], [], [], []
+
 with open(config_save_path, "r") as f:
     config = json.load(f)
+
 config = HParams(**config)
 config.data.training_files = os.path.join(experiment_dir, "filelist.txt")
 logger = logging.getLogger(__name__)
@@ -125,24 +131,12 @@ else:
     logger.addHandler(file_handler)
     logger.setLevel(logging.DEBUG)
 
-logger.debug(f"{translations['modelname']}: {model_name}")
-logger.debug(translations["save_every_epoch"].format(save_every_epoch=save_every_epoch))
-logger.debug(translations["total_e"].format(total_epoch=total_epoch))
-logger.debug(translations["dorg"].format(pretrainG=pretrainG, pretrainD=pretrainD))
-logger.debug(f"{translations['training_version']}: {version}")
-logger.debug(f"Gpu: {gpus}")
-logger.debug(f"{translations['batch_size']}: {batch_size}")
-logger.debug(f"{translations['pretrain_sr']}: {sample_rate}")
-logger.debug(f"{translations['training_f0']}: {pitch_guidance}")
-logger.debug(f"{translations['save_only_latest']}: {save_only_latest}")
-logger.debug(f"{translations['save_every_weights']}: {save_every_weights}")
-logger.debug(f"{translations['cache_in_gpu']}: {cache_data_in_gpu}")
-logger.debug(f"{translations['overtraining_detector']}: {overtraining_detector}")
-logger.debug(f"{translations['threshold']}: {overtraining_threshold}")
-logger.debug(f"{translations['cleanup_training']}: {cleanup}")
-logger.debug(f"{translations['memory_efficient_training']}: {checkpointing}")
-if not model_author: logger.debug(translations["model_author"].format(model_author=model_author))
-if vocoder != "Default": logger.debug(f"{translations['vocoder']}: {vocoder}")
+log_data = {translations['modelname']: model_name, translations["save_every_epoch"]: translations["save_every_epoch"].format(save_every_epoch=save_every_epoch), translations["total_e"]: translations["total_e"].format(total_epoch=total_epoch), translations["dorg"]: translations["dorg"].format(pretrainG=pretrainG, pretrainD=pretrainD), translations['training_version']: version, "Gpu": gpus, translations['batch_size']: batch_size, translations['pretrain_sr']: sample_rate, translations['training_f0']: pitch_guidance, translations['save_only_latest']: save_only_latest, translations['save_every_weights']: save_every_weights, translations['cache_in_gpu']: cache_data_in_gpu, translations['overtraining_detector']: overtraining_detector, translations['threshold']: overtraining_threshold, translations['cleanup_training']: cleanup, translations['memory_efficient_training']: checkpointing}
+
+if not model_author: log_data[translations["model_author"]] = translations["model_author"].format(model_author=model_author)
+if vocoder != "Default": log_data[translations['vocoder']] = vocoder
+
+logger.debug("\n\n".join([f"{key}: {value}" for key, value in log_data.items()]))
 
 def main():
     global training_file_path, last_loss_gen_all, smoothed_loss_gen_history, loss_gen_history, loss_disc_history, smoothed_loss_disc_history, overtrain_save_epoch, model_author, vocoder, checkpointing
@@ -769,6 +763,7 @@ def run(rank, n_gpus, experiment_dir, pretrainG, pretrainD, pitch_guidance, cust
             if rank == 0:
                 verify_checkpoint_shapes(pretrainG, net_g)
                 logger.info(translations["import_pretrain"].format(dg="G", pretrain=pretrainG))
+
             if hasattr(net_g, "module"): net_g.module.load_state_dict(torch.load(pretrainG, map_location="cpu")["model"])
             else: net_g.load_state_dict(torch.load(pretrainG, map_location="cpu")["model"])
         else: logger.warning(translations["not_using_pretrain"].format(dg="G"))
@@ -777,6 +772,7 @@ def run(rank, n_gpus, experiment_dir, pretrainG, pretrainD, pitch_guidance, cust
             if rank == 0:
                 verify_checkpoint_shapes(pretrainD, net_d)
                 logger.info(translations["import_pretrain"].format(dg="D", pretrain=pretrainD))
+
             if hasattr(net_d, "module"): net_d.module.load_state_dict(torch.load(pretrainD, map_location="cpu")["model"])
             else: net_d.load_state_dict(torch.load(pretrainD, map_location="cpu")["model"])
         else: logger.warning(translations["not_using_pretrain"].format(dg="D"))
@@ -785,6 +781,7 @@ def run(rank, n_gpus, experiment_dir, pretrainG, pretrainD, pitch_guidance, cust
 
     optim_d.step()
     optim_g.step()
+
     scaler = GradScaler(enabled=False)
     cache = []
 
@@ -832,12 +829,16 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, wri
             with autocast(enabled=False):
                 model_output = net_g(phone, phone_lengths, pitch, pitchf, spec, spec_lengths, sid)
                 y_hat, ids_slice, _, z_mask, (_, z_p, m_p, logs_p, _, logs_q) = model_output 
+
                 mel = spec_to_mel_torch(spec, config.data.filter_length, config.data.n_mel_channels, config.data.sample_rate, config.data.mel_fmin, config.data.mel_fmax)
                 y_mel = slice_segments(mel, ids_slice, config.train.segment_size // config.data.hop_length, dim=3)
+
                 with autocast(enabled=False):
                     y_hat_mel = mel_spectrogram_torch(y_hat.float().squeeze(1), config.data.filter_length, config.data.n_mel_channels, config.data.sample_rate, config.data.hop_length, config.data.win_length, config.data.mel_fmin, config.data.mel_fmax)
+
                 wave = slice_segments(wave, ids_slice * config.data.hop_length, config.train.segment_size, dim=3)
                 y_d_hat_r, y_d_hat_g, _, _ = net_d(wave, y_hat.detach())
+
                 with autocast(enabled=False):
                     loss_disc, losses_disc_r, losses_disc_g = discriminator_loss(y_d_hat_r, y_d_hat_g)
 
@@ -855,6 +856,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, wri
                     loss_fm = feature_loss(fmap_r, fmap_g)
                     loss_gen, losses_gen = generator_loss(y_d_hat_g)
                     loss_gen_all = loss_gen + loss_fm + loss_mel + loss_kl
+
                     if loss_gen_all < lowest_value["value"]:
                         lowest_value["value"] = loss_gen_all
                         lowest_value["step"] = global_step
@@ -872,6 +874,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, wri
                 if global_step % config.train.log_interval == 0:
                     if loss_mel > 75: loss_mel = 75
                     if loss_kl > 9: loss_kl = 9
+
                     scalar_dict = {"loss/g/total": loss_gen_all, "loss/d/total": loss_disc, "learning_rate": optim_g.param_groups[0]["lr"], "grad/norm_d": grad_norm_d, "grad/norm_g": grad_norm_g, "loss/g/fm": loss_fm, "loss/g/mel": loss_mel, "loss/g/kl": loss_kl}
                     scalar_dict.update({f"loss/g/{i}": v for i, v in enumerate(losses_gen)})
                     scalar_dict.update({f"loss/d_r/{i}": v for i, v in enumerate(losses_disc_r)})
@@ -881,14 +884,17 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, wri
                         o, *_ = net_g.module.infer(*reference) if hasattr(net_g, "module") else net_g.infer(*reference)
 
                     summarize(writer=writer, global_step=global_step, images={"slice/mel_org": plot_spectrogram_to_numpy(y_mel[0].data.cpu().numpy()), "slice/mel_gen": plot_spectrogram_to_numpy(y_hat_mel[0].data.cpu().numpy()), "all/mel": plot_spectrogram_to_numpy(mel[0].data.cpu().numpy())}, scalars=scalar_dict, audios={f"gen/audio_{global_step:07d}": o[0, :, :]}, audio_sample_rate=config.data.sample_rate)
+
             global_step += 1
             pbar.update(1)
 
     def check_overtraining(smoothed_loss_history, threshold, epsilon=0.004):
         if len(smoothed_loss_history) < threshold + 1: return False
+
         for i in range(-threshold, -1):
             if smoothed_loss_history[i + 1] > smoothed_loss_history[i]: return True
             if abs(smoothed_loss_history[i + 1] - smoothed_loss_history[i]) >= epsilon: return False
+
         return True
 
     def update_exponential_moving_average(smoothed_loss_history, new_value, smoothing=0.987):
@@ -942,9 +948,12 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, wri
         if epoch >= custom_total_epoch:
             logger.info(translations["success_training"].format(epoch=epoch, global_step=global_step, loss_gen_all=round(loss_gen_all.item(), 3)))
             logger.info(translations["training_info"].format(lowest_value_rounded=round(float(lowest_value["value"]), 3), lowest_value_epoch=lowest_value['epoch'], lowest_value_step=lowest_value['step']))
+
             pid_file_path = os.path.join(experiment_dir, "config.json")
+
             with open(pid_file_path, "r") as pid_file:
                 pid_data = json.load(pid_file)
+
             with open(pid_file_path, "w") as pid_file:
                 pid_data.pop("process_pids", None)
                 json.dump(pid_data, pid_file, indent=4)
@@ -976,5 +985,6 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         logger.error(f"{translations['training_error']} {e}")
+
         import traceback
         logger.debug(traceback.format_exc())

@@ -253,8 +253,10 @@ stft = STFT()
 
 def softmax_kernel(data, *, projection_matrix, is_query, normalize_data=True, eps=1e-4, device=None):
     b, h, *_ = data.shape
+    
     data_normalizer = (data.shape[-1] ** -0.25) if normalize_data else 1.0
     ratio = projection_matrix.shape[0] ** -0.5
+
     data_dash = torch.einsum("...id,...jd->...ij", (data_normalizer * data), repeat(projection_matrix, "j d -> b h j d", b=b, h=h).type_as(data))
     diag_data = ((torch.sum(data**2, dim=-1) / 2.0) * (data_normalizer**2)).unsqueeze(dim=-1)
 
@@ -347,7 +349,6 @@ class DepthWiseConv1d(nn.Module):
 class ConformerConvModule(nn.Module):
     def __init__(self, dim, causal=False, expansion_factor=2, kernel_size=31, dropout=0.0):
         super().__init__()
-
         inner_dim = dim * expansion_factor
         self.net = nn.Sequential(nn.LayerNorm(dim), Transpose((1, 2)), nn.Conv1d(dim, inner_dim * 2, 1), GLU(dim=1), DepthWiseConv1d(inner_dim, inner_dim, kernel_size=kernel_size, padding=(calc_same_padding(kernel_size) if not causal else (kernel_size - 1, 0))), Swish(), nn.Conv1d(inner_dim, dim, 1), Transpose((1, 2)), nn.Dropout(dropout))
 
@@ -392,6 +393,7 @@ class FastAttention(nn.Module):
     def redraw_projection_matrix(self):
         projections = self.create_projection()
         self.projection_matrix.copy_(projections)
+
         del projections
 
     def forward(self, q, k, v):
@@ -426,6 +428,7 @@ class SelfAttention(nn.Module):
     def forward(self, x, context=None, mask=None, context_mask=None, name=None, inference=False, **kwargs):
         _, _, _, h, gh = *x.shape, self.heads, self.global_heads
         cross_attend = exists(context)
+
         context = default(context, x)
         context_mask = default(context_mask, mask) if not cross_attend else context_mask
 
@@ -506,6 +509,7 @@ class _FCPE(nn.Module):
         if mask:
             confident = torch.max(y, dim=-1, keepdim=True)[0]
             confident_mask = torch.ones_like(confident)
+
             confident_mask[confident <= self.threshold] = float("-INF")
             rtn = rtn * confident_mask
 
@@ -516,12 +520,14 @@ class _FCPE(nn.Module):
 
         confident, max_index = torch.max(y, dim=-1, keepdim=True)
         local_argmax_index = torch.clamp(torch.arange(0, 9).to(max_index.device) + (max_index - 4), 0, self.n_out - 1)
+
         y_l = torch.gather(y, -1, local_argmax_index)
         rtn = torch.sum(torch.gather(self.cent_table[None, None, :].expand(B, N, -1), -1, local_argmax_index) * y_l, dim=-1, keepdim=True) / torch.sum(y_l, dim=-1, keepdim=True)
 
         if mask:
             confident_mask = torch.ones_like(confident)
             confident_mask[confident <= self.threshold] = float("-INF")
+
             rtn = rtn * confident_mask
 
         return (rtn, confident) if self.confidence else rtn
@@ -547,7 +553,10 @@ class FCPEInfer:
         if self.onnx:
             import onnxruntime as ort
 
-            self.model = ort.InferenceSession(model_path, providers=providers)
+            sess_options = ort.SessionOptions()
+            sess_options.log_severity_level = 3
+
+            self.model = ort.InferenceSession(model_path, sess_options=sess_options, providers=providers)
         else:
             ckpt = torch.load(model_path, map_location=torch.device(self.device))
             self.args = DotDict(ckpt["config"])
@@ -625,6 +634,7 @@ class FCPE:
     def repeat_expand(self, content, target_len, mode = "nearest"):
         ndim = content.ndim
         content = (content[None, None] if ndim == 1 else content[None] if ndim == 2 else content)
+
         assert content.ndim == 3
         is_np = isinstance(content, np.ndarray)
 

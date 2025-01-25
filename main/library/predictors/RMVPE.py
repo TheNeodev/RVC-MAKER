@@ -46,6 +46,7 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
         self.n_encoders = n_encoders
         self.bn = nn.BatchNorm2d(in_channels, momentum=momentum)
+
         self.layers = nn.ModuleList()
         self.latent_channels = []
 
@@ -90,6 +91,7 @@ class ResDecoderBlock(nn.Module):
         super(ResDecoderBlock, self).__init__()
         out_padding = (0, 1) if stride == (1, 2) else (1, 1)
         self.n_blocks = n_blocks
+
         self.conv1 = nn.Sequential(nn.ConvTranspose2d(in_channels=in_channels, out_channels=out_channels, kernel_size=(3, 3), stride=stride, padding=(1, 1), output_padding=out_padding, bias=False), nn.BatchNorm2d(out_channels, momentum=momentum), nn.ReLU())
         self.conv2 = nn.ModuleList()
         self.conv2.append(ConvBlockRes(out_channels * 2, out_channels, momentum))
@@ -184,7 +186,10 @@ class RMVPE:
         if self.onnx:
             import onnxruntime as ort
 
-            self.model = ort.InferenceSession(model_path, providers=providers)
+            sess_options = ort.SessionOptions()
+            sess_options.log_severity_level = 3
+
+            self.model = ort.InferenceSession(model_path, sess_options=sess_options, providers=providers)
         else:
             model = E2E(4, 1, (2, 2))
             ckpt = torch.load(model_path, map_location="cpu")
@@ -202,13 +207,14 @@ class RMVPE:
         with torch.no_grad():
             n_frames = mel.shape[-1]
             mel = F.pad(mel, (0, 32 * ((n_frames - 1) // 32 + 1) - n_frames), mode="reflect")
-            hidden = self.model.run([self.model.get_outputs()[0].name], input_feed={self.model.get_inputs()[0].name: mel.cpu().numpy()})[0] if self.onnx else self.model(mel.float())
 
+            hidden = self.model.run([self.model.get_outputs()[0].name], input_feed={self.model.get_inputs()[0].name: mel.cpu().numpy()})[0] if self.onnx else self.model(mel.float())
             return hidden[:, :n_frames]
 
     def decode(self, hidden, thred=0.03):
         f0 = 10 * (2 ** (self.to_local_average_cents(hidden, thred=thred) / 1200))
         f0[f0 == 10] = 0
+
         return f0
 
     def infer_from_audio(self, audio, thred=0.03):
@@ -227,8 +233,10 @@ class RMVPE:
     def to_local_average_cents(self, salience, thred=0.05):
         center = np.argmax(salience, axis=1)
         salience = np.pad(salience, ((0, 0), (4, 4)))
+
         center += 4
         todo_salience, todo_cents_mapping = [], []
+
         starts = center - 4
         ends = center + 5
 
@@ -237,8 +245,10 @@ class RMVPE:
             todo_cents_mapping.append(self.cents_mapping[starts[idx] : ends[idx]])
 
         todo_salience = np.array(todo_salience)
+        
         devided = np.sum(todo_salience * np.array(todo_cents_mapping), 1) / np.sum(todo_salience, 1)
         devided[np.max(salience, axis=1) <= thred] = 0
+
         return devided
 
 class BiGRU(nn.Module):
