@@ -13,7 +13,7 @@ from pedalboard import Pedalboard, Chorus, Distortion, Reverb, PitchShift, Delay
 sys.path.append(os.getcwd())
 
 from main.configs.config import Config
-from main.library.utils import convert_to_float32
+from main.library.utils import pydub_convert
 
 translations = Config().translations
 
@@ -160,7 +160,7 @@ def process_audio(input_path, output_path, resample, resample_sr, chorus_depth, 
 
         if audio_combination: 
             from pydub import AudioSegment
-            convert_to_float32(AudioSegment.from_file(audio_combination_input)).overlay(convert_to_float32(AudioSegment.from_file(output_path))).export(output_path, format=export_format)
+            pydub_convert(AudioSegment.from_file(audio_combination_input)).overlay(pydub_convert(AudioSegment.from_file(output_path.replace("wav", export_format)))).export(output_path.replace("wav", export_format), format=export_format)
     except Exception as e:
         raise RuntimeError(translations["apply_error"].format(e=e))
     return output_path

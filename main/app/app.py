@@ -27,7 +27,7 @@ from multiprocessing import cpu_count
 sys.path.append(os.getcwd())
 
 from main.configs.config import Config
-from main.library.utils import convert_to_float32
+from main.library.utils import pydub_convert
 from main.tools import gdown, meganz, mediafire, pixeldrain, huggingface, edge_tts, google_tts
 
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -49,7 +49,7 @@ else:
     logger.setLevel(logging.DEBUG)
 
 warnings.filterwarnings("ignore")
-for l in ["httpx", "gradio", "uvicorn", "httpcore"]:
+for l in ["httpx", "gradio", "uvicorn", "httpcore", "urllib3"]:
     logging.getLogger(l).setLevel(logging.ERROR)
 
 config = Config()
@@ -762,7 +762,7 @@ def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not
 
             gr_info(translations["merge_backup"])
 
-            convert_to_float32(AudioSegment.from_file(output_path)).overlay(convert_to_float32(AudioSegment.from_file(backing_source))).export(output_merge_backup, format=format)
+            pydub_convert(AudioSegment.from_file(output_path)).overlay(pydub_convert(AudioSegment.from_file(backing_source))).export(output_merge_backup, format=format)
 
             gr_info(translations["merge_success"])
 
@@ -778,7 +778,7 @@ def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not
             if instruments == translations["notfound"]: 
                 gr_warning(translations["not_found_instruments"])
                 output_merge_instrument = None
-            else: AudioSegment.from_file(instruments).overlay(AudioSegment.from_file(vocals)).export(output_merge_instrument, format=format)
+            else: pydub_convert(AudioSegment.from_file(instruments)).overlay(pydub_convert(AudioSegment.from_file(vocals))).export(output_merge_instrument, format=format)
             
             gr_info(translations["merge_success"])
 

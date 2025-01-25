@@ -20,6 +20,7 @@ for l in ["httpx", "httpcore"]:
 
 translations = Config().translations
 
+
 def check_predictors(method):
     def download(predictors):
         if not os.path.exists(os.path.join("assets", "models", "predictors", predictors)): huggingface.HF_download_file(codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/erfbyir/znva/cerqvpgbef/", "rot13") + predictors, os.path.join("assets", "models", "predictors", predictors))
@@ -53,7 +54,7 @@ def load_audio(file):
 
 def process_audio(logger, file_path, output_path):
     try:
-        song = convert_to_float32(AudioSegment.from_file(file_path))
+        song = pydub_convert(AudioSegment.from_file(file_path))
         cut_files, time_stamps = [], []
 
         for i, (start_i, end_i) in enumerate(silence.detect_nonsilent(song, min_silence_len=750, silence_thresh=-70)):
@@ -91,10 +92,9 @@ def merge_audio(files_list, time_stamps, original_file_path, output_path, format
     except Exception as e:
         raise RuntimeError(f"{translations['merge_error']}: {e}")
 
-def convert_to_float32(audio):
-    samples = np.array(audio.get_array_of_samples())
+def pydub_convert(audio):
+    samples = np.frombuffer(audio.raw_data, dtype=np.int16)
 
-    if audio.sample_width == 2: samples = samples.astype(np.float32) / 32768.0  
-    elif audio.sample_width == 4: samples = (samples.astype(np.float32) / 2147483648.0) if np.max(np.abs(samples)) > 1.0 else samples.astype(np.float32)
+    if samples.dtype != np.int16: samples = (samples * 32767).astype(np.int16)
 
-    return AudioSegment(samples.tobytes(), frame_rate=audio.frame_rate, sample_width=4, channels=audio.channels)
+    return AudioSegment(samples.tobytes(), frame_rate=audio.frame_rate, sample_width=samples.dtype.itemsize, channels=audio.channels)

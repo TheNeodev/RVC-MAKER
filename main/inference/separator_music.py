@@ -11,7 +11,7 @@ from distutils.util import strtobool
 sys.path.append(os.getcwd())
 
 from main.configs.config import Config
-from main.library.utils import convert_to_float32
+from main.library.utils import pydub_convert
 from main.library.algorithm.separator import Separator
 
 translations = Config().translations 
@@ -154,7 +154,7 @@ def separator_music_demucs(input, output, format, shifts, overlap, segments_size
         elif '_(Other)_' in f: other = path
         elif '_(Vocals)_' in f: os.rename(path, os.path.join(output, f"Original_Vocals.{format}"))
 
-    convert_to_float32(AudioSegment.from_file(drums)).overlay(convert_to_float32(AudioSegment.from_file(bass))).overlay(convert_to_float32(AudioSegment.from_file(other))).export(os.path.join(output, f"Instruments.{format}"), format=format)
+    pydub_convert(AudioSegment.from_file(drums)).overlay(pydub_convert(AudioSegment.from_file(bass))).overlay(pydub_convert(AudioSegment.from_file(other))).export(os.path.join(output, f"Instruments.{format}"), format=format)
 
     for f in [drums, bass, other]:
         if os.path.exists(f): os.remove(f)

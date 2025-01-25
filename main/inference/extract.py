@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import time
 import tqdm
@@ -19,7 +20,7 @@ from random import shuffle
 from multiprocessing import Pool
 from distutils.util import strtobool
 from fairseq import checkpoint_utils
-from functools import partial, lru_cache
+from functools import partial
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.append(os.getcwd())
@@ -27,8 +28,8 @@ sys.path.append(os.getcwd())
 from main.configs.config import Config
 from main.library.predictors.FCPE import FCPE
 from main.library.predictors.RMVPE import RMVPE
+from main.library.predictors.WORLD import PYWORLD
 from main.library.predictors.CREPE import predict, mean, median
-from main.library.predictors.WORLD import harvest, dio, stonemask
 from main.library.utils import check_predictors, check_embedders, load_audio
 
 logger = logging.getLogger(__name__)
@@ -36,9 +37,8 @@ translations = Config().translations
 logger.propagate = False
 
 warnings.filterwarnings("ignore")
-for l in ["torch", "faiss", "fairseq", "faiss.loader"]:
+for l in ["torch", "faiss", "httpx", "fairseq", "httpcore", "faiss.loader", "numba.core", "urllib3"]:
     logging.getLogger(l).setLevel(logging.ERROR)
-
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -144,8 +144,6 @@ class FeatureInput:
         return providers
     
     def compute_f0_hybrid(self, methods_str, np_arr, hop_length):
-        import re
-
         methods_str = re.search("hybrid\[(.+)\]", methods_str)
         if methods_str: methods = [method.strip() for method in methods_str.group(1).split("+")]
 
@@ -234,7 +232,6 @@ class FeatureInput:
         elif "hybrid" in f0_method: return self.compute_f0_hybrid(f0_method, np_arr, int(hop_length))
         else: raise ValueError(translations["method_not_valid"])
 
-    @lru_cache
     def get_pm(self, x):
         f0 = (parselmouth.Sound(x, self.fs).to_pitch_ac(time_step=(160 / 16000 * 1000) / 1000, voicing_threshold=0.6, pitch_floor=50, pitch_ceiling=1100).selected_array["frequency"])
         pad_size = ((x.size // self.hop) - len(f0) + 1) // 2
@@ -242,7 +239,6 @@ class FeatureInput:
         if pad_size > 0 or (x.size // self.hop) - len(f0) - pad_size > 0: f0 = np.pad(f0, [[pad_size, (x.size // self.hop) - len(f0) - pad_size]], mode="constant")
         return f0
     
-    @lru_cache
     def get_mangio_crepe(self, x, hop_length, model="full", onnx=False):
         providers = self.get_providers() if onnx else None
 
@@ -255,7 +251,6 @@ class FeatureInput:
 
         return np.nan_to_num(np.interp(np.arange(0, len(source) * (x.size // self.hop), len(source)) / (x.size // self.hop), np.arange(0, len(source)), source))
     
-    @lru_cache
     def get_crepe(self, x, model="full", onnx=False):
         providers = self.get_providers() if onnx else None
         
@@ -265,7 +260,6 @@ class FeatureInput:
 
         return f0[0].cpu().numpy()
     
-    @lru_cache
     def get_fcpe(self, x, hop_length, legacy=False, onnx=False):
         providers = self.get_providers() if onnx else None
 
@@ -275,7 +269,6 @@ class FeatureInput:
         del model_fcpe
         return f0
     
-    @lru_cache
     def get_rmvpe(self, x, legacy=False, onnx=False):
         providers = self.get_providers() if onnx else None
 
@@ -285,22 +278,19 @@ class FeatureInput:
         del rmvpe_model
         return f0
     
-    @lru_cache
     def get_pyworld(self, x, model="harvest"):
-        if model == "harvest":  f0, t = harvest(x.astype(np.double),  fs=self.fs, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=1000 * self.hop / self.fs)
-        elif model == "dio": f0, t = dio(x.astype(np.double), fs=self.fs, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=1000 * self.hop / self.fs)
+        if model == "harvest":  f0, t = PYWORLD.harvest(x.astype(np.double),  fs=self.fs, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=1000 * self.hop / self.fs)
+        elif model == "dio": f0, t = PYWORLD.dio(x.astype(np.double), fs=self.fs, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=1000 * self.hop / self.fs)
         else: raise ValueError(translations["method_not_valid"])
 
-        return stonemask(x.astype(np.double), self.fs, t, f0)
+        return PYWORLD.stonemask(x.astype(np.double), self.fs, t, f0)
     
-    @lru_cache
     def get_yin(self, x, hop_length):
         source = np.array(librosa.yin(x.astype(np.double), sr=self.fs, fmin=self.f0_min, fmax=self.f0_max, hop_length=hop_length))
         source[source < 0.001] = np.nan
 
         return np.nan_to_num(np.interp(np.arange(0, len(source) * (x.size // self.hop), len(source)) / (x.size // self.hop), np.arange(0, len(source)), source))
     
-    @lru_cache
     def get_pyin(self, x, hop_length):
         f0, _, _ = librosa.pyin(x.astype(np.double), fmin=self.f0_min, fmax=self.f0_max, sr=self.fs, hop_length=hop_length)
 

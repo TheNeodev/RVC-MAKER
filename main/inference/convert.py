@@ -19,7 +19,6 @@ import torch.nn.functional as F
 
 from tqdm import tqdm
 from scipy import signal
-from functools import lru_cache
 from distutils.util import strtobool
 from fairseq import checkpoint_utils
 
@@ -29,9 +28,9 @@ sys.path.append(os.getcwd())
 from main.configs.config import Config
 from main.library.predictors.FCPE import FCPE
 from main.library.predictors.RMVPE import RMVPE
+from main.library.predictors.WORLD import PYWORLD
 from main.library.algorithm.synthesizers import Synthesizer
 from main.library.predictors.CREPE import predict, mean, median
-from main.library.predictors.WORLD import harvest, dio, stonemask
 from main.library.utils import check_predictors, check_embedders, load_audio, process_audio, merge_audio
 
 bh, ah = signal.butter(N=5, Wn=48, btype="high", fs=16000)
@@ -40,7 +39,7 @@ translations = config.translations
 logger = logging.getLogger(__name__)
 logger.propagate = False
 
-for l in ["torch", "faiss", "fairseq", "faiss.loader"]:
+for l in ["torch", "faiss", "httpx", "fairseq", "httpcore", "faiss.loader", "numba.core", "urllib3"]:
     logging.getLogger(l).setLevel(logging.ERROR)
 
 if logger.hasHandlers(): logger.handlers.clear()
@@ -274,7 +273,6 @@ class VC:
 
         return providers
 
-    @lru_cache
     def get_f0_pm(self, x, p_len):
         f0 = (parselmouth.Sound(x, self.sample_rate).to_pitch_ac(time_step=self.window / self.sample_rate * 1000 / 1000, voicing_threshold=0.6, pitch_floor=self.f0_min, pitch_ceiling=self.f0_max).selected_array["frequency"])
         pad_size = (p_len - len(f0) + 1) // 2
@@ -282,7 +280,6 @@ class VC:
         if pad_size > 0 or p_len - len(f0) - pad_size > 0: f0 = np.pad(f0, [[pad_size, p_len - len(f0) - pad_size]], mode="constant")
         return f0
  
-    @lru_cache
     def get_f0_mangio_crepe(self, x, p_len, hop_length, model="full", onnx=False):
         providers = self.get_providers() if onnx else None
 
@@ -297,7 +294,6 @@ class VC:
         source[source < 0.001] = np.nan
         return np.nan_to_num(np.interp(np.arange(0, len(source) * p_len, len(source)) / p_len, np.arange(0, len(source)), source))
 
-    @lru_cache
     def get_f0_crepe(self, x, model="full", onnx=False):
         providers = self.get_providers() if onnx else None
         
@@ -307,7 +303,6 @@ class VC:
 
         return f0[0].cpu().numpy()
 
-    @lru_cache
     def get_f0_fcpe(self, x, p_len, hop_length, onnx=False, legacy=False):
         providers = self.get_providers() if onnx else None
 
@@ -317,7 +312,6 @@ class VC:
         del model_fcpe
         return f0
     
-    @lru_cache
     def get_f0_rmvpe(self, x, legacy=False, onnx=False):
         providers = self.get_providers() if onnx else None
 
@@ -326,29 +320,25 @@ class VC:
 
         del rmvpe_model
         return f0
-    
-    @lru_cache
+
     def get_f0_pyworld(self, x, filter_radius, model="harvest"):
-        if model == "harvest": f0, t = harvest(x.astype(np.double),  fs=self.sample_rate, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=10)
-        elif model == "dio": f0, t = dio(x.astype(np.double), fs=self.sample_rate, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=10)
+        if model == "harvest": f0, t = PYWORLD.harvest(x.astype(np.double),  fs=self.sample_rate, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=10)
+        elif model == "dio": f0, t = PYWORLD.dio(x.astype(np.double), fs=self.sample_rate, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=10)
         else: raise ValueError(translations["method_not_valid"])
 
-        f0 = stonemask(x.astype(np.double), self.sample_rate, t, f0)
+        f0 = PYWORLD.stonemask(x.astype(np.double), self.sample_rate, t, f0)
 
         if filter_radius > 2 or model == "dio": f0 = signal.medfilt(f0, 3)
         return f0
     
-    @lru_cache
     def get_f0_yin(self, x, hop_length, p_len):
         source = np.array(librosa.yin(x.astype(np.double), sr=self.sample_rate, fmin=self.f0_min, fmax=self.f0_max, hop_length=hop_length))
         source[source < 0.001] = np.nan
 
         return np.nan_to_num(np.interp(np.arange(0, len(source) * p_len, len(source)) / p_len, np.arange(0, len(source)), source))
     
-    @lru_cache
     def get_f0_pyin(self, x, hop_length, p_len):
         f0, _, _ = librosa.pyin(x.astype(np.double), fmin=self.f0_min, fmax=self.f0_max, sr=self.sample_rate, hop_length=hop_length)
-
         source = np.array(f0)
         source[source < 0.001] = np.nan
 
