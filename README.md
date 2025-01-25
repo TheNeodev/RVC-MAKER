@@ -20,6 +20,7 @@ Công cụ chuyển đổi giọng nói chất lượng và hiệu suất cao đ
 Dự án này là một công cụ chuyển đổi giọng nói đơn giản, dễ sử dụng, được thiết kế cho người Việt Nam. Với mục tiêu tạo ra các sản phẩm chuyển đổi giọng nói chất lượng cao và hiệu suất tối ưu, dự án cho phép người dùng thay đổi giọng nói một cách mượt mà, tự nhiên.
 
 # Các tính năng của dự án
+
 - Tách nhạc (MDX-Net/Demucs)
 
 - Chuyển đổi giọng nói (Chuyển đổi tệp/Chuyển đổi hàng loạt/Chuyển đổi văn bản)
@@ -36,11 +37,14 @@ Dự án này là một công cụ chuyển đổi giọng nói đơn giản, d�
 
 - Tải xuống từ kho mô hình có sẳn
 
+- Tìm kiếm mô hình từ web
+
 # Hướng dẫn sử dụng
 
 **Sẽ có nếu tôi thực sự rảnh...**
 
 # Cách cài đặt và sử dụng
+
 - B1: **Cài đặt python từ trang chủ hoặc [python](https://www.python.org/ftp/python/3.10.7/python-3.10.7-amd64.exe)**
 - B2: **Cài đặt ffmpeg từ [FFMPEG](https://github.com/BtbN/FFmpeg-Builds/releases) giải nén và thêm vào PATH**
 - B2: **Tải mã nguồn về và giải nén ra**
@@ -161,6 +165,8 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 
 `main\\library\\uvr5_separator\\spec_utils.py`: **Tệp tin thông số kỷ thuật của hệ thống tách nhạc**
 
+`main\\library\\utils.py`: **Tệp tin chứa các tiện ích như: xử lý, tải âm thanh, kiểm tra và tải xuống mô hình thiếu**
+
 `main\\tools\\edge_tts.py`: **Tệp tin công cụ chuyển đổi văn bản thành giọng nói của EDGE**
 
 `main\\tools\\gdown.py`: **Tệp tin tải xuống tệp tin từ google drive**
@@ -193,7 +199,7 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 
 - Tôi sẽ không chịu trách nhiệm với bất kỳ thiệt hại trực tiếp hoặc gián tiếp nào phát sinh từ việc sử dụng dự án này.
 
-# Dự án dựa trên các dự án chính như
+# Dự án này dựa trên một số dự án chính như
 
 - **[Applio](https://github.com/IAHispano/Applio/tree/main)**
 - **[Python-audio-separator](https://github.com/nomadkaraoke/python-audio-separator/tree/main)**
@@ -211,6 +217,10 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 - **[Mega.py](https://github.com/odwyersoftware/mega.py)**
 - **[Edge-TTS](https://github.com/rany2/edge-tts)**
 - **[Gdown](https://github.com/wkentaro/gdown)**
+
+# Kho mô hình của công cụ tìm kiếm mô hình
+
+- **Kho mô hình: [KHO MÔ HÌNH](https://voice-models.com/)**
 
 # Báo cáo lỗi
 
