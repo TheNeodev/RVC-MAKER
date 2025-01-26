@@ -6,6 +6,7 @@ import json
 import torch
 import codecs
 import shutil
+import yt_dlp
 import logging
 import platform
 import requests
@@ -29,6 +30,7 @@ sys.path.append(os.getcwd())
 from main.configs.config import Config
 from main.library.utils import pydub_convert
 from main.tools import gdown, meganz, mediafire, pixeldrain, huggingface, edge_tts, google_tts
+
 
 ssl._create_default_https_context = ssl._create_unverified_context
 logger = logging.getLogger(__name__)
@@ -71,6 +73,7 @@ csv_path = os.path.join("assets", "spreadsheet.csv")
 if language == "vi-VN": gradio.strings.en = {"RUNNING_LOCALLY": "* Chạy trên liên kết nội bộ:  {}://{}:{}", "RUNNING_LOCALLY_SSR": "* Chạy trên liên kết nội bộ:  {}://{}:{}, với SSR ⚡ (thử nghiệm, để tắt hãy dùng `ssr=False` trong `launch()`)", "SHARE_LINK_DISPLAY": "* Chạy trên liên kết công khai: {}", "COULD_NOT_GET_SHARE_LINK": "\nKhông thể tạo liên kết công khai. Vui lòng kiểm tra kết nối mạng của bạn hoặc trang trạng thái của chúng tôi: https://status.gradio.app.", "COULD_NOT_GET_SHARE_LINK_MISSING_FILE": "\nKhông thể tạo liên kết công khai. Thiếu tập tin: {}. \n\nVui lòng kiểm tra kết nối internet của bạn. Điều này có thể xảy ra nếu phần mềm chống vi-rút của bạn chặn việc tải xuống tệp này. Bạn có thể cài đặt thủ công bằng cách làm theo các bước sau: \n\n1. Tải xuống tệp này: {}\n2. Đổi tên tệp đã tải xuống thành: {}\n3. Di chuyển tệp đến vị trí này: {}", "COLAB_NO_LOCAL": "Không thể hiển thị giao diện nội bộ trên google colab, liên kết công khai đã được tạo.", "PUBLIC_SHARE_TRUE": "\nĐể tạo một liên kết công khai, hãy đặt `share=True` trong `launch()`.", "MODEL_PUBLICLY_AVAILABLE_URL": "Mô hình được cung cấp công khai tại: {} (có thể mất tới một phút để sử dụng được liên kết)", "GENERATING_PUBLIC_LINK": "Đang tạo liên kết công khai (có thể mất vài giây...):", "BETA_INVITE": "\nCảm ơn bạn đã là người dùng Gradio! Nếu bạn có thắc mắc hoặc phản hồi, vui lòng tham gia máy chủ Discord của chúng tôi và trò chuyện với chúng tôi: https://discord.gg/feTf9x3ZSB", "COLAB_DEBUG_TRUE": "Đã phát hiện thấy sổ tay Colab. Ô này sẽ chạy vô thời hạn để bạn có thể xem lỗi và nhật ký. " "Để tắt, hãy đặt debug=False trong launch().", "COLAB_DEBUG_FALSE": "Đã phát hiện thấy sổ tay Colab. Để hiển thị lỗi trong sổ ghi chép colab, hãy đặt debug=True trong launch()", "COLAB_WARNING": "Lưu ý: việc mở Chrome Inspector có thể làm hỏng bản demo trong sổ tay Colab.", "SHARE_LINK_MESSAGE": "\nLiên kết công khai sẽ hết hạn sau 72 giờ. Để nâng cấp GPU và lưu trữ vĩnh viễn miễn phí, hãy chạy `gradio deploy` từ terminal trong thư mục làm việc để triển khai lên huggingface (https://huggingface.co/spaces)", "INLINE_DISPLAY_BELOW": "Đang tải giao diện bên dưới...", "COULD_NOT_GET_SHARE_LINK_CHECKSUM": "\nKhông thể tạo liên kết công khai. Tổng kiểm tra không khớp cho tập tin: {}."}
 
 if not os.path.exists(os.path.join("assets", "miku.png")): huggingface.HF_download_file(miku_image, os.path.join("assets", "miku.png"))
+
 if os.path.exists(csv_path): cached_data = pd.read_csv(csv_path) 
 else:
     cached_data = pd.read_csv(codecs.decode("uggcf://qbpf.tbbtyr.pbz/fcernqfurrgf/q/1gNHnDeRULtEfz1Yieaw14USUQjWJy0Oq9k0DrCrjApb/rkcbeg?sbezng=pfi&tvq=1977693859", "rot13"))
@@ -154,10 +157,10 @@ def change_download_pretrained_choices(select):
 
 def get_index(model):
     model = os.path.basename(model).split("_")[0]
-    return {"value": next((f for f in [os.path.join(root, name) for root, _, files in os.walk(os.path.join("assets", "logs"), topdown=False) for name in files if name.endswith(".index") and "trained" not in name] if model.split(".")[0] in f), ""), "__type__": "update"}
+    return {"value": next((f for f in [os.path.join(root, name) for root, _, files in os.walk(os.path.join("assets", "logs"), topdown=False) for name in files if name.endswith(".index") and "trained" not in name] if model.split(".")[0] in f), ""), "__type__": "update"} if model else None
 
 def index_strength_show(index):
-    return {"visible": index != "" and os.path.exists(index), "value": 0.5, "__type__": "update"}
+    return {"visible": index and os.path.exists(index), "value": 0.5, "__type__": "update"}
 
 def hoplength_show(method, hybrid_method=None):
     show_hop_length_method = ["mangio-crepe-tiny", "mangio-crepe-tiny-onnx", "mangio-crepe-small", "mangio-crepe-small-onnx", "mangio-crepe-medium", "mangio-crepe-medium-onnx", "mangio-crepe-large", "mangio-crepe-large-onnx", "mangio-crepe-full", "mangio-crepe-full-onnx", "fcpe-legacy", "fcpe-legacy-onnx", "yin", "pyin"]
@@ -166,6 +169,7 @@ def hoplength_show(method, hybrid_method=None):
     elif method == "hybrid":
         methods_str = re.search("hybrid\[(.+)\]", hybrid_method)
         if methods_str: methods = [method.strip() for method in methods_str.group(1).split("+")]
+
         for i in methods:
             visible = i in show_hop_length_method
             if visible: break
@@ -244,7 +248,7 @@ def zip_file(name, pth, index):
     import zipfile
     with zipfile.ZipFile(zip_file_path, 'w') as zipf:
         zipf.write(pth_path, os.path.basename(pth_path))
-        zipf.write(index, os.path.basename(index))
+        if index: zipf.write(index, os.path.basename(index))
 
     gr_info(translations["success"])
     return {"visible": True, "value": zip_file_path, "__type__": "update"}
@@ -315,18 +319,21 @@ def download_url(url):
         ydl_opts = {"format": "bestaudio/best", "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "wav", "preferredquality": "192"}], "quiet": True, "no_warnings": True, "noplaylist": True, "verbose": False}
 
         gr_info(translations["start"].format(start=translations["download_music"]))
-        import yt_dlp
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             audio_output = os.path.join("audios", re.sub(r'\s+', '-', re.sub(r'[^\w\s\u4e00-\u9fff\uac00-\ud7af\u0400-\u04FF\u1100-\u11FF]', '', ydl.extract_info(url, download=False).get('title', 'video')).strip()))
-            if os.path.exists(audio_output): os.remove(audio_output)
+            if os.path.exists(audio_output): shutil.rmtree(audio_output, ignore_errors=True)
+
             ydl_opts['outtmpl'] = audio_output
             
         with yt_dlp.YoutubeDL(ydl_opts) as ydl: 
+            audio_output = audio_output + ".wav"
+            if os.path.exists(audio_output): os.remove(audio_output)
+            
             ydl.download([url])
 
         gr_info(translations["success"])
-        return [audio_output + ".wav", audio_output + ".wav", translations["success"]]
+        return [audio_output, audio_output, translations["success"]]
 
 def download_model(url=None, model=None):
     if not url: return gr_warning(translations["provide_url"])
@@ -1285,6 +1292,8 @@ def report_bug(error_info, provide):
         finally:
             if os.path.exists(report_path): os.remove(report_path)
     else: requests.post(report_url, json={"embeds": [{"title": "Báo Cáo Lỗi", "description": error_info}]})
+
+
 
 with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
     gr.HTML(translations["display_title"])
@@ -2477,6 +2486,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
 
     logger.info(translations["start_app"])
     logger.info(translations["set_lang"].format(lang=language))
+
     port = configs.get("app_port", 7860)
 
     for i in range(configs.get("num_of_restart", 5)):

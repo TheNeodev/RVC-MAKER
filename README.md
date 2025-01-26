@@ -220,7 +220,7 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 
 # Kho mô hình của công cụ tìm kiếm mô hình
 
-- **Kho mô hình: [KHO MÔ HÌNH](https://voice-models.com/)**
+- **[VOICE-MODELS.COM](https://voice-models.com/)**
 
 # Báo cáo lỗi
 
