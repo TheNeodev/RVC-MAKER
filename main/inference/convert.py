@@ -91,7 +91,8 @@ def main():
     if resample_sr != 0: log_data[translations['sample_rate']] = resample_sr
     if f0_autotune: log_data[translations['autotune_rate_info']] = f0_autotune_strength
 
-    logger.debug("\n\n".join([f"{key}: {value}" for key, value in log_data.items()]))
+    for key, value in log_data.items():
+        logger.debug(f"{key}: {value}")
 
     check_predictors(f0_method)
     check_embedders(embedder_model)
@@ -220,7 +221,6 @@ def run_convert_script(pitch, filter_radius, index_rate, volume_envelope, protec
 
         if os.path.exists(pid_path): os.remove(pid_path)
         elapsed_time = time.time() - start_time
-        
         logger.info(translations["convert_audio_success"].format(input_path=input_path, elapsed_time=f"{elapsed_time:.2f}", output_path=output_path.replace('wav', export_format)))
 
 def change_rms(source_audio, source_rate, target_audio, target_rate, rate):

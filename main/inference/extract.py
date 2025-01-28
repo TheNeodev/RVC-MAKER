@@ -407,7 +407,6 @@ def run_embedding_extraction(exp_dir, version, gpus, embedder_model):
 
 if __name__ == "__main__":
     args = parse_arguments()
-    
     exp_dir = os.path.join("assets", "logs", args.model_name)
     f0_method, hop_length, num_processes, gpus, version, pitch_guidance, sample_rate, embedder_model = args.f0_method, args.hop_length, args.cpu_cores, args.gpu, args.rvc_version, args.pitch_guidance, args.sample_rate, args.embedder_model
 
@@ -429,7 +428,8 @@ if __name__ == "__main__":
         logger.setLevel(logging.DEBUG)
 
     log_data = {translations['modelname']: args.model_name, translations['export_process']: exp_dir, translations['f0_method']: f0_method, translations['pretrain_sr']: sample_rate, translations['cpu_core']: num_processes, "Gpu": gpus, "Hop length": hop_length, translations['training_version']: version, translations['extract_f0']: pitch_guidance, translations['hubert_model']: embedder_model}
-    logger.debug("\n\n".join([f"{key}: {value}" for key, value in log_data.items()]))
+    for key, value in log_data.items():
+        logger.debug(f"{key}: {value}")
 
     pid_path = os.path.join(exp_dir, "extract_pid.txt")
     with open(pid_path, "w") as pid_file:

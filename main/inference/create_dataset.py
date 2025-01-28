@@ -21,7 +21,6 @@ translations = Config().translations
 dataset_temp = os.path.join("dataset_temp")
 logger = logging.getLogger(__name__)
 
-
 if logger.hasHandlers(): logger.handlers.clear()
 else: 
     console_handler = logging.StreamHandler()
@@ -70,9 +69,10 @@ def main():
         log_data[translations['skip_start']] = skip_start_audios
         log_data[translations['skip_end']] = skip_end_audios
 
-    logger.debug("\n\n".join([f"{key}: {value}" for key, value in log_data.items()]))
-    if kim_vocal_version not in [1, 2]: raise ValueError(translations["version_not_valid"])
+    for key, value in log_data.items():
+        logger.debug(f"{key}: {value}")
 
+    if kim_vocal_version not in [1, 2]: raise ValueError(translations["version_not_valid"])
     start_time = time.time()
 
     try:

@@ -243,7 +243,6 @@ def preprocess_training_set(input_root, sr, num_processes, exp_dir, per, cut_pre
 
 if __name__ == "__main__":
     args = parse_arguments()
-
     experiment_directory = os.path.join("assets", "logs", args.model_name)
     num_processes = args.cpu_cores
     num_processes = mp.cpu_count() if num_processes is None else int(num_processes)
@@ -273,7 +272,8 @@ if __name__ == "__main__":
     log_data = {translations['modelname']: args.model_name, translations['export_process']: experiment_directory, translations['dataset_folder']: dataset, translations['pretrain_sr']: sample_rate, translations['cpu_core']: num_processes, translations['split_audio']: cut_preprocess, translations['preprocess_effect']: preprocess_effects, translations['clear_audio']: clean_dataset}
     if clean_dataset: log_data[translations['clean_strength']] = clean_strength
 
-    logger.debug("\n\n".join([f"{key}: {value}" for key, value in log_data.items()]))
+    for key, value in log_data.items():
+        logger.debug(f"{key}: {value}")
 
     pid_path = os.path.join(experiment_directory, "preprocess_pid.txt")
     with open(pid_path, "w") as pid_file:

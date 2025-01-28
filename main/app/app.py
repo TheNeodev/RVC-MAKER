@@ -31,7 +31,6 @@ from main.configs.config import Config
 from main.library.utils import pydub_convert
 from main.tools import gdown, meganz, mediafire, pixeldrain, huggingface, edge_tts, google_tts
 
-
 ssl._create_default_https_context = ssl._create_unverified_context
 logger = logging.getLogger(__name__)
 logger.propagate = False
@@ -1013,6 +1012,7 @@ def training(model_name, rvc_version, save_every_epoch, save_only_latest, save_e
     if not os.path.exists(model_dir): os.makedirs(model_dir, exist_ok=True)
 
     for log in log_read(os.path.join(model_dir, "train.log"), done):
+        if len(log.split("\n")) > 100: log = log[-100:]
         yield log
 
 def stop_pid(pid_file, model_name=None):

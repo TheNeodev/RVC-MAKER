@@ -131,12 +131,12 @@ else:
     logger.addHandler(file_handler)
     logger.setLevel(logging.DEBUG)
 
-log_data = {translations['modelname']: model_name, translations["save_every_epoch"]: translations["save_every_epoch"].format(save_every_epoch=save_every_epoch), translations["total_e"]: translations["total_e"].format(total_epoch=total_epoch), translations["dorg"]: translations["dorg"].format(pretrainG=pretrainG, pretrainD=pretrainD), translations['training_version']: version, "Gpu": gpus, translations['batch_size']: batch_size, translations['pretrain_sr']: sample_rate, translations['training_f0']: pitch_guidance, translations['save_only_latest']: save_only_latest, translations['save_every_weights']: save_every_weights, translations['cache_in_gpu']: cache_data_in_gpu, translations['overtraining_detector']: overtraining_detector, translations['threshold']: overtraining_threshold, translations['cleanup_training']: cleanup, translations['memory_efficient_training']: checkpointing}
-
-if not model_author: log_data[translations["model_author"]] = translations["model_author"].format(model_author=model_author)
+log_data = {translations['modelname']: model_name, translations["save_every_epoch"]: save_every_epoch, translations["total_e"]: total_epoch, translations["dorg"].format(pretrainG=pretrainG, pretrainD=pretrainD): "", translations['training_version']: version, "Gpu": gpus, translations['batch_size']: batch_size, translations['pretrain_sr']: sample_rate, translations['training_f0']: pitch_guidance, translations['save_only_latest']: save_only_latest, translations['save_every_weights']: save_every_weights, translations['cache_in_gpu']: cache_data_in_gpu, translations['overtraining_detector']: overtraining_detector, translations['threshold']: overtraining_threshold, translations['cleanup_training']: cleanup, translations['memory_efficient_training']: checkpointing}
+if model_author: log_data[translations["model_author"].format(model_author=model_author)] = ""
 if vocoder != "Default": log_data[translations['vocoder']] = vocoder
 
-logger.debug("\n\n".join([f"{key}: {value}" for key, value in log_data.items()]))
+for key, value in log_data.items():
+    logger.debug(f"{key}: {value}" if value != "" else f"{key} {value}")
 
 def main():
     global training_file_path, last_loss_gen_all, smoothed_loss_gen_history, loss_gen_history, loss_disc_history, smoothed_loss_disc_history, overtrain_save_epoch, model_author, vocoder, checkpointing
@@ -151,6 +151,7 @@ def main():
     def start():
         children = []
         pid_data = {"process_pids": []}
+
         with open(config_save_path, "r") as pid_file:
             try:
                 pid_data.update(json.load(pid_file))
@@ -161,8 +162,10 @@ def main():
             for i in range(n_gpus):
                 subproc = mp.Process(target=run, args=(i, n_gpus, experiment_dir, pretrainG, pretrainD, pitch_guidance, total_epoch, save_every_weights, config, device, model_author, vocoder, checkpointing))
                 children.append(subproc)
+
                 subproc.start()
                 pid_data["process_pids"].append(subproc.pid)
+
             json.dump(pid_data, pid_file, indent=4)
 
         for i in range(n_gpus):
@@ -173,13 +176,14 @@ def main():
             with open(file_path, "r") as f:
                 data = json.load(f)
                 return (data.get("loss_disc_history", []), data.get("smoothed_loss_disc_history", []), data.get("loss_gen_history", []), data.get("smoothed_loss_gen_history", []))
+            
         return [], [], [], []
 
     def continue_overtrain_detector(training_file_path):
-        if overtraining_detector:
-            if os.path.exists(training_file_path): (loss_disc_history, smoothed_loss_disc_history, loss_gen_history, smoothed_loss_gen_history) = load_from_json(training_file_path)
+        if overtraining_detector and os.path.exists(training_file_path): (loss_disc_history, smoothed_loss_disc_history, loss_gen_history, smoothed_loss_gen_history) = load_from_json(training_file_path)
 
     n_gpus = torch.cuda.device_count()
+
     if not torch.cuda.is_available() and torch.backends.mps.is_available(): n_gpus = 1
     if n_gpus < 1:
         logger.warning(translations["not_gpu"])
@@ -195,11 +199,13 @@ def main():
             for name in dirs:
                 if name == "eval":
                     folder_path = os.path.join(root, name)
+
                     for item in os.listdir(folder_path):
                         item_path = os.path.join(folder_path, item)
                         if os.path.isfile(item_path): os.remove(item_path)
 
                     os.rmdir(folder_path)
+
     continue_overtrain_detector(training_file_path)
     start()
 
@@ -584,6 +590,7 @@ class DistributedBucketSampler(tdata.distributed.DistributedSampler):
 
     def _bisect(self, x, lo=0, hi=None):
         if hi is None: hi = len(self.boundaries) - 1
+
         if hi > lo:
             mid = (hi + lo) // 2
             if self.boundaries[mid] < x and x <= self.boundaries[mid + 1]: return mid
@@ -742,11 +749,13 @@ def run(rank, n_gpus, experiment_dir, pretrainG, pretrainD, pitch_guidance, cust
     torch.manual_seed(config.train.seed)
     if torch.cuda.is_available(): torch.cuda.set_device(rank)
 
-    train_dataset, train_loader = TextAudioLoaderMultiNSFsid(config.data), tdata.DataLoader(train_dataset, num_workers=4, shuffle=False, pin_memory=True, collate_fn=TextAudioCollateMultiNSFsid(), batch_sampler=DistributedBucketSampler(train_dataset, batch_size * n_gpus, [100, 200, 300, 400, 500, 600, 700, 800, 900], num_replicas=n_gpus, rank=rank, shuffle=True), persistent_workers=True, prefetch_factor=8)
+    train_dataset = TextAudioLoaderMultiNSFsid(config.data)
+    train_loader = tdata.DataLoader(train_dataset, num_workers=4, shuffle=False, pin_memory=True, collate_fn=TextAudioCollateMultiNSFsid(), batch_sampler=DistributedBucketSampler(train_dataset, batch_size * n_gpus, [100, 200, 300, 400, 500, 600, 700, 800, 900], num_replicas=n_gpus, rank=rank, shuffle=True), persistent_workers=True, prefetch_factor=8)
+
     net_g, net_d = Synthesizer(config.data.filter_length // 2 + 1, config.train.segment_size // config.data.hop_length, **config.model, use_f0=pitch_guidance, sr=sample_rate, vocoder=vocoder, checkpointing=checkpointing), MultiPeriodDiscriminator(version, config.model.use_spectral_norm, checkpointing=checkpointing)
 
     if torch.cuda.is_available(): net_g, net_d = net_g.cuda(rank), net_d.cuda(rank)
-    else: net_g, net_d = net_g.to(device); net_d.to(device)
+    else: net_g, net_d = net_g.to(device), net_d.to(device)
     optim_g, optim_d = torch.optim.AdamW(net_g.parameters(), config.train.learning_rate, betas=config.train.betas, eps=config.train.eps), torch.optim.AdamW(net_d.parameters(), config.train.learning_rate, betas=config.train.betas, eps=config.train.eps)
     net_g, net_d = (DDP(net_g, device_ids=[rank]), DDP(net_d, device_ids=[rank])) if torch.cuda.is_available() else (DDP(net_g), DDP(net_d))
 
@@ -966,6 +975,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, wri
         
         if model_add:
             ckpt = (net_g.module.state_dict() if hasattr(net_g, "module") else net_g.state_dict())
+            
             for m in model_add:
                 extract_model(ckpt=ckpt, sr=sample_rate, pitch_guidance=pitch_guidance == True, name=model_name, model_path=m, epoch=epoch, step=global_step, version=version, hps=hps, model_author=model_author, vocoder=vocoder)
 

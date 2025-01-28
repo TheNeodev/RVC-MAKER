@@ -24,7 +24,6 @@ def parse_arguments():
 
     return parser.parse_args()
 
-
 def main():
     args = parse_arguments()
     
@@ -48,7 +47,8 @@ def main():
         logger.setLevel(logging.DEBUG)
 
     log_data = {translations['modelname']: args.model_name, translations['model_path']: exp_dir, translations['training_version']: version, translations['index_algorithm_info']: index_algorithm}
-    logger.debug("\n\n".join([f"{key}: {value}" for key, value in log_data.items()]))
+    for key, value in log_data.items():
+        logger.debug(f"{key}: {value}")
 
     try:
         npys = []

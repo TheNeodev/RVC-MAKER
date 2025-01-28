@@ -90,7 +90,8 @@ def main():
             log_data[translations['dereveb_audio']] = reverb
             log_data[translations['dereveb_backing']] = backing_reverb
 
-        logger.debug("\n\n".join([f"{key}: {value}" for key, value in log_data.items()]))
+        for key, value in log_data.items():
+            logger.debug(f"{key}: {value}")
 
         if model_name in ["HT-Tuned", "HT-Normal", "HD_MMI", "HT_6S"]: vocals, instruments = separator_music_demucs(input_path, output_path, export_format, shifts, overlap, segments_size, model_name, sample_rate)
         else: vocals, instruments = separator_music_mdx(input_path, output_path, export_format, segments_size, overlap, mdx_denoise, model_name, hop_length, batch_size, sample_rate)
@@ -104,7 +105,6 @@ def main():
         
         if clean_audio:
             import soundfile as sf
-
             logger.info(f"{translations['clear_audio']}...")
 
             vocal_data, vocal_sr = sf.read(vocals_no_reverb if reverb else vocals)
