@@ -586,7 +586,7 @@ class VoiceConverter:
             if audio_max > 1: audio /= audio_max
 
             if not self.hubert_model: 
-                if not os.path.exists(os.path.join("assets", "models", "embedders", embedder_model + '.pt')): raise FileNotFoundError(f"{translations[['not_found'].format(name=translations[['model']])]}: {embedder_model}")  
+                if not os.path.exists(os.path.join("assets", "models", "embedders", embedder_model + '.pt')): raise FileNotFoundError(f"{translations['not_found'].format(name=translations['model'])}: {embedder_model}")  
                 self.load_embedders(embedder_model)
 
             if self.tgt_sr != resample_sr >= 16000: self.tgt_sr = resample_sr

@@ -66,12 +66,11 @@ model_name, index_path, delete_index = sorted(list(model for model in os.listdir
 pretrainedD, pretrainedG, Allpretrained = ([model for model in os.listdir(os.path.join("assets", "models", "pretrained_custom")) if model.endswith(".pth") and "D" in model], [model for model in os.listdir(os.path.join("assets", "models", "pretrained_custom")) if model.endswith(".pth") and "G" in model], [os.path.join("assets", "models", path, model) for path in ["pretrained_v1", "pretrained_v2", "pretrained_custom"] for model in os.listdir(os.path.join("assets", "models", path)) if model.endswith(".pth") and ("D" in model or "G" in model)])
 separate_model = sorted([os.path.join("assets", "models", "uvr5", models) for models in os.listdir(os.path.join("assets", "models", "uvr5")) if models.endswith((".th", ".yaml", ".onnx"))])
 presets_file = sorted(list(f for f in os.listdir(os.path.join("assets", "presets")) if f.endswith(".json")))
-language, theme, edge_tts, google_tts_voice, mdx_model, uvr_model = configs.get("language", "vi-VN"), configs.get("theme", "NoCrypt/miku"), configs.get("edge_tts", ["vi-VN-HoaiMyNeural", "vi-VN-NamMinhNeural"]), configs.get("google_tts_voice", ["vi", "en"]), configs.get("mdx_model", "MDXNET_Main"), (configs.get("demucs_model", "HD_MMI") + configs.get("mdx_model", "MDXNET_Main"))
+language, theme, edgetts, google_tts_voice, mdx_model, uvr_model = configs.get("language", "vi-VN"), configs.get("theme", "NoCrypt/miku"), configs.get("edge_tts", ["vi-VN-HoaiMyNeural", "vi-VN-NamMinhNeural"]), configs.get("google_tts_voice", ["vi", "en"]), configs.get("mdx_model", "MDXNET_Main"), (configs.get("demucs_model", "HD_MMI") + configs.get("mdx_model", "MDXNET_Main"))
 miku_image = codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/erfbyir/znva/zvxh.cat", "rot13")
 csv_path = os.path.join("assets", "spreadsheet.csv")
 
 if language == "vi-VN": gradio.strings.en = {"RUNNING_LOCALLY": "* Chạy trên liên kết nội bộ:  {}://{}:{}", "RUNNING_LOCALLY_SSR": "* Chạy trên liên kết nội bộ:  {}://{}:{}, với SSR ⚡ (thử nghiệm, để tắt hãy dùng `ssr=False` trong `launch()`)", "SHARE_LINK_DISPLAY": "* Chạy trên liên kết công khai: {}", "COULD_NOT_GET_SHARE_LINK": "\nKhông thể tạo liên kết công khai. Vui lòng kiểm tra kết nối mạng của bạn hoặc trang trạng thái của chúng tôi: https://status.gradio.app.", "COULD_NOT_GET_SHARE_LINK_MISSING_FILE": "\nKhông thể tạo liên kết công khai. Thiếu tập tin: {}. \n\nVui lòng kiểm tra kết nối internet của bạn. Điều này có thể xảy ra nếu phần mềm chống vi-rút của bạn chặn việc tải xuống tệp này. Bạn có thể cài đặt thủ công bằng cách làm theo các bước sau: \n\n1. Tải xuống tệp này: {}\n2. Đổi tên tệp đã tải xuống thành: {}\n3. Di chuyển tệp đến vị trí này: {}", "COLAB_NO_LOCAL": "Không thể hiển thị giao diện nội bộ trên google colab, liên kết công khai đã được tạo.", "PUBLIC_SHARE_TRUE": "\nĐể tạo một liên kết công khai, hãy đặt `share=True` trong `launch()`.", "MODEL_PUBLICLY_AVAILABLE_URL": "Mô hình được cung cấp công khai tại: {} (có thể mất tới một phút để sử dụng được liên kết)", "GENERATING_PUBLIC_LINK": "Đang tạo liên kết công khai (có thể mất vài giây...):", "BETA_INVITE": "\nCảm ơn bạn đã là người dùng Gradio! Nếu bạn có thắc mắc hoặc phản hồi, vui lòng tham gia máy chủ Discord của chúng tôi và trò chuyện với chúng tôi: https://discord.gg/feTf9x3ZSB", "COLAB_DEBUG_TRUE": "Đã phát hiện thấy sổ tay Colab. Ô này sẽ chạy vô thời hạn để bạn có thể xem lỗi và nhật ký. " "Để tắt, hãy đặt debug=False trong launch().", "COLAB_DEBUG_FALSE": "Đã phát hiện thấy sổ tay Colab. Để hiển thị lỗi trong sổ ghi chép colab, hãy đặt debug=True trong launch()", "COLAB_WARNING": "Lưu ý: việc mở Chrome Inspector có thể làm hỏng bản demo trong sổ tay Colab.", "SHARE_LINK_MESSAGE": "\nLiên kết công khai sẽ hết hạn sau 72 giờ. Để nâng cấp GPU và lưu trữ vĩnh viễn miễn phí, hãy chạy `gradio deploy` từ terminal trong thư mục làm việc để triển khai lên huggingface (https://huggingface.co/spaces)", "INLINE_DISPLAY_BELOW": "Đang tải giao diện bên dưới...", "COULD_NOT_GET_SHARE_LINK_CHECKSUM": "\nKhông thể tạo liên kết công khai. Tổng kiểm tra không khớp cho tập tin: {}."}
-
 if not os.path.exists(os.path.join("assets", "miku.png")): huggingface.HF_download_file(miku_image, os.path.join("assets", "miku.png"))
 
 if os.path.exists(csv_path): cached_data = pd.read_csv(csv_path) 
@@ -127,7 +126,7 @@ def change_preset_choices():
     return {"value": "", "choices": sorted(list(f for f in os.listdir(os.path.join("assets", "presets")) if f.endswith(".json"))), "__type__": "update"}
 
 def change_tts_voice_choices(google):
-    return {"choices": google_tts_voice if google else edge_tts, "value": google_tts_voice[0] if google else edge_tts[0], "__type__": "update"}
+    return {"choices": google_tts_voice if google else edgetts, "value": google_tts_voice[0] if google else edgetts[0], "__type__": "update"}
 
 def change_backing_choices(backing, merge):
     if backing or merge: return {"value": False, "interactive": False, "__type__": "update"}
@@ -762,32 +761,35 @@ def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not
 
             gr_info(translations["convert_backup_success"])
 
-        if not not_merge_backing and not use_original:
-            backing_source = output_backing if convert_backing else backing_vocal
+        try:
+            if not not_merge_backing and not use_original:
+                backing_source = output_backing if convert_backing else backing_vocal
 
-            if os.path.exists(output_merge_backup): os.remove(output_merge_backup)
+                if os.path.exists(output_merge_backup): os.remove(output_merge_backup)
 
-            gr_info(translations["merge_backup"])
+                gr_info(translations["merge_backup"])
 
-            pydub_convert(AudioSegment.from_file(output_path)).overlay(pydub_convert(AudioSegment.from_file(backing_source))).export(output_merge_backup, format=format)
+                pydub_convert(AudioSegment.from_file(output_path)).overlay(pydub_convert(AudioSegment.from_file(backing_source))).export(output_merge_backup, format=format)
 
-            gr_info(translations["merge_success"])
+                gr_info(translations["merge_success"])
 
-        if merge_instrument:    
-            vocals = output_merge_backup if not not_merge_backing and not use_original else output_path
+            if merge_instrument:    
+                vocals = output_merge_backup if not not_merge_backing and not use_original else output_path
 
-            if os.path.exists(output_merge_instrument): os.remove(output_merge_instrument)
+                if os.path.exists(output_merge_instrument): os.remove(output_merge_instrument)
 
-            gr_info(translations["merge_instruments_process"])
+                gr_info(translations["merge_instruments_process"])
 
-            instruments = get_audio_file('Instruments.')
-            
-            if instruments == translations["notfound"]: 
-                gr_warning(translations["not_found_instruments"])
-                output_merge_instrument = None
-            else: pydub_convert(AudioSegment.from_file(instruments)).overlay(pydub_convert(AudioSegment.from_file(vocals))).export(output_merge_instrument, format=format)
-            
-            gr_info(translations["merge_success"])
+                instruments = get_audio_file('Instruments.')
+                
+                if instruments == translations["notfound"]: 
+                    gr_warning(translations["not_found_instruments"])
+                    output_merge_instrument = None
+                else: pydub_convert(AudioSegment.from_file(instruments)).overlay(pydub_convert(AudioSegment.from_file(vocals))).export(output_merge_instrument, format=format)
+                
+                gr_info(translations["merge_success"])
+        except:
+            return return_none
 
         return [(None if use_original else output_path), output_backing, (None if not_merge_backing and use_original else output_merge_backup), (output_path if use_original else None), (output_merge_instrument if merge_instrument else None), {"visible": True, "__type__": "update"}]
     else:
@@ -834,7 +836,7 @@ def convert_selection(clean, autotune, use_audio, use_original, convert_backing,
         gr_info(translations["found_choice"].format(choice=len(choice)))
 
         if len(choice) == 0: 
-            gr_info(translations["separator==0"])
+            gr_warning(translations["separator==0"])
 
             return [{"choices": [], "value": "", "interactive": False, "visible": False, "__type__": "update"}, None, None, None, None, None, {"visible": True, "__type__": "update"}]
         elif len(choice) == 1:
@@ -1293,8 +1295,6 @@ def report_bug(error_info, provide):
             if os.path.exists(report_path): os.remove(report_path)
     else: requests.post(report_url, json={"embeds": [{"title": "Báo Cáo Lỗi", "description": error_info}]})
 
-
-
 with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
     gr.HTML(translations["display_title"])
     with gr.Row(): 
@@ -1611,7 +1611,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                     with gr.Group():
                         with gr.Row():
                             use_txt = gr.Checkbox(label=translations["input_txt"], value=False, interactive=True)
-                            google_tts = gr.Checkbox(label=translations["googletts"], value=False, interactive=True)
+                            google_tts_check_box = gr.Checkbox(label=translations["googletts"], value=False, interactive=True)
                         prompt = gr.Textbox(label=translations["text_to_speech"], value="", placeholder="Hello Words", lines=3)
                 with gr.Column():
                     speed = gr.Slider(label=translations["voice_speed"], info=translations["voice_speed_info"], minimum=-100, maximum=100, value=0, step=1)
@@ -1622,7 +1622,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
             with gr.Row():
                 with gr.Column():
                     txt_input = gr.File(label=translations["drop_text"], file_types=[".txt"], visible=use_txt.value)  
-                    tts_voice = gr.Dropdown(label=translations["voice"], choices=edge_tts, interactive=True, value="vi-VN-NamMinhNeural")
+                    tts_voice = gr.Dropdown(label=translations["voice"], choices=edgetts, interactive=True, value="vi-VN-NamMinhNeural")
                     tts_pitch = gr.Slider(minimum=-20, maximum=20, step=1, info=translations["pitch_info_2"], label=translations["pitch"], value=0, interactive=True)
                 with gr.Column():
                     with gr.Accordion(translations["model_accordion"], open=True):
@@ -1679,7 +1679,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                 txt_input.upload(fn=process_input, inputs=[txt_input], outputs=[prompt])
                 use_txt.change(fn=visible, inputs=[use_txt], outputs=[txt_input])
             with gr.Row():
-                google_tts.change(fn=change_tts_voice_choices, inputs=[google_tts], outputs=[tts_voice])
+                google_tts_check_box.change(fn=change_tts_voice_choices, inputs=[google_tts_check_box], outputs=[tts_voice])
                 tts_button.click(
                     fn=TTS, 
                     inputs=[
@@ -1688,7 +1688,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                         speed, 
                         output_audio0,
                         tts_pitch,
-                        google_tts
+                        google_tts_check_box
                     ], 
                     outputs=[tts_voice_audio],
                     api_name="text-to-speech"
