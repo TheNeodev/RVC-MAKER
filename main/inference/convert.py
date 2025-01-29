@@ -156,7 +156,6 @@ def run_convert_script(pitch, filter_radius, index_rate, volume_envelope, protec
                             for params in params_list:
                                 results = run_batch_convert(params)
                                 processed_segments.append(results)
-
                                 pbar.update(1)
                                 logger.debug(pbar.format_meter(pbar.n, pbar.total, pbar.format_dict["elapsed"]))
 
@@ -200,7 +199,6 @@ def run_convert_script(pitch, filter_radius, index_rate, volume_envelope, protec
                     for params in params_list:
                         results = run_batch_convert(params)
                         processed_segments.append(results)
-
                         pbar.update(1)
                         logger.debug(pbar.format_meter(pbar.n, pbar.total, pbar.format_dict["elapsed"]))
 
@@ -322,11 +320,13 @@ class VC:
         return f0
 
     def get_f0_pyworld(self, x, filter_radius, model="harvest"):
-        if model == "harvest": f0, t = PYWORLD.harvest(x.astype(np.double),  fs=self.sample_rate, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=10)
-        elif model == "dio": f0, t = PYWORLD.dio(x.astype(np.double), fs=self.sample_rate, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=10)
+        pw = PYWORLD()
+
+        if model == "harvest": f0, t = pw.harvest(x.astype(np.double), fs=self.sample_rate, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=10)
+        elif model == "dio": f0, t = pw.dio(x.astype(np.double), fs=self.sample_rate, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=10)
         else: raise ValueError(translations["method_not_valid"])
 
-        f0 = PYWORLD.stonemask(x.astype(np.double), self.sample_rate, t, f0)
+        f0 = pw.stonemask(x.astype(np.double), self.sample_rate, t, f0)
 
         if filter_radius > 2 or model == "dio": f0 = signal.medfilt(f0, 3)
         return f0

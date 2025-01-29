@@ -279,11 +279,13 @@ class FeatureInput:
         return f0
     
     def get_pyworld(self, x, model="harvest"):
-        if model == "harvest":  f0, t = PYWORLD.harvest(x.astype(np.double),  fs=self.fs, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=1000 * self.hop / self.fs)
-        elif model == "dio": f0, t = PYWORLD.dio(x.astype(np.double), fs=self.fs, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=1000 * self.hop / self.fs)
+        pw = PYWORLD()
+
+        if model == "harvest":  f0, t = pw.harvest(x.astype(np.double), fs=self.fs, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=1000 * self.hop / self.fs)
+        elif model == "dio": f0, t = pw.dio(x.astype(np.double), fs=self.fs, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=1000 * self.hop / self.fs)
         else: raise ValueError(translations["method_not_valid"])
 
-        return PYWORLD.stonemask(x.astype(np.double), self.fs, t, f0)
+        return pw.stonemask(x.astype(np.double), self.fs, t, f0)
     
     def get_yin(self, x, hop_length):
         source = np.array(librosa.yin(x.astype(np.double), sr=self.fs, fmin=self.f0_min, fmax=self.f0_max, hop_length=hop_length))
@@ -308,7 +310,6 @@ class FeatureInput:
 
         try:
             feature_pit = self.compute_f0(np_arr, f0_method, hop_length)
-
             np.save(opt_path2, feature_pit, allow_pickle=False)
             np.save(opt_path1, self.coarse_f0(feature_pit), allow_pickle=False)
         except Exception as e:
@@ -322,7 +323,6 @@ class FeatureInput:
 def run_pitch_extraction(exp_dir, f0_method, hop_length, num_processes, gpus):
     input_root, *output_roots = setup_paths(exp_dir)
     output_root1, output_root2 = output_roots if len(output_roots) == 2 else (output_roots[0], None)
-
     paths = [(os.path.join(input_root, name), os.path.join(output_root1, name) if output_root1 else None, os.path.join(output_root2, name) if output_root2 else None, load_audio(os.path.join(input_root, name))) for name in sorted(os.listdir(input_root)) if "spec" not in name]
     logger.info(translations["extract_f0_method"].format(num_processes=num_processes, f0_method=f0_method))
 
