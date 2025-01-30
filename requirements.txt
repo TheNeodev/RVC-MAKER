@@ -1,5 +1,5 @@
 # Platform-specific requirements section
-pip==23.3
+pip>=23.3,<24.1
 onnxruntime; sys_platform == 'darwin'
 onnxruntime-gpu; sys_platform != 'darwin'
 
@@ -12,7 +12,8 @@ torchaudio==2.3.1
 faiss-cpu>=1.7.3
 
 # Machine learning, NLP and deep learning
-fairseq @ git+https://github.com/One-sixth/fairseq.git
+fairseq; python_version == '3.10'
+fairseq @ git+https://github.com/One-sixth/fairseq.git; python_version > '3.10'
 scikit-learn
 einops
 

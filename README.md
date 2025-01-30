@@ -45,7 +45,7 @@ Dự án này là một công cụ chuyển đổi giọng nói đơn giản, d�
 
 # Cách cài đặt và sử dụng
 
-- B1: **Cài đặt python từ trang chủ hoặc [python](https://www.python.org/ftp/python/3.10.7/python-3.10.7-amd64.exe)**
+- B1: **Cài đặt python từ trang chủ hoặc [python](https://www.python.org/ftp/python/3.10.7/python-3.10.7-amd64.exe) (YÊU CẦU PYTHON 3.10.x HOẶC PYTHON 3.11.x)**
 - B2: **Cài đặt ffmpeg từ [FFMPEG](https://github.com/BtbN/FFmpeg-Builds/releases) giải nén và thêm vào PATH**
 - B2: **Tải mã nguồn về và giải nén ra**
 - B3: **Vào thư mục mã nguồn và mở Command Prompt hoặc Terminal**
@@ -53,7 +53,6 @@ Dự án này là một công cụ chuyển đổi giọng nói đơn giản, d�
 ```
 python -m venv env
 env\\Scripts\\activate
-python -m pip install pip==23.3
 python -m pip install -r requirements.txt
 ```
 - B5: **Chạy tệp run_app để mở giao diện sử dụng(Lưu ý: không tắt Command Prompt hoặc Terminal của giao diện)**
