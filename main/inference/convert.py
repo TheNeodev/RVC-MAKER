@@ -2,6 +2,8 @@ import re
 import os
 import sys
 import time
+import onnx
+import json
 import faiss
 import torch
 import shutil
@@ -56,6 +58,7 @@ else:
     logger.addHandler(file_handler)
     logger.setLevel(logging.DEBUG)
 
+
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("--pitch", type=int, default=0)
@@ -93,9 +96,6 @@ def main():
 
     for key, value in log_data.items():
         logger.debug(f"{key}: {value}")
-
-    check_predictors(f0_method)
-    check_embedders(embedder_model)
     
     run_convert_script(pitch=pitch, filter_radius=filter_radius, index_rate=index_rate, volume_envelope=volume_envelope, protect=protect, hop_length=hop_length, f0_method=f0_method, input_path=input_path, output_path=output_path, pth_path=pth_path, index_path=index_path, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, clean_audio=clean_audio, clean_strength=clean_strength, export_format=export_format, embedder_model=embedder_model, resample_sr=resample_sr, split_audio=split_audio, checkpointing=checkpointing)
 
@@ -114,22 +114,24 @@ def run_batch_convert(params):
         sys.exit(1)
 
 def run_convert_script(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0_method, input_path, output_path, pth_path, index_path, f0_autotune, f0_autotune_strength, clean_audio, clean_strength, export_format, embedder_model, resample_sr, split_audio, checkpointing):
+    check_predictors(f0_method)
+    check_embedders(embedder_model)
+
     cvt = VoiceConverter()
     start_time = time.time()
 
     pid_path = os.path.join("assets", "convert_pid.txt")
+
     with open(pid_path, "w") as pid_file:
         pid_file.write(str(os.getpid()))
 
-    if not pth_path or not os.path.exists(pth_path) or os.path.isdir(pth_path) or not pth_path.endswith(".pth"):
+    if not pth_path or not os.path.exists(pth_path) or os.path.isdir(pth_path) or not pth_path.endswith((".pth", ".onnx")):
         logger.warning(translations["provide_file"].format(filename=translations["model"]))
         sys.exit(1)
 
-    output_dir = os.path.dirname(output_path) or output_path
-    if not os.path.exists(output_dir): os.makedirs(output_dir, exist_ok=True)
-
     processed_segments = []
     audio_temp = os.path.join("audios_temp")
+
     if not os.path.exists(audio_temp) and split_audio: os.makedirs(audio_temp, exist_ok=True)
 
     if os.path.isdir(input_path):
@@ -186,8 +188,7 @@ def run_convert_script(pitch, filter_radius, index_rate, volume_envelope, protec
         if not os.path.exists(input_path):
             logger.warning(translations["not_found_audio"])
             sys.exit(1)
-        
-        if os.path.isdir(output_path): output_path = os.path.join(output_path, f"output.{export_format}")
+
         if os.path.exists(output_path): os.remove(output_path)
 
         if split_audio:
@@ -218,12 +219,22 @@ def run_convert_script(pitch, filter_radius, index_rate, volume_envelope, protec
                 logger.error(translations["error_convert"].format(e=e))
 
         if os.path.exists(pid_path): os.remove(pid_path)
+
         elapsed_time = time.time() - start_time
         logger.info(translations["convert_audio_success"].format(input_path=input_path, elapsed_time=f"{elapsed_time:.2f}", output_path=output_path.replace('wav', export_format)))
 
 def change_rms(source_audio, source_rate, target_audio, target_rate, rate):
     rms2 = F.interpolate(torch.from_numpy(librosa.feature.rms(y=target_audio, frame_length=target_rate // 2 * 2, hop_length=target_rate // 2)).float().unsqueeze(0), size=target_audio.shape[0], mode="linear").squeeze()
     return (target_audio * (torch.pow(F.interpolate(torch.from_numpy(librosa.feature.rms(y=source_audio, frame_length=source_rate // 2 * 2, hop_length=source_rate // 2)).float().unsqueeze(0), size=target_audio.shape[0], mode="linear").squeeze(), 1 - rate) * torch.pow(torch.maximum(rms2, torch.zeros_like(rms2) + 1e-6), rate - 1)).numpy())
+
+def get_providers():
+    ort_providers = onnxruntime.get_available_providers()
+
+    if "CUDAExecutionProvider" in ort_providers: providers = ["CUDAExecutionProvider"]
+    elif "CoreMLExecutionProvider" in ort_providers: providers = ["CoreMLExecutionProvider"]
+    else: providers = ["CPUExecutionProvider"]
+
+    return providers
 
 class Autotune:
     def __init__(self, ref_freqs):
@@ -262,15 +273,6 @@ class VC:
         self.autotune = Autotune(self.ref_freqs)
         self.note_dict = self.autotune.note_dict
 
-    def get_providers(self):
-        ort_providers = onnxruntime.get_available_providers()
-
-        if "CUDAExecutionProvider" in ort_providers: providers = ["CUDAExecutionProvider"]
-        elif "CoreMLExecutionProvider" in ort_providers: providers = ["CoreMLExecutionProvider"]
-        else: providers = ["CPUExecutionProvider"]
-
-        return providers
-
     def get_f0_pm(self, x, p_len):
         f0 = (parselmouth.Sound(x, self.sample_rate).to_pitch_ac(time_step=self.window / self.sample_rate * 1000 / 1000, voicing_threshold=0.6, pitch_floor=self.f0_min, pitch_ceiling=self.f0_max).selected_array["frequency"])
         pad_size = (p_len - len(f0) + 1) // 2
@@ -279,7 +281,7 @@ class VC:
         return f0
  
     def get_f0_mangio_crepe(self, x, p_len, hop_length, model="full", onnx=False):
-        providers = self.get_providers() if onnx else None
+        providers = get_providers() if onnx else None
 
         x = x.astype(np.float32)
         x /= np.quantile(np.abs(x), 0.999)
@@ -290,10 +292,11 @@ class VC:
         p_len = p_len or x.shape[0] // hop_length
         source = np.array(predict(audio.detach(), self.sample_rate, hop_length, self.f0_min, self.f0_max, model, batch_size=hop_length * 2, device=self.device, pad=True, providers=providers, onnx=onnx).squeeze(0).cpu().float().numpy())
         source[source < 0.001] = np.nan
+
         return np.nan_to_num(np.interp(np.arange(0, len(source) * p_len, len(source)) / p_len, np.arange(0, len(source)), source))
 
     def get_f0_crepe(self, x, model="full", onnx=False):
-        providers = self.get_providers() if onnx else None
+        providers = get_providers() if onnx else None
         
         f0, pd = predict(torch.tensor(np.copy(x))[None].float(), self.sample_rate, self.window, self.f0_min, self.f0_max, model, batch_size=512, device=self.device, return_periodicity=True, providers=providers, onnx=onnx)
         f0, pd = mean(f0, 3), median(pd, 3)
@@ -302,7 +305,7 @@ class VC:
         return f0[0].cpu().numpy()
 
     def get_f0_fcpe(self, x, p_len, hop_length, onnx=False, legacy=False):
-        providers = self.get_providers() if onnx else None
+        providers = get_providers() if onnx else None
 
         model_fcpe = FCPE(os.path.join("assets", "models", "predictors", "fcpe" + (".onnx" if onnx else ".pt")), hop_length=int(hop_length), f0_min=int(self.f0_min), f0_max=int(self.f0_max), dtype=torch.float32, device=self.device, sample_rate=self.sample_rate, threshold=0.03, providers=providers, onnx=onnx) if legacy else FCPE(os.path.join("assets", "models", "predictors", "fcpe" + (".onnx" if onnx else ".pt")), hop_length=self.window, f0_min=0, f0_max=8000, dtype=torch.float32, device=self.device, sample_rate=self.sample_rate, threshold=0.006, providers=providers, onnx=onnx)
         f0 = model_fcpe.compute_f0(x, p_len=p_len)
@@ -311,7 +314,7 @@ class VC:
         return f0
     
     def get_f0_rmvpe(self, x, legacy=False, onnx=False):
-        providers = self.get_providers() if onnx else None
+        providers = get_providers() if onnx else None
 
         rmvpe_model = RMVPE(os.path.join("assets", "models", "predictors", "rmvpe" + (".onnx" if onnx else ".pt")), device=self.device, onnx=onnx, providers=providers)
         f0 = rmvpe_model.infer_from_audio_with_pitch(x, thred=0.03, f0_min=self.f0_min, f0_max=self.f0_max) if legacy else rmvpe_model.infer_from_audio(x, thred=0.03)
@@ -466,8 +469,10 @@ class VC:
             if (not isinstance(index, type(None)) and not isinstance(big_npy, type(None)) and index_rate != 0):
                 npy = feats[0].cpu().numpy()
                 score, ix = index.search(npy, k=8)
+
                 weight = np.square(1 / score)
                 weight /= weight.sum(axis=1, keepdims=True)
+
                 npy = np.sum(big_npy[ix] * np.expand_dims(weight, axis=2), axis=1)
                 feats = (torch.from_numpy(npy).unsqueeze(0).to(self.device) * index_rate + (1 - index_rate) * feats)
 
@@ -491,13 +496,19 @@ class VC:
                 feats = feats.to(feats0.dtype)
 
             p_len = torch.tensor([p_len], device=self.device).long()
-            audio1 = ((net_g.infer(feats, p_len, pitch if pitch_guidance else None, pitchf if pitch_guidance else None, sid)[0][0, 0]).data.cpu().float().numpy())
 
-        del feats, p_len, padding_mask
+            audio1 = ((net_g.infer(feats.float(), p_len, pitch if pitch_guidance else None, pitchf.float() if pitch_guidance else None, sid)[0][0, 0]).data.cpu().float().numpy()) if self.suffix == ".pth" else (net_g.run([net_g.get_outputs()[0].name], ({net_g.get_inputs()[0].name: feats.cpu().numpy().astype(np.float32), net_g.get_inputs()[1].name: p_len.cpu().numpy(), net_g.get_inputs()[2].name: np.array([sid], dtype=np.int64), net_g.get_inputs()[3].name: np.random.randn(1, 192, p_len).astype(np.float32), net_g.get_inputs()[4].name: pitch.cpu().numpy().astype(np.int64), net_g.get_inputs()[5].name: pitchf.cpu().numpy().astype(np.float32)} if pitch_guidance else {net_g.get_inputs()[0].name: feats.cpu().numpy().astype(np.float32), net_g.get_inputs()[1].name: p_len.cpu().numpy(), net_g.get_inputs()[2].name: np.array([sid], dtype=np.int64), net_g.get_inputs()[3].name: np.random.randn(1, 192, p_len).astype(np.float32)}))[0][0, 0])
+
+        del feats, p_len, padding_mask, net_g
+
         if torch.cuda.is_available(): torch.cuda.empty_cache()
+        elif torch.backends.mps.is_available(): torch.mps.empty_cache()
+
         return audio1
     
-    def pipeline(self, model, net_g, sid, audio, pitch, f0_method, file_index, index_rate, pitch_guidance, filter_radius, tgt_sr, resample_sr, volume_envelope, version, protect, hop_length, f0_autotune, f0_autotune_strength):
+    def pipeline(self, model, net_g, sid, audio, pitch, f0_method, file_index, index_rate, pitch_guidance, filter_radius, tgt_sr, resample_sr, volume_envelope, version, protect, hop_length, f0_autotune, f0_autotune_strength, suffix):
+        self.suffix = suffix
+
         if file_index != "" and os.path.exists(file_index) and index_rate != 0:
             try:
                 index = faiss.read_index(file_index)
@@ -509,6 +520,7 @@ class VC:
 
         audio = signal.filtfilt(bh, ah, audio)
         audio_pad = np.pad(audio, (self.window // 2, self.window // 2), mode="reflect")
+
         opt_ts, audio_opt = [], []
 
         if audio_pad.shape[0] > self.t_max:
@@ -525,6 +537,7 @@ class VC:
         
         audio_pad = np.pad(audio, (self.t_pad, self.t_pad), mode="reflect")
         sid = torch.tensor(sid, device=self.device).unsqueeze(0).long()
+        
         p_len = audio_pad.shape[0] // self.window
 
         if pitch_guidance:
@@ -532,6 +545,7 @@ class VC:
             pitch, pitchf = pitch[:p_len], pitchf[:p_len]
 
             if self.device == "mps": pitchf = pitchf.astype(np.float32)
+
             pitch, pitchf = torch.tensor(pitch, device=self.device).unsqueeze(0).long(), torch.tensor(pitchf, device=self.device).unsqueeze(0).float()
 
         for t in opt_ts:
@@ -552,6 +566,8 @@ class VC:
         del sid
 
         if torch.cuda.is_available(): torch.cuda.empty_cache()
+        elif torch.backends.mps.is_available(): torch.mps.empty_cache()
+
         return audio_opt
 
 class VoiceConverter:
@@ -574,6 +590,7 @@ class VoiceConverter:
             models, _, _ = checkpoint_utils.load_model_ensemble_and_task([os.path.join("assets", "models", "embedders", embedder_model + '.pt')], suffix="")
         except Exception as e:
             logger.error(translations["read_model_error"].format(e=e))
+
         self.hubert_model = models[0].to(self.config.device).float().eval()
 
     def convert_audio(self, audio_input_path, audio_output_path, model_path, index_path, embedder_model, pitch, f0_method, index_rate, volume_envelope, protect, hop_length, f0_autotune, f0_autotune_strength, filter_radius, clean_audio, clean_strength, export_format, resample_sr = 0, sid = 0, checkpointing = False):
@@ -592,10 +609,11 @@ class VoiceConverter:
             if self.tgt_sr != resample_sr >= 16000: self.tgt_sr = resample_sr
             target_sr = min([8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 96000], key=lambda x: abs(x - self.tgt_sr))
 
-            audio_output = self.vc.pipeline(model=self.hubert_model, net_g=self.net_g, sid=sid, audio=audio, pitch=pitch, f0_method=f0_method, file_index=(index_path.strip().strip('"').strip("\n").strip('"').strip().replace("trained", "added")), index_rate=index_rate, pitch_guidance=self.use_f0, filter_radius=filter_radius, tgt_sr=self.tgt_sr, resample_sr=target_sr, volume_envelope=volume_envelope, version=self.version, protect=protect, hop_length=hop_length, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength)
+            audio_output = self.vc.pipeline(model=self.hubert_model, net_g=self.net_g, sid=sid, audio=audio, pitch=pitch, f0_method=f0_method, file_index=(index_path.strip().strip('"').strip("\n").strip('"').strip().replace("trained", "added")), index_rate=index_rate, pitch_guidance=self.use_f0, filter_radius=filter_radius, tgt_sr=self.tgt_sr, resample_sr=target_sr, volume_envelope=volume_envelope, version=self.version, protect=protect, hop_length=hop_length, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, suffix=self.suffix)
             
             if clean_audio:
                 from main.tools.noisereduce import reduce_noise
+
                 audio_output = reduce_noise(y=audio_output, sr=target_sr, prop_decrease=clean_strength) 
 
             sf.write(audio_output_path, audio_output, target_sr, format=export_format)
@@ -608,43 +626,75 @@ class VoiceConverter:
     def get_vc(self, weight_root, sid):
         if sid == "" or sid == []:
             self.cleanup()
+
             if torch.cuda.is_available(): torch.cuda.empty_cache()
+            elif torch.backends.mps.is_available(): torch.mps.empty_cache()
 
         if not self.loaded_model or self.loaded_model != weight_root:
-          self.load_model(weight_root)
-          if self.cpt is not None: self.setup()
-          self.loaded_model = weight_root
+            self.loaded_model = weight_root
+            self.load_model()
+
+            if self.cpt is not None: self.setup()
 
     def cleanup(self):
         if self.hubert_model is not None:
             del self.net_g, self.n_spk, self.vc, self.hubert_model, self.tgt_sr
             self.hubert_model = self.net_g = self.n_spk = self.vc = self.tgt_sr = None
+
             if torch.cuda.is_available(): torch.cuda.empty_cache()
+            elif torch.backends.mps.is_available(): torch.mps.empty_cache()
 
         del self.net_g, self.cpt
+        
         if torch.cuda.is_available(): torch.cuda.empty_cache()
+        elif torch.backends.mps.is_available(): torch.mps.empty_cache()
+
         self.cpt = None
 
-    def load_model(self, weight_root):
-        self.cpt = (torch.load(weight_root, map_location="cpu") if os.path.isfile(weight_root) else None)
+    def load_model(self):
+        if os.path.isfile(self.loaded_model):
+            if self.loaded_model.endswith(".pth"): self.cpt = torch.load(self.loaded_model, map_location="cpu")  
+            else: 
+                sess_options = onnxruntime.SessionOptions()
+                sess_options.log_severity_level = 3
+
+                self.cpt = onnxruntime.InferenceSession(self.loaded_model, sess_options=sess_options, providers=get_providers())
+        else: self.cpt = None
 
     def setup(self):
         if self.cpt is not None:
-            self.tgt_sr = self.cpt["config"][-1]
-            self.cpt["config"][-3] = self.cpt["weight"]["emb_g.weight"].shape[0]
+            if self.loaded_model.endswith(".pth"):
+                self.tgt_sr = self.cpt["config"][-1]
+                self.cpt["config"][-3] = self.cpt["weight"]["emb_g.weight"].shape[0]
+                
+                self.use_f0 = self.cpt.get("f0", 1)
+                self.version = self.cpt.get("version", "v1")
+                self.vocoder = self.cpt.get("vocoder", "Default")
 
-            self.use_f0 = self.cpt.get("f0", 1)
-            self.version = self.cpt.get("version", "v1")
-            self.vocoder = self.cpt.get("vocoder", "Default")
+                self.text_enc_hidden_dim = 768 if self.version == "v2" else 256
+                self.net_g = Synthesizer(*self.cpt["config"], use_f0=self.use_f0, text_enc_hidden_dim=self.text_enc_hidden_dim, vocoder=self.vocoder, checkpointing=self.checkpointing)
 
-            self.text_enc_hidden_dim = 768 if self.version == "v2" else 256
-            self.net_g = Synthesizer(*self.cpt["config"], use_f0=self.use_f0, text_enc_hidden_dim=self.text_enc_hidden_dim, vocoder=self.vocoder, checkpointing=self.checkpointing)
-            del self.net_g.enc_q
+                del self.net_g.enc_q
 
-            self.net_g.load_state_dict(self.cpt["weight"], strict=False)
-            self.net_g.eval().to(self.config.device).float()
+                self.net_g.load_state_dict(self.cpt["weight"], strict=False)
+                self.net_g.eval().to(self.config.device).float()
+
+                self.n_spk = self.cpt["config"][-3]
+                self.suffix = ".pth"
+            else:
+                model = onnx.load(self.loaded_model)
+                metadata_dict = None
+
+                for prop in model.metadata_props:
+                    if prop.key == "model_info":
+                        metadata_dict = json.loads(prop.value)
+                        break
+
+                self.net_g = self.cpt
+                self.tgt_sr = metadata_dict.get("sr", 32000)
+                self.use_f0 = metadata_dict.get("f0", 1)
+                self.suffix = ".onnx"
 
             self.vc = VC(self.tgt_sr, self.config)
-            self.n_spk = self.cpt["config"][-3]
 
 if __name__ == "__main__": main()

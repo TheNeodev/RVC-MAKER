@@ -3,6 +3,7 @@ import re
 import ssl
 import sys
 import json
+import onnx
 import torch
 import codecs
 import shutil
@@ -61,7 +62,7 @@ configs = json.load(open(configs_json, "r"))
 models, model_options = {}, {}
 method_f0 = ["pm", "dio", "mangio-crepe-tiny", "mangio-crepe-tiny-onnx", "mangio-crepe-small", "mangio-crepe-small-onnx", "mangio-crepe-medium", "mangio-crepe-medium-onnx", "mangio-crepe-large", "mangio-crepe-large-onnx", "mangio-crepe-full", "mangio-crepe-full-onnx", "crepe-tiny", "crepe-tiny-onnx", "crepe-small", "crepe-small-onnx", "crepe-medium", "crepe-medium-onnx", "crepe-large", "crepe-large-onnx", "crepe-full", "crepe-full-onnx", "fcpe", "fcpe-onnx", "fcpe-legacy", "fcpe-legacy-onnx", "rmvpe", "rmvpe-onnx", "rmvpe-legacy", "rmvpe-legacy-onnx", "harvest", "yin", "pyin", "hybrid"]
 paths_for_files = sorted([os.path.abspath(os.path.join(root, f)) for root, _, files in os.walk("audios") for f in files if os.path.splitext(f)[1].lower() in (".wav", ".mp3", ".flac", ".ogg", ".opus", ".m4a", ".mp4", ".aac", ".alac", ".wma", ".aiff", ".webm", ".ac3")])
-model_name, index_path, delete_index = sorted(list(model for model in os.listdir(os.path.join("assets", "weights")) if model.endswith(".pth") and not model.startswith("G_") and not model.startswith("D_"))), sorted([os.path.join(root, name) for root, _, files in os.walk(os.path.join("assets", "logs"), topdown=False) for name in files if name.endswith(".index")]), sorted([os.path.join("assets", "logs", f) for f in os.listdir(os.path.join("assets", "logs")) if "mute" not in f and os.path.isdir(os.path.join("assets", "logs", f))])
+model_name, index_path, delete_index = sorted(list(model for model in os.listdir(os.path.join("assets", "weights")) if model.endswith((".pth", ".onnx")) and not model.startswith("G_") and not model.startswith("D_"))), sorted([os.path.join(root, name) for root, _, files in os.walk(os.path.join("assets", "logs"), topdown=False) for name in files if name.endswith(".index")]), sorted([os.path.join("assets", "logs", f) for f in os.listdir(os.path.join("assets", "logs")) if "mute" not in f and os.path.isdir(os.path.join("assets", "logs", f))])
 pretrainedD, pretrainedG, Allpretrained = ([model for model in os.listdir(os.path.join("assets", "models", "pretrained_custom")) if model.endswith(".pth") and "D" in model], [model for model in os.listdir(os.path.join("assets", "models", "pretrained_custom")) if model.endswith(".pth") and "G" in model], [os.path.join("assets", "models", path, model) for path in ["pretrained_v1", "pretrained_v2", "pretrained_custom"] for model in os.listdir(os.path.join("assets", "models", path)) if model.endswith(".pth") and ("D" in model or "G" in model)])
 separate_model = sorted([os.path.join("assets", "models", "uvr5", models) for models in os.listdir(os.path.join("assets", "models", "uvr5")) if models.endswith((".th", ".yaml", ".onnx"))])
 presets_file = sorted(list(f for f in os.listdir(os.path.join("assets", "presets")) if f.endswith(".json")))
@@ -238,7 +239,7 @@ def change_theme(theme):
 
 def zip_file(name, pth, index):
     pth_path = os.path.join("assets", "weights", pth)
-    if not pth or not os.path.exists(pth_path) or not pth.endswith(".pth"): return gr_warning(translations["provide_file"].format(filename=translations["model"]))
+    if not pth or not os.path.exists(pth_path) or not pth.endswith((".pth", ".onnx")): return gr_warning(translations["provide_file"].format(filename=translations["model"]))
 
     zip_file_path = os.path.join("assets", name + ".zip")
     gr_info(translations["start"].format(start=translations["zip"]))
@@ -287,7 +288,7 @@ def search_models(name):
         for table in tables:
             for row in BeautifulSoup(table, "html.parser").select("tr"):
                 name_tag, url_tag = row.find("a", {"class": "fs-5"}), row.find("a", {"class": "btn btn-sm fw-bold btn-light ms-0 p-1 ps-2 pe-2"})
-                if name_tag and url_tag: model_options[name_tag.text.replace(".pth", "").replace(".index", "").replace(".zip", "").replace(" ", "_").replace("(", "").replace(")", "").replace("[", "").replace("]", "").replace(",", "").replace('"', "").replace("'", "").replace("|", "").strip()] = url_tag["href"].replace("https://easyaivoice.com/run?url=", "")
+                if name_tag and url_tag: model_options[name_tag.text.replace(".onnx", "").replace(".pth", "").replace(".index", "").replace(".zip", "").replace(" ", "_").replace("(", "").replace(")", "").replace("[", "").replace("]", "").replace(",", "").replace('"', "").replace("'", "").replace("|", "").strip()] = url_tag["href"].replace("https://easyaivoice.com/run?url=", "")
 
         gr_info(translations["found"].format(results=len(model_options)))
         return [{"value": "", "choices": model_options, "interactive": True, "visible": True, "__type__": "update"}, {"value": translations["downloads"], "visible": True, "__type__": "update"}]
@@ -303,7 +304,7 @@ def move_files_from_directory(src_dir, dest_weights, dest_logs, model_name):
                 filepath = os.path.join(model_log_dir, file.replace(' ', '_').replace('(', '').replace(')', '').replace('[', '').replace(']', '').replace(",", "").replace('"', "").replace("'", "").replace("|", "").strip())
                 if os.path.exists(filepath): os.remove(filepath)
                 shutil.move(file_path, filepath)
-            elif file.endswith(".pth") and not file.startswith("D_") and not file.startswith("G_"):
+            elif file.endswith((".pth", ".onnx")) and not file.startswith("D_") and not file.startswith("G_"):
                 pth_path = os.path.join(dest_weights, model_name + ".pth")
                 if os.path.exists(pth_path): os.remove(pth_path)
                 shutil.move(file_path, pth_path)
@@ -337,7 +338,7 @@ def download_model(url=None, model=None):
     if not url: return gr_warning(translations["provide_url"])
     if not model: return gr_warning(translations["provide_name_is_save"])
 
-    model = model.replace(".pth", "").replace(".index", "").replace(".zip", "").replace(" ", "_").replace("(", "").replace(")", "").replace("[", "").replace("]", "").replace(",", "").replace('"', "").replace("'", "").replace("|", "").strip()
+    model = model.replace(".onnx", "").replace(".pth", "").replace(".index", "").replace(".zip", "").replace(" ", "_").replace("(", "").replace(")", "").replace("[", "").replace("]", "").replace(",", "").replace('"', "").replace("'", "").replace("|", "").strip()
     url = url.replace("/blob/", "/resolve/").replace("?download=true", "").strip()
 
     download_dir = os.path.join("download_model")
@@ -351,7 +352,7 @@ def download_model(url=None, model=None):
     try:
         gr_info(translations["start"].format(start=translations["download"]))
 
-        if url.endswith(".pth"): huggingface.HF_download_file(url, os.path.join(weights_dir, f"{model}.pth"))
+        if url.endswith((".pth", ".onnx")): huggingface.HF_download_file(url, os.path.join(weights_dir, f"{model}.pth"))
         elif url.endswith(".index"):
             model_log_dir = os.path.join(logs_dir, model)
             os.makedirs(model_log_dir, exist_ok=True)
@@ -419,12 +420,12 @@ def save_drop_model(dropbox):
     try:
         file_name = os.path.basename(dropbox)
 
-        if file_name.endswith(".pth") and file_name.endswith(".index"): gr_warning(translations["not_model"])
+        if file_name.endswith((".pth", ".onnx")) and file_name.endswith(".index"): gr_warning(translations["not_model"])
         else:    
             if file_name.endswith(".zip"):
                 shutil.unpack_archive(os.path.join(save_model_temp, file_name), save_model_temp)
                 move_files_from_directory(save_model_temp, weight_folder, logs_folder, file_name.replace(".zip", ""))
-            elif file_name.endswith(".pth"): 
+            elif file_name.endswith((".pth", ".onnx")): 
                 output_file = os.path.join(weight_folder, file_name)
                 if os.path.exists(output_file): os.remove(output_file)
                 
@@ -489,18 +490,14 @@ def hubert_download(hubert):
     gr_info(translations["success"])
     return translations["success"]
 
-def fushion_model(name, pth_1, pth_2, ratio):
-    if not name:
-        gr_warning(translations["provide_name_is_save"]) 
-        return [translations["provide_name_is_save"], None]
-    
+def fushion_model_pth(name, pth_1, pth_2, ratio):
     if not name.endswith(".pth"): name = name + ".pth"
 
     if not pth_1 or not os.path.exists(pth_1) or not pth_1.endswith(".pth"):
         gr_warning(translations["provide_file"].format(filename=translations["model"] + " 1"))
         return [translations["provide_file"].format(filename=translations["model"] + " 1"), None]
     
-    if not pth_2 or not os.path.exists(pth_2) or not pth_1.endswith(".pth"):
+    if not pth_2 or not os.path.exists(pth_2) or not pth_2.endswith(".pth"):
         gr_warning(translations["provide_file"].format(filename=translations["model"] + " 2"))
         return [translations["provide_file"].format(filename=translations["model"] + " 2"), None]
     
@@ -567,8 +564,101 @@ def fushion_model(name, pth_1, pth_2, ratio):
         logger.debug(e)
         return [e, None]
 
+def extract_metadata(model):
+    return {prop.key: prop.value for prop in model.metadata_props}
+
+def fushion_model_onnx(name, onnx_path1, onnx_path2, ratio=0.5):
+    if not name.endswith(".onnx"): name = name + ".onnx"
+
+    if not onnx_path1 or not os.path.exists(onnx_path1) or not onnx_path1.endswith(".onnx"):
+        gr_warning(translations["provide_file"].format(filename=translations["model"] + " 1"))
+        return [translations["provide_file"].format(filename=translations["model"] + " 1"), None]
+    
+    if not onnx_path2 or not os.path.exists(onnx_path2) or not onnx_path2.endswith(".onnx"):
+        gr_warning(translations["provide_file"].format(filename=translations["model"] + " 2"))
+        return [translations["provide_file"].format(filename=translations["model"] + " 2"), None]
+    
+    try:
+        model1 = onnx.load(onnx_path1)
+        model2 = onnx.load(onnx_path2)
+
+        metadata1 = extract_metadata(model1)
+        metadata2 = extract_metadata(model2)
+
+        if metadata1.get("sr") != metadata2.get("sr"):
+            gr_warning(translations["sr_not_same"])
+            return [translations["sr_not_same"], None]
+
+        if str(model1.graph) != str(model2.graph):
+            gr_warning(translations["architectures_not_same"])
+            return [translations["architectures_not_same"], None]
+        
+        gr_info(translations["start"].format(start=translations["fushion_model"]))
+
+        for init1, init2 in zip(model1.graph.initializer, model2.graph.initializer):
+            tensor1 = onnx.numpy_helper.to_array(init1)
+            tensor2 = onnx.numpy_helper.to_array(init2)
+
+            if tensor1.shape != tensor2.shape:
+                gr_warning(translations["architectures_not_same"])
+                return [translations["architectures_not_same"], None]
+
+            fused_tensor = ratio * tensor1 + (1 - ratio) * tensor2
+            init1.CopyFrom(onnx.numpy_helper.from_array(fused_tensor, name=init1.name))
+
+        new_metadata = metadata1.copy() 
+        new_metadata["fusion_ratio"] = str(ratio)
+        new_metadata["creation_date"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        del model1.metadata_props[:]
+
+        for key, value in new_metadata.items():
+            entry = model1.metadata_props.add()
+            entry.key = key
+            entry.value = value
+
+        output_model = os.path.join("assets", "weights")
+        if not os.path.exists(output_model): os.makedirs(output_model, exist_ok=True)
+
+        onnx.save(model1, os.path.join(output_model, name))
+
+        gr_info(translations["success"])
+        return [translations["success"], os.path.join(output_model, name)]
+    except Exception as e:
+        gr_error(message=translations["error_occurred"].format(e=e))
+        logger.debug(e)
+        return [e, None]
+
+def fushion_model(name, path_1, path_2, ratio):
+    if not name:
+        gr_warning(translations["provide_name_is_save"]) 
+        return [translations["provide_name_is_save"], None]
+    
+    if path_1.endswith(".onnx") and path_2.endswith(".onnx"): return fushion_model_onnx(name, path_1, path_2, ratio)
+    elif path_1.endswith(".pth") and path_2.endswith(".pth"): return fushion_model_pth(name, path_1, path_2, ratio)
+    else:
+        gr_warning(translations["format_not_valid"])
+        return [None, None]
+    
+def onnx_export(model_path):
+    from main.library.algorithm.onnx_export import onnx_exporter
+    
+    if not model_path.endswith(".pth"): model_path + ".pth"
+    if not model_path or not os.path.exists(model_path) or not model_path.endswith(".pth"):
+        gr_warning(translations["provide_file"].format(filename=translations["model"]))
+        return [None, translations["provide_file"].format(filename=translations["model"])]
+    
+    try:
+        gr_info(translations["start_onnx_export"])
+        output = onnx_exporter(model_path, model_path.replace(".pth", ".onnx"))
+
+        gr_info(translations["success"])
+        return [output, translations["success"]]
+    except Exception as e:
+        return [None, e]
+    
 def model_info(path):
-    if not path or not os.path.exists(path) or os.path.isdir(path) or not path.endswith(".pth"): return gr_warning(translations["provide_file"].format(filename=translations["model"]))
+    if not path or not os.path.exists(path) or os.path.isdir(path) or not path.endswith((".pth", ".onnx")): return gr_warning(translations["provide_file"].format(filename=translations["model"]))
     
     def prettify_date(date_str):
         if date_str == translations["not_found_create_time"]: return None
@@ -578,8 +668,17 @@ def model_info(path):
         except ValueError as e:
             logger.debug(e)
             return translations["format_not_valid"]
-        
-    model_data = torch.load(path, map_location=torch.device("cpu"))
+    
+    if path.endswith(".pth"): model_data = torch.load(path, map_location=torch.device("cpu"))
+    else:
+        model = onnx.load(path)
+        model_data = None
+
+        for prop in model.metadata_props:
+            if prop.key == "model_info":
+                model_data = json.loads(prop.value)
+                break
+
     gr_info(translations["read_info"])
 
     epochs = model_data.get("epoch", None)
@@ -694,7 +793,7 @@ def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not
             gr_warning(translations["turn_off_merge_backup"])
             return return_none
 
-    if not model or not os.path.exists(model_path) or os.path.isdir(model_path) or not model.endswith(".pth"):
+    if not model or not os.path.exists(model_path) or os.path.isdir(model_path) or not model.endswith((".pth", ".onnx")):
         gr_warning(translations["provide_file"].format(filename=translations["model"]))
         return return_none
 
@@ -849,7 +948,7 @@ def convert_selection(clean, autotune, use_audio, use_original, convert_backing,
 def convert_tts(clean, autotune, pitch, clean_strength, model, index, index_rate, input, output, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, checkpointing):
     model_path = os.path.join("assets", "weights", model)
 
-    if not model_path or not os.path.exists(model_path) or os.path.isdir(model_path) or not model.endswith(".pth"):
+    if not model_path or not os.path.exists(model_path) or os.path.isdir(model_path) or not model.endswith((".pth", ".onnx")):
         gr_warning(translations["provide_file"].format(filename=translations["model"]))
         return None
 
@@ -1081,7 +1180,7 @@ def delete_model(model, index):
     files = os.path.join("assets", "weights", model)
 
     if model:
-        if not os.path.exists(files) or not model.endswith(".pth"): return gr_warning(translations["provide_file"].format(filename=translations["model"]))
+        if not os.path.exists(files) or not model.endswith((".pth", ".onnx")): return gr_warning(translations["provide_file"].format(filename=translations["model"]))
         else:
             gr_info(translations["clean_model"])
             os.remove(files)
@@ -1153,7 +1252,7 @@ def delete_all_model():
 
     for f in model:
         file = os.path.join("assets", "weights", f)
-        if os.path.exists(file) and f.endswith(".pth"): os.remove(file)
+        if os.path.exists(file) and f.endswith((".pth", ".onnx")): os.remove(file)
 
     for f in index:
         file = os.path.join("assets", "logs", f)
@@ -1273,7 +1372,7 @@ def report_bug(error_info, provide):
         try:
             for log in [os.path.join(root, name) for root, _, files in os.walk(os.path.join("assets", "logs"), topdown=False) for name in files if name.endswith(".log")]:
                 with open(log, "r", encoding="utf-8") as r:
-                    with open(report_path, "w", encoding="utf-8") as w:
+                    with open(report_path, "a", encoding="utf-8") as w:
                         w.write(str(r.read()))
                         w.write("\n")
         except Exception as e:
@@ -2179,15 +2278,15 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                 fushion_button = gr.Button(translations["fushion"], variant="primary", scale=4)
             with gr.Column():
                 with gr.Row():
-                    model_a = gr.File(label=f"{translations['model_name']} 1", file_types=[".pth"]) 
-                    model_b = gr.File(label=f"{translations['model_name']} 2", file_types=[".pth"])
+                    model_a = gr.File(label=f"{translations['model_name']} 1", file_types=[".pth", ".onnx"]) 
+                    model_b = gr.File(label=f"{translations['model_name']} 2", file_types=[".pth", ".onnx"])
                 with gr.Row():
                     model_path_a = gr.Textbox(label=f"{translations['model_path']} 1", value="", placeholder="assets/weights/Model_1.pth")
                     model_path_b = gr.Textbox(label=f"{translations['model_path']} 2", value="", placeholder="assets/weights/Model_2.pth")
             with gr.Row():
                 ratio = gr.Slider(minimum=0, maximum=1, label=translations["model_ratio"], info=translations["model_ratio_info"], value=0.5, interactive=True)
             with gr.Row():
-                output_model = gr.File(label=translations["output_model_path"], visible=False)
+                output_model = gr.File(label=translations["output_model_path"], file_types=[".pth", ".onnx"], interactive=False, visible=False)
             with gr.Row():
                 model_a.upload(fn=lambda model: shutil.move(model.name, os.path.join("assets", "weights")), inputs=[model_a], outputs=[model_path_a])
                 model_b.upload(fn=lambda model: shutil.move(model.name, os.path.join("assets", "weights")), inputs=[model_b], outputs=[model_path_b])
@@ -2210,11 +2309,11 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
             with gr.Row():
                 gr.Markdown(translations["read_model_markdown_2"])
             with gr.Row():
-                model = gr.File(label=translations["drop_model"], file_types=[".pth"]) 
+                model = gr.File(label=translations["drop_model"], file_types=[".pth", ".onnx"]) 
             with gr.Row():
                 read_button = gr.Button(translations["readmodel"], variant="primary", scale=2)
             with gr.Column():
-                model_path = gr.Textbox(label=translations["model_path"], value="", info=translations["model_path_info"], interactive=True)
+                model_path = gr.Textbox(label=translations["model_path"], value="", placeholder="assets/weights/Model.pth", info=translations["model_path_info"], interactive=True)
                 output_info = gr.Textbox(label=translations["modelinfo"], value="", interactive=False, scale=6)
             with gr.Row():
                 model.upload(fn=lambda model: shutil.move(model.name, os.path.join("assets", "weights")), inputs=[model], outputs=[model_path])
@@ -2224,6 +2323,28 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                     outputs=[output_info],
                     api_name="read_model"
                 )
+
+        with gr.TabItem(translations["convert_model"], visible=configs.get("onnx_tab", True)):
+            gr.Markdown(translations["pytorch2onnx"])
+            with gr.Row():
+                gr.Markdown(translations["pytorch2onnx_markdown"])
+            with gr.Row():
+                model_pth_upload = gr.File(label=translations["drop_model"], file_types=[".pth"]) 
+            with gr.Row():
+                convert_onnx = gr.Button(translations["convert_model"], variant="primary", scale=2)
+            with gr.Row():
+                model_pth_path = gr.Textbox(label=translations["model_path"], value="", placeholder="assets/weights/Model.pth", info=translations["model_path_info"], interactive=True)
+            with gr.Row():
+                output_model2 = gr.File(label=translations["output_model_path"], file_types=[".pth", ".onnx"], interactive=False, visible=False)
+            with gr.Row():
+                model_pth_upload.upload(fn=lambda model_pth_upload: shutil.move(model_pth_upload.name, os.path.join("assets", "weights")), inputs=[model_pth_upload], outputs=[model_pth_path])
+                convert_onnx.click(
+                    fn=onnx_export,
+                    inputs=[model_pth_path],
+                    outputs=[output_model2, output_info],
+                    api_name="model_onnx_export"
+                )
+                convert_onnx.click(fn=lambda: visible(True), inputs=[], outputs=[output_model2])  
 
         with gr.TabItem(translations["downloads"], visible=configs.get("downloads_tab", True)):
             gr.Markdown(translations["download_markdown"])
@@ -2249,7 +2370,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                         search_dropdown = gr.Dropdown(label=translations["select_download_model"], value="", choices=[], allow_custom_value=True, interactive=False, visible=False)
                         download = gr.Button(translations["downloads"], variant="primary", visible=False)
                     with gr.Column():
-                        model_upload = gr.File(label=translations["drop_model"], file_types=[".pth", ".index", ".zip"], visible=False)
+                        model_upload = gr.File(label=translations["drop_model"], file_types=[".pth", ".onnx", ".index", ".zip"], visible=False)
             with gr.Row():
                 with gr.Accordion(translations["download_pretrained_2"], open=False):
                     with gr.Row():
@@ -2486,7 +2607,6 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
 
     logger.info(translations["start_app"])
     logger.info(translations["set_lang"].format(lang=language))
-
     port = configs.get("app_port", 7860)
 
     for i in range(configs.get("num_of_restart", 5)):

@@ -233,7 +233,7 @@ def verify_checkpoint_shapes(checkpoint_path, model):
     try:
         model_state_dict = model.module.load_state_dict(checkpoint_state_dict) if hasattr(model, "module") else model.load_state_dict(checkpoint_state_dict)
     except RuntimeError:
-        logger.error(translations["checkpointing_err"])
+        logger.warning(translations["checkpointing_err"])
         sys.exit(1)
     else: del checkpoint, checkpoint_state_dict, model_state_dict
 

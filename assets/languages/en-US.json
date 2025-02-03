@@ -784,5 +784,9 @@
     "report_info": "If possible, agree to provide log files to help with debugging.\n\nIf log files are not provided, please describe the error in detail, including when and where it occurred.\n\nIf this reporting system also fails, you can reach out via [ISSUE]({github}) or Discord: `pham_huynh_anh`",
     "default_setting": "An error occurred during separation, resetting all settings to default...",
     "dataset_folder1": "Please enter the data folder name",
-    "checkpointing_err": "Pretrained model parameters such as sample rate or architecture do not match the selected model."
+    "checkpointing_err": "Pretrained model parameters such as sample rate or architecture do not match the selected model.",
+    "start_onnx_export": "Start converting model to onnx",
+    "convert_model": "Convert Model",
+    "pytorch2onnx": "Converting PYTORCH Model to ONNX Model",
+    "pytorch2onnx_markdown": "Convert RVC model from pytorch to onnx to optimize audio conversion"
 }

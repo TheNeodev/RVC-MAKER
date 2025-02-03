@@ -1,11 +1,11 @@
 import os
 import torch
-import shutil
 import ctypes
 import platform
 
 import numpy as np
-import tempfile as tf
+
+
 
 class DioOption(ctypes.Structure):
     _fields_ = [("F0Floor", ctypes.c_double), ("F0Ceil", ctypes.c_double), ("ChannelsInOctave", ctypes.c_double), ("FramePeriod", ctypes.c_double), ("Speed", ctypes.c_int), ("AllowedRange", ctypes.c_double)]
@@ -15,18 +15,19 @@ class HarvestOption(ctypes.Structure):
 
 class PYWORLD:
     def __init__(self):
-        model = torch.load(os.path.join("assets", "models", "predictors", "world.pth"), map_location="cpu")
+        self.world_path = os.path.join("assets", "models", "predictors", "world")
+        os.makedirs(self.world_path, exist_ok=True)
 
         model_type, suffix = (("world_64" if platform.architecture()[0] == "64bit" else "world_86"), ".dll") if platform.system() == "Windows" else ("world_linux", ".so")
+        self.world_file_path = os.path.join(self.world_path, f"{model_type}{suffix}")
 
-        self.temp_folder = os.path.join("assets", "models", "predictors", "temp")
-        os.makedirs(self.temp_folder, exist_ok=True)
+        if not os.path.exists(self.world_file_path):
+            model = torch.load(os.path.join("assets", "models", "predictors", "world.pth"), map_location="cpu")
 
-        with tf.NamedTemporaryFile(delete=False, suffix=suffix, dir=self.temp_folder) as temp_file:
-            temp_file.write(model[model_type])
-            temp_path = temp_file.name
+            with open(self.world_file_path, "wb") as w:
+                w.write(model[model_type])
 
-        self.world_dll = ctypes.CDLL(temp_path)
+        self.world_dll = ctypes.CDLL(self.world_file_path)
 
     def harvest(self, x, fs, f0_floor=50, f0_ceil=1100, frame_period=10):
         self.world_dll.Harvest.argtypes = [ctypes.POINTER(ctypes.c_double), ctypes.c_int, ctypes.c_int, ctypes.POINTER(HarvestOption), ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double)]
@@ -86,5 +87,4 @@ class PYWORLD:
         out_f0 = (ctypes.c_double * len(f0))()
         self.world_dll.StoneMask((ctypes.c_double * len(x))(*x), len(x), fs, (ctypes.c_double * len(tpos))(*tpos), (ctypes.c_double * len(f0))(*f0), len(f0), out_f0)
 
-        if os.path.exists(self.temp_folder): shutil.rmtree(self.temp_folder, ignore_errors=True)
         return np.array(out_f0, dtype=np.float32)

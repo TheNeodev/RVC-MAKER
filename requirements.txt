@@ -1,12 +1,13 @@
 # Platform-specific requirements section
 pip>=23.3,<24.1
+omegaconf>=2.0.6
 onnxruntime; sys_platform == 'darwin'
 onnxruntime-gpu; sys_platform != 'darwin'
 
 # Core dependencies
 PyYAML
 torch==2.3.1
-tqdm
+tqdm>=4.63.1
 torchvision==0.18.1
 torchaudio==2.3.1
 faiss-cpu>=1.7.3
@@ -15,25 +16,25 @@ faiss-cpu>=1.7.3
 fairseq==0.12.2; python_version == '3.10'
 fairseq @ git+https://github.com/One-sixth/fairseq.git; python_version > '3.10'
 scikit-learn
-einops
+einops>=0.8.0
 
 # Pitch and sound processing
 librosa>=0.10.2
-pydub
+pydub>=0.25.1
 praat-parselmouth
-soundfile
+soundfile>=0.13.0
 pedalboard
 
 # Data processing and calculation
 numpy==1.25.2
-numba
-scipy
+numba>=0.57.0
+scipy>=1.15.0
 pandas
 matplotlib==3.7.2
 
 # Implementation and web framework
-gradio>=5.12.0
-requests
+gradio>=5.14.0
+requests>=2.32.3
 aiohttp
 
 # Utility section

@@ -128,6 +128,8 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 
 `main\\library\\algorithm\\mrf_hifigan.py`: **Tệp tin thuật toán của bộ mã hóa âm thanh MRF HIFIGAN**
 
+`main\\library\\algorithm\\onnx_export.py`: **Tệp tin chuyển đổi mô hình RVC PYTORCH thành ONNX**
+
 `main\\library\\algorithm\\refinegan.py`: **Tệp tin thuật toán của bộ mã hóa âm thanh REFINEGAN**
 
 `main\\library\\algorithm\\residuals.py`: **Tệp tin chứa các lớp thuật toán như ResBlock,...**
@@ -206,13 +208,14 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 
 **và một số dự án khác**
 
-- **[Torch-Onnx-Crepe](https://github.com/PhamHuynhAnh16/TORCH-ONNX-CREPE)**
+- **[RVC-ONNX-INFER-BY-Anh](https://github.com/PhamHuynhAnh16/RVC_Onnx_Infer)**
+- **[Torch-Onnx-Crepe-By-Anh](https://github.com/PhamHuynhAnh16/TORCH-ONNX-CREPE)**
 - **[Local-attention](https://github.com/lucidrains/local-attention)**
 - **[FcpeONNX](https://huggingface.co/deiteris/weights/tree/main)**
 - **[ContentVec](https://github.com/auspicious3000/contentvec)**
 - **[Mediafiredl](https://github.com/Gann4Life/mediafiredl)**
 - **[Noisereduce](https://github.com/timsainb/noisereduce)**
-- **[World.py](https://github.com/PhamHuynhAnh16/world.py)**
+- **[World.py-By-Anh](https://github.com/PhamHuynhAnh16/world.py)**
 - **[Mega.py](https://github.com/odwyersoftware/mega.py)**
 - **[Edge-TTS](https://github.com/rany2/edge-tts)**
 - **[Gdown](https://github.com/wkentaro/gdown)**
