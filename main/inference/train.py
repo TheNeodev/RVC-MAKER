@@ -826,6 +826,8 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, wri
         else: shuffle(cache)
     else: data_iterator = enumerate(train_loader)
 
+    epoch_recorder = EpochRecorder()
+
     with tqdm(total=len(train_loader), leave=False) as pbar:
         for batch_idx, info in data_iterator:
             if device.type == "cuda" and not cache_data_in_gpu: info = [tensor.cuda(rank, non_blocking=True) for tensor in info]
@@ -980,7 +982,6 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, wri
                 extract_model(ckpt=ckpt, sr=sample_rate, pitch_guidance=pitch_guidance == True, name=model_name, model_path=m, epoch=epoch, step=global_step, version=version, hps=hps, model_author=model_author, vocoder=vocoder)
 
         lowest_value_rounded = round(float(lowest_value["value"]), 3)
-        epoch_recorder = EpochRecorder()
 
         if epoch > 1 and overtraining_detector: logger.info(translations["model_training_info"].format(model_name=model_name, epoch=epoch, global_step=global_step, epoch_recorder=epoch_recorder.record(), lowest_value_rounded=lowest_value_rounded, lowest_value_epoch=lowest_value['epoch'], lowest_value_step=lowest_value['step'], remaining_epochs_gen=(overtraining_threshold - consecutive_increases_gen), remaining_epochs_disc=((overtraining_threshold * 2) - consecutive_increases_disc), smoothed_value_gen=f"{smoothed_value_gen:.3f}", smoothed_value_disc=f"{smoothed_value_disc:.3f}"))
         elif epoch > 1 and overtraining_detector == False: logger.info(translations["model_training_info_2"].format(model_name=model_name, epoch=epoch, global_step=global_step, epoch_recorder=epoch_recorder.record(), lowest_value_rounded=lowest_value_rounded, lowest_value_epoch=lowest_value['epoch'], lowest_value_step=lowest_value['step']))
@@ -995,6 +996,5 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         logger.error(f"{translations['training_error']} {e}")
-
         import traceback
         logger.debug(traceback.format_exc())

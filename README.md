@@ -211,6 +211,7 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 - **[RVC-ONNX-INFER-BY-Anh](https://github.com/PhamHuynhAnh16/RVC_Onnx_Infer)**
 - **[Torch-Onnx-Crepe-By-Anh](https://github.com/PhamHuynhAnh16/TORCH-ONNX-CREPE)**
 - **[Local-attention](https://github.com/lucidrains/local-attention)**
+- **[TorchFcpe](https://github.com/CNChTu/FCPE/tree/main)**
 - **[FcpeONNX](https://huggingface.co/deiteris/weights/tree/main)**
 - **[ContentVec](https://github.com/auspicious3000/contentvec)**
 - **[Mediafiredl](https://github.com/Gann4Life/mediafiredl)**

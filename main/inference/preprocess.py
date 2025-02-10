@@ -25,7 +25,8 @@ for l in ["numba.core.byteflow", "numba.core.ssa", "numba.core.interpreter"]:
     logging.getLogger(l).setLevel(logging.ERROR)
 
 OVERLAP, MAX_AMPLITUDE, ALPHA, HIGH_PASS_CUTOFF, SAMPLE_RATE_16K = 0.3, 0.9, 0.75, 48, 16000
-translations = Config().translations
+config = Config()
+translations = config.translations
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -137,8 +138,7 @@ def get_rms(y, frame_length=2048, hop_length=512, pad_mode="constant"):
     x_shape_trimmed = list(y.shape)
     x_shape_trimmed[axis] -= frame_length - 1
 
-    xw = np.lib.stride_tricks.as_strided(y, shape=tuple(x_shape_trimmed) + tuple([frame_length]), strides=y.strides + tuple([y.strides[axis]]))
-    xw = np.moveaxis(xw, -1, axis - 1 if axis < 0 else axis + 1)
+    xw = np.moveaxis(np.lib.stride_tricks.as_strided(y, shape=tuple(x_shape_trimmed) + tuple([frame_length]), strides=y.strides + tuple([y.strides[axis]])), -1, axis - 1 if axis < 0 else axis + 1)
 
     slices = [slice(None)] * xw.ndim
     slices[axis] = slice(0, None, hop_length)
@@ -181,7 +181,7 @@ class PreProcess:
 
             if clean_dataset: 
                 from main.tools.noisereduce import reduce_noise
-                audio = reduce_noise(y=audio, sr=self.sr, prop_decrease=clean_strength)
+                audio = reduce_noise(y=audio, sr=self.sr, prop_decrease=clean_strength, device=config.device)
 
             idx1 = 0
             if cut_preprocess:

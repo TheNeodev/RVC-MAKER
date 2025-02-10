@@ -15,9 +15,11 @@ from distutils.util import strtobool
 sys.path.append(os.getcwd())
 
 from main.configs.config import Config
+from main.library.algorithm.separator import Separator
 from main.library.utils import process_audio, merge_audio
 
-translations = Config().translations
+config = Config()
+translations = config.translations
 dataset_temp = os.path.join("dataset_temp")
 logger = logging.getLogger(__name__)
 
@@ -122,7 +124,7 @@ def main():
             
             if clean_dataset: 
                 from main.tools.noisereduce import reduce_noise
-                data = reduce_noise(y=data, prop_decrease=clean_strength)
+                data = reduce_noise(y=data, prop_decrease=clean_strength, device=config.device)
 
             write(audio_path, data, sample_rate)
     except Exception as e:
@@ -225,8 +227,6 @@ def separator_reverb_audio(input, output, segments_size, overlap, denoise, hop_l
     return rename_file
 
 def separator_main(audio_file=None, model_filename="Kim_Vocal_1.onnx", output_format="wav", output_dir=".", mdx_segment_size=256, mdx_overlap=0.25, mdx_batch_size=1, mdx_hop_length=1024, mdx_enable_denoise=True, sample_rate=44100):
-    from main.library.algorithm.separator import Separator
-
     try:
         separator = Separator(logger=logger, log_formatter=file_formatter, log_level=logging.INFO, output_dir=output_dir, output_format=output_format, output_bitrate=None, normalization_threshold=0.9, output_single_stem=None, invert_using_spec=False, sample_rate=sample_rate, mdx_params={"hop_length": mdx_hop_length, "segment_size": mdx_segment_size, "overlap": mdx_overlap, "batch_size": mdx_batch_size, "enable_denoise": mdx_enable_denoise})
         separator.load_model(model_filename=model_filename)

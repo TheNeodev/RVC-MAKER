@@ -14,7 +14,8 @@ from main.configs.config import Config
 from main.library.utils import pydub_convert
 from main.library.algorithm.separator import Separator
 
-translations = Config().translations 
+config = Config()
+translations = config.translations 
 logger = logging.getLogger(__name__)
 
 if logger.hasHandlers(): logger.handlers.clear()
@@ -112,11 +113,11 @@ def main():
             backing_data, backing_sr = sf.read(backing_vocals_no_reverb if reverb and backing_reverb else backing_vocals)
 
             from main.tools.noisereduce import reduce_noise
-            sf.write(original_output, reduce_noise(y=vocal_data, prop_decrease=clean_strength), vocal_sr, format=export_format)
+            sf.write(original_output, reduce_noise(y=vocal_data, prop_decrease=clean_strength), vocal_sr, format=export_format, device=config.device)
 
             if backing:
-                sf.write(main_output, reduce_noise(y=main_data, sr=main_sr, prop_decrease=clean_strength), main_sr, format=export_format)
-                sf.write(backing_output, reduce_noise(y=backing_data, sr=backing_sr, prop_decrease=clean_strength), backing_sr, format=export_format)  
+                sf.write(main_output, reduce_noise(y=main_data, sr=main_sr, prop_decrease=clean_strength), main_sr, format=export_format, device=config.device)
+                sf.write(backing_output, reduce_noise(y=backing_data, sr=backing_sr, prop_decrease=clean_strength), backing_sr, format=export_format, device=config.device)  
 
             logger.info(translations["clean_audio_success"])
             return original_output, instruments, main_output, backing_output
@@ -126,7 +127,6 @@ def main():
         logger.debug(traceback.format_exc())
     
     if os.path.exists(pid_path): os.remove(pid_path)
-    
     elapsed_time = time.time() - start_time
     logger.info(translations["separator_success"].format(elapsed_time=f"{elapsed_time:.2f}"))
 

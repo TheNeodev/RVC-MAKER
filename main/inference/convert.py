@@ -58,7 +58,6 @@ else:
     logger.addHandler(file_handler)
     logger.setLevel(logging.DEBUG)
 
-
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("--pitch", type=int, default=0)
@@ -68,7 +67,7 @@ def parse_arguments():
     parser.add_argument("--protect", type=float, default=0.33)
     parser.add_argument("--hop_length", type=int, default=64)
     parser.add_argument("--f0_method", type=str, default="rmvpe")
-    parser.add_argument("--embedder_model", type=str, default="contentvec_base")
+    parser.add_argument("--embedder_model", type=str, default="contentvec_base.pt")
     parser.add_argument("--input_path", type=str, required=True)
     parser.add_argument("--output_path", type=str, default="./audios/output.wav")
     parser.add_argument("--export_format", type=str, default="wav")
@@ -81,12 +80,13 @@ def parse_arguments():
     parser.add_argument("--resample_sr", type=int, default=0)
     parser.add_argument("--split_audio", type=lambda x: bool(strtobool(x)), default=False)
     parser.add_argument("--checkpointing", type=lambda x: bool(strtobool(x)), default=False)
+    parser.add_argument("--f0_file", type=str, default=None)
 
     return parser.parse_args()
 
 def main():
     args = parse_arguments()
-    pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0_method, input_path, output_path, pth_path, index_path, f0_autotune, f0_autotune_strength, clean_audio, clean_strength, export_format, embedder_model, resample_sr, split_audio, checkpointing = args.pitch, args.filter_radius, args.index_rate, args.volume_envelope,args.protect, args.hop_length, args.f0_method, args.input_path, args.output_path, args.pth_path, args.index_path, args.f0_autotune, args.f0_autotune_strength, args.clean_audio, args.clean_strength, args.export_format, args.embedder_model, args.resample_sr, args.split_audio, args.checkpointing
+    pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0_method, input_path, output_path, pth_path, index_path, f0_autotune, f0_autotune_strength, clean_audio, clean_strength, export_format, embedder_model, resample_sr, split_audio, checkpointing, f0_file = args.pitch, args.filter_radius, args.index_rate, args.volume_envelope,args.protect, args.hop_length, args.f0_method, args.input_path, args.output_path, args.pth_path, args.index_path, args.f0_autotune, args.f0_autotune_strength, args.clean_audio, args.clean_strength, args.export_format, args.embedder_model, args.resample_sr, args.split_audio, args.checkpointing, args.f0_file
 
     log_data = {translations['pitch']: pitch, translations['filter_radius']: filter_radius, translations['index_strength']: index_rate, translations['volume_envelope']: volume_envelope, translations['protect']: protect, "Hop length": hop_length, translations['f0_method']: f0_method, translations['audio_path']: input_path, translations['output_path']: output_path.replace('wav', export_format), translations['model_path']: pth_path, translations['indexpath']: index_path, translations['autotune']: f0_autotune, translations['clear_audio']: clean_audio, translations['export_format']: export_format, translations['hubert_model']: embedder_model, translations['split_audio']: split_audio, translations['memory_efficient_training']: checkpointing}
 
@@ -97,15 +97,15 @@ def main():
     for key, value in log_data.items():
         logger.debug(f"{key}: {value}")
     
-    run_convert_script(pitch=pitch, filter_radius=filter_radius, index_rate=index_rate, volume_envelope=volume_envelope, protect=protect, hop_length=hop_length, f0_method=f0_method, input_path=input_path, output_path=output_path, pth_path=pth_path, index_path=index_path, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, clean_audio=clean_audio, clean_strength=clean_strength, export_format=export_format, embedder_model=embedder_model, resample_sr=resample_sr, split_audio=split_audio, checkpointing=checkpointing)
+    run_convert_script(pitch=pitch, filter_radius=filter_radius, index_rate=index_rate, volume_envelope=volume_envelope, protect=protect, hop_length=hop_length, f0_method=f0_method, input_path=input_path, output_path=output_path, pth_path=pth_path, index_path=index_path, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, clean_audio=clean_audio, clean_strength=clean_strength, export_format=export_format, embedder_model=embedder_model, resample_sr=resample_sr, split_audio=split_audio, checkpointing=checkpointing, f0_file=f0_file)
 
 def run_batch_convert(params):
-    path, audio_temp, export_format, cut_files, pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0_method, pth_path, index_path, f0_autotune, f0_autotune_strength, clean_audio, clean_strength, embedder_model, resample_sr, checkpointing = params["path"], params["audio_temp"], params["export_format"], params["cut_files"], params["pitch"], params["filter_radius"], params["index_rate"], params["volume_envelope"], params["protect"], params["hop_length"], params["f0_method"], params["pth_path"], params["index_path"], params["f0_autotune"], params["f0_autotune_strength"], params["clean_audio"], params["clean_strength"], params["embedder_model"], params["resample_sr"], params["checkpointing"]
+    path, audio_temp, export_format, cut_files, pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0_method, pth_path, index_path, f0_autotune, f0_autotune_strength, clean_audio, clean_strength, embedder_model, resample_sr, checkpointing, f0_file = params["path"], params["audio_temp"], params["export_format"], params["cut_files"], params["pitch"], params["filter_radius"], params["index_rate"], params["volume_envelope"], params["protect"], params["hop_length"], params["f0_method"], params["pth_path"], params["index_path"], params["f0_autotune"], params["f0_autotune_strength"], params["clean_audio"], params["clean_strength"], params["embedder_model"], params["resample_sr"], params["checkpointing"], params["f0_file"]
 
     segment_output_path = os.path.join(audio_temp, f"output_{cut_files.index(path)}.{export_format}")
     if os.path.exists(segment_output_path): os.remove(segment_output_path)
     
-    VoiceConverter().convert_audio(pitch=pitch, filter_radius=filter_radius, index_rate=index_rate, volume_envelope=volume_envelope, protect=protect, hop_length=hop_length, f0_method=f0_method, audio_input_path=path, audio_output_path=segment_output_path, model_path=pth_path, index_path=index_path, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, clean_audio=clean_audio, clean_strength=clean_strength, export_format=export_format, embedder_model=embedder_model, resample_sr=resample_sr, checkpointing=checkpointing)
+    VoiceConverter().convert_audio(pitch=pitch, filter_radius=filter_radius, index_rate=index_rate, volume_envelope=volume_envelope, protect=protect, hop_length=hop_length, f0_method=f0_method, audio_input_path=path, audio_output_path=segment_output_path, model_path=pth_path, index_path=index_path, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, clean_audio=clean_audio, clean_strength=clean_strength, export_format=export_format, embedder_model=embedder_model, resample_sr=resample_sr, checkpointing=checkpointing, f0_file=f0_file)
     os.remove(path)
 
     if os.path.exists(segment_output_path): return segment_output_path
@@ -113,7 +113,7 @@ def run_batch_convert(params):
         logger.warning(f"{translations['not_found_convert_file']}: {segment_output_path}")
         sys.exit(1)
 
-def run_convert_script(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0_method, input_path, output_path, pth_path, index_path, f0_autotune, f0_autotune_strength, clean_audio, clean_strength, export_format, embedder_model, resample_sr, split_audio, checkpointing):
+def run_convert_script(pitch=0, filter_radius=3, index_rate=0.5, volume_envelope=1, protect=0.5, hop_length=64, f0_method="rmvpe", input_path=None, output_path="./output.wav", pth_path=None, index_path=None, f0_autotune=False, f0_autotune_strength=1, clean_audio=False, clean_strength=0.7, export_format="wav", embedder_model="contentvec_base.pt", resample_sr=0, split_audio=False, checkpointing=False, f0_file=None):
     check_predictors(f0_method)
     check_embedders(embedder_model)
 
@@ -121,7 +121,6 @@ def run_convert_script(pitch, filter_radius, index_rate, volume_envelope, protec
     start_time = time.time()
 
     pid_path = os.path.join("assets", "convert_pid.txt")
-
     with open(pid_path, "w") as pid_file:
         pid_file.write(str(os.getpid()))
 
@@ -152,12 +151,11 @@ def run_convert_script(pitch, filter_radius, index_rate, volume_envelope, protec
                 if split_audio:
                     try:
                         cut_files, time_stamps = process_audio(logger, audio_path, audio_temp)
-                        params_list = [{"path": path, "audio_temp": audio_temp, "export_format": export_format, "cut_files": cut_files, "pitch": pitch, "filter_radius": filter_radius, "index_rate": index_rate, "volume_envelope": volume_envelope, "protect": protect, "hop_length": hop_length, "f0_method": f0_method, "pth_path": pth_path, "index_path": index_path, "f0_autotune": f0_autotune, "f0_autotune_strength": f0_autotune_strength, "clean_audio": clean_audio, "clean_strength": clean_strength, "embedder_model": embedder_model, "resample_sr": resample_sr, "checkpointing": checkpointing} for path in cut_files]
+                        params_list = [{"path": path, "audio_temp": audio_temp, "export_format": export_format, "cut_files": cut_files, "pitch": pitch, "filter_radius": filter_radius, "index_rate": index_rate, "volume_envelope": volume_envelope, "protect": protect, "hop_length": hop_length, "f0_method": f0_method, "pth_path": pth_path, "index_path": index_path, "f0_autotune": f0_autotune, "f0_autotune_strength": f0_autotune_strength, "clean_audio": clean_audio, "clean_strength": clean_strength, "embedder_model": embedder_model, "resample_sr": resample_sr, "checkpointing": checkpointing, "f0_file": f0_file} for path in cut_files]
                         
                         with tqdm(total=len(params_list), desc=translations["convert_audio"], ncols=100, unit="a") as pbar:
                             for params in params_list:
-                                results = run_batch_convert(params)
-                                processed_segments.append(results)
+                                processed_segments.append(run_batch_convert(params))
                                 pbar.update(1)
                                 logger.debug(pbar.format_meter(pbar.n, pbar.total, pbar.format_dict["elapsed"]))
 
@@ -172,7 +170,7 @@ def run_convert_script(pitch, filter_radius, index_rate, volume_envelope, protec
                         if os.path.exists(output_audio): os.remove(output_audio)
 
                         with tqdm(total=1, desc=translations["convert_audio"], ncols=100, unit="a") as pbar:
-                            cvt.convert_audio(pitch=pitch, filter_radius=filter_radius, index_rate=index_rate, volume_envelope=volume_envelope, protect=protect, hop_length=hop_length, f0_method=f0_method, audio_input_path=audio_path, audio_output_path=output_audio, model_path=pth_path, index_path=index_path, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, clean_audio=clean_audio, clean_strength=clean_strength, export_format=export_format, embedder_model=embedder_model, resample_sr=resample_sr, checkpointing=checkpointing)
+                            cvt.convert_audio(pitch=pitch, filter_radius=filter_radius, index_rate=index_rate, volume_envelope=volume_envelope, protect=protect, hop_length=hop_length, f0_method=f0_method, audio_input_path=audio_path, audio_output_path=output_audio, model_path=pth_path, index_path=index_path, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, clean_audio=clean_audio, clean_strength=clean_strength, export_format=export_format, embedder_model=embedder_model, resample_sr=resample_sr, checkpointing=checkpointing, f0_file=f0_file)
                             pbar.update(1)
                             logger.debug(pbar.format_meter(pbar.n, pbar.total, pbar.format_dict["elapsed"]))
                     except Exception as e:
@@ -194,12 +192,11 @@ def run_convert_script(pitch, filter_radius, index_rate, volume_envelope, protec
         if split_audio:
             try:              
                 cut_files, time_stamps = process_audio(logger, input_path, audio_temp)
-                params_list = [{"path": path, "audio_temp": audio_temp, "export_format": export_format, "cut_files": cut_files, "pitch": pitch, "filter_radius": filter_radius, "index_rate": index_rate, "volume_envelope": volume_envelope, "protect": protect, "hop_length": hop_length, "f0_method": f0_method, "pth_path": pth_path, "index_path": index_path, "f0_autotune": f0_autotune, "f0_autotune_strength": f0_autotune_strength, "clean_audio": clean_audio, "clean_strength": clean_strength, "embedder_model": embedder_model, "resample_sr": resample_sr, "checkpointing": checkpointing} for path in cut_files]
+                params_list = [{"path": path, "audio_temp": audio_temp, "export_format": export_format, "cut_files": cut_files, "pitch": pitch, "filter_radius": filter_radius, "index_rate": index_rate, "volume_envelope": volume_envelope, "protect": protect, "hop_length": hop_length, "f0_method": f0_method, "pth_path": pth_path, "index_path": index_path, "f0_autotune": f0_autotune, "f0_autotune_strength": f0_autotune_strength, "clean_audio": clean_audio, "clean_strength": clean_strength, "embedder_model": embedder_model, "resample_sr": resample_sr, "checkpointing": checkpointing, "f0_file": f0_file} for path in cut_files]
                 
                 with tqdm(total=len(params_list), desc=translations["convert_audio"], ncols=100, unit="a") as pbar:
                     for params in params_list:
-                        results = run_batch_convert(params)
-                        processed_segments.append(results)
+                        processed_segments.append(run_batch_convert(params))
                         pbar.update(1)
                         logger.debug(pbar.format_meter(pbar.n, pbar.total, pbar.format_dict["elapsed"]))
 
@@ -211,9 +208,8 @@ def run_convert_script(pitch, filter_radius, index_rate, volume_envelope, protec
         else:
             try:
                 with tqdm(total=1, desc=translations["convert_audio"], ncols=100, unit="a") as pbar:
-                    cvt.convert_audio(pitch=pitch, filter_radius=filter_radius, index_rate=index_rate, volume_envelope=volume_envelope, protect=protect, hop_length=hop_length, f0_method=f0_method, audio_input_path=input_path, audio_output_path=output_path, model_path=pth_path, index_path=index_path, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, clean_audio=clean_audio, clean_strength=clean_strength, export_format=export_format, embedder_model=embedder_model, resample_sr=resample_sr, checkpointing=checkpointing)
+                    cvt.convert_audio(pitch=pitch, filter_radius=filter_radius, index_rate=index_rate, volume_envelope=volume_envelope, protect=protect, hop_length=hop_length, f0_method=f0_method, audio_input_path=input_path, audio_output_path=output_path, model_path=pth_path, index_path=index_path, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, clean_audio=clean_audio, clean_strength=clean_strength, export_format=export_format, embedder_model=embedder_model, resample_sr=resample_sr, checkpointing=checkpointing, f0_file=f0_file)
                     pbar.update(1)
-
                     logger.debug(pbar.format_meter(pbar.n, pbar.total, pbar.format_dict["elapsed"]))
             except Exception as e:
                 logger.error(translations["error_convert"].format(e=e))
@@ -281,8 +277,6 @@ class VC:
         return f0
  
     def get_f0_mangio_crepe(self, x, p_len, hop_length, model="full", onnx=False):
-        providers = get_providers() if onnx else None
-
         x = x.astype(np.float32)
         x /= np.quantile(np.abs(x), 0.999)
 
@@ -290,33 +284,27 @@ class VC:
         if audio.ndim == 2 and audio.shape[0] > 1: audio = torch.mean(audio, dim=0, keepdim=True).detach()
 
         p_len = p_len or x.shape[0] // hop_length
-        source = np.array(predict(audio.detach(), self.sample_rate, hop_length, self.f0_min, self.f0_max, model, batch_size=hop_length * 2, device=self.device, pad=True, providers=providers, onnx=onnx).squeeze(0).cpu().float().numpy())
+        source = np.array(predict(audio.detach(), self.sample_rate, hop_length, self.f0_min, self.f0_max, model, batch_size=hop_length * 2, device=self.device, pad=True, providers=(get_providers() if onnx else None), onnx=onnx).squeeze(0).cpu().float().numpy())
         source[source < 0.001] = np.nan
 
         return np.nan_to_num(np.interp(np.arange(0, len(source) * p_len, len(source)) / p_len, np.arange(0, len(source)), source))
 
     def get_f0_crepe(self, x, model="full", onnx=False):
-        providers = get_providers() if onnx else None
-        
-        f0, pd = predict(torch.tensor(np.copy(x))[None].float(), self.sample_rate, self.window, self.f0_min, self.f0_max, model, batch_size=512, device=self.device, return_periodicity=True, providers=providers, onnx=onnx)
+        f0, pd = predict(torch.tensor(np.copy(x))[None].float(), self.sample_rate, self.window, self.f0_min, self.f0_max, model, batch_size=512, device=self.device, return_periodicity=True, providers=(get_providers() if onnx else None), onnx=onnx)
         f0, pd = mean(f0, 3), median(pd, 3)
         f0[pd < 0.1] = 0
 
         return f0[0].cpu().numpy()
 
     def get_f0_fcpe(self, x, p_len, hop_length, onnx=False, legacy=False):
-        providers = get_providers() if onnx else None
-
-        model_fcpe = FCPE(os.path.join("assets", "models", "predictors", "fcpe" + (".onnx" if onnx else ".pt")), hop_length=int(hop_length), f0_min=int(self.f0_min), f0_max=int(self.f0_max), dtype=torch.float32, device=self.device, sample_rate=self.sample_rate, threshold=0.03, providers=providers, onnx=onnx) if legacy else FCPE(os.path.join("assets", "models", "predictors", "fcpe" + (".onnx" if onnx else ".pt")), hop_length=self.window, f0_min=0, f0_max=8000, dtype=torch.float32, device=self.device, sample_rate=self.sample_rate, threshold=0.006, providers=providers, onnx=onnx)
+        model_fcpe = FCPE(os.path.join("assets", "models", "predictors", ("fcpe_legacy" if legacy else"fcpe") + (".onnx" if onnx else ".pt")), hop_length=int(hop_length), f0_min=int(self.f0_min), f0_max=int(self.f0_max), dtype=torch.float32, device=self.device, sample_rate=self.sample_rate, threshold=0.03, providers=(get_providers() if onnx else None), onnx=onnx, legacy=legacy)
         f0 = model_fcpe.compute_f0(x, p_len=p_len)
 
         del model_fcpe
         return f0
     
     def get_f0_rmvpe(self, x, legacy=False, onnx=False):
-        providers = get_providers() if onnx else None
-
-        rmvpe_model = RMVPE(os.path.join("assets", "models", "predictors", "rmvpe" + (".onnx" if onnx else ".pt")), device=self.device, onnx=onnx, providers=providers)
+        rmvpe_model = RMVPE(os.path.join("assets", "models", "predictors", "rmvpe" + (".onnx" if onnx else ".pt")), device=self.device, onnx=onnx, providers=(get_providers() if onnx else None))
         f0 = rmvpe_model.infer_from_audio_with_pitch(x, thred=0.03, f0_min=self.f0_min, f0_max=self.f0_max) if legacy else rmvpe_model.infer_from_audio(x, thred=0.03)
 
         del rmvpe_model
@@ -402,7 +390,7 @@ class VC:
 
         return resampled_stack[0] if len(resampled_stack) == 1 else np.nanmedian(np.vstack(resampled_stack), axis=0)
 
-    def get_f0(self, x, p_len, pitch, f0_method, filter_radius, hop_length, f0_autotune, f0_autotune_strength):
+    def get_f0(self, x, p_len, pitch, f0_method, filter_radius, hop_length, f0_autotune, f0_autotune_strength, inp_f0=None):
         if f0_method == "pm": f0 = self.get_f0_pm(x, p_len)
         elif f0_method == "dio": f0 = self.get_f0_pyworld(x, filter_radius, "dio")
         elif f0_method == "mangio-crepe-tiny": f0 = self.get_f0_mangio_crepe(x, p_len, int(hop_length), "tiny")
@@ -442,12 +430,21 @@ class VC:
         if f0_autotune: f0 = Autotune.autotune_f0(self, f0, f0_autotune_strength)
 
         f0 *= pow(2, pitch / 12)
+        tf0 = self.sample_rate // self.window
+
+        if inp_f0 is not None:
+            replace_f0 = np.interp(list(range(np.round((inp_f0[:, 0].max() - inp_f0[:, 0].min()) * tf0 + 1).astype(np.int16))), inp_f0[:, 0] * 100, inp_f0[:, 1])
+            f0[self.x_pad * tf0 : self.x_pad * tf0 + len(replace_f0)] = replace_f0[:f0[self.x_pad * tf0 : self.x_pad * tf0 + len(replace_f0)].shape[0]]
+
         f0_mel = 1127 * np.log(1 + f0 / 700)
         f0_mel[f0_mel > 0] = (f0_mel[f0_mel > 0] - self.f0_mel_min) * 254 / (self.f0_mel_max - self.f0_mel_min) + 1
         f0_mel[f0_mel <= 1] = 1
         f0_mel[f0_mel > 255] = 255
 
         return np.rint(f0_mel).astype(np.int32), f0.copy()
+    
+    def extract_features(self, model, feats, version):
+        return torch.as_tensor(model.run(["feats_9", "feats_12"], {"feats": feats.detach().cpu().numpy()})[0 if version == "v1" else 1], dtype=torch.float32, device=feats.device)
 
     def voice_conversion(self, model, net_g, sid, audio0, pitch, pitchf, index, big_npy, index_rate, version, protect):
         pitch_guidance = pitch != None and pitchf != None
@@ -457,12 +454,15 @@ class VC:
         assert feats.dim() == 1, feats.dim()
 
         feats = feats.view(1, -1)
-        padding_mask = torch.BoolTensor(feats.shape).to(self.device).fill_(False)
-        inputs = {"source": feats.to(self.device), "padding_mask": padding_mask, "output_layer": 9 if version == "v1" else 12}
+        if self.embed_suffix == ".pt":
+            padding_mask = torch.BoolTensor(feats.shape).to(self.device).fill_(False)
+            inputs = {"source": feats.to(self.device), "padding_mask": padding_mask, "output_layer": 9 if version == "v1" else 12}
 
         with torch.no_grad():
-            logits = model.extract_features(**inputs)
-            feats = model.final_proj(logits[0]) if version == "v1" else logits[0]
+            if self.embed_suffix == ".pt":
+                logits = model.extract_features(**inputs)
+                feats = model.final_proj(logits[0]) if version == "v1" else logits[0]
+            else: feats = self.extract_features(model, feats, version)
 
             if protect < 0.5 and pitch_guidance: feats0 = feats.clone()
 
@@ -480,7 +480,7 @@ class VC:
             if protect < 0.5 and pitch_guidance: feats0 = F.interpolate(feats0.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)
 
             p_len = audio0.shape[0] // self.window
-
+            
             if feats.shape[1] < p_len:
                 p_len = feats.shape[1]
                 if pitch_guidance:
@@ -496,18 +496,19 @@ class VC:
                 feats = feats.to(feats0.dtype)
 
             p_len = torch.tensor([p_len], device=self.device).long()
+            audio1 = ((net_g.infer(feats.float(), p_len, pitch if pitch_guidance else None, pitchf.float() if pitch_guidance else None, sid)[0][0, 0]).data.cpu().float().numpy()) if self.suffix == ".pth" else (net_g.run([net_g.get_outputs()[0].name], ({net_g.get_inputs()[0].name: feats.cpu().numpy().astype(np.float32), net_g.get_inputs()[1].name: p_len.cpu().numpy(), net_g.get_inputs()[2].name: np.array([sid.cpu().item()], dtype=np.int64), net_g.get_inputs()[3].name: np.random.randn(1, 192, p_len).astype(np.float32), net_g.get_inputs()[4].name: pitch.cpu().numpy().astype(np.int64), net_g.get_inputs()[5].name: pitchf.cpu().numpy().astype(np.float32)} if pitch_guidance else {net_g.get_inputs()[0].name: feats.cpu().numpy().astype(np.float32), net_g.get_inputs()[1].name: p_len.cpu().numpy(), net_g.get_inputs()[2].name: np.array([sid.cpu().item()], dtype=np.int64), net_g.get_inputs()[3].name: np.random.randn(1, 192, p_len).astype(np.float32)}))[0][0, 0])
 
-            audio1 = ((net_g.infer(feats.float(), p_len, pitch if pitch_guidance else None, pitchf.float() if pitch_guidance else None, sid)[0][0, 0]).data.cpu().float().numpy()) if self.suffix == ".pth" else (net_g.run([net_g.get_outputs()[0].name], ({net_g.get_inputs()[0].name: feats.cpu().numpy().astype(np.float32), net_g.get_inputs()[1].name: p_len.cpu().numpy(), net_g.get_inputs()[2].name: np.array([sid], dtype=np.int64), net_g.get_inputs()[3].name: np.random.randn(1, 192, p_len).astype(np.float32), net_g.get_inputs()[4].name: pitch.cpu().numpy().astype(np.int64), net_g.get_inputs()[5].name: pitchf.cpu().numpy().astype(np.float32)} if pitch_guidance else {net_g.get_inputs()[0].name: feats.cpu().numpy().astype(np.float32), net_g.get_inputs()[1].name: p_len.cpu().numpy(), net_g.get_inputs()[2].name: np.array([sid], dtype=np.int64), net_g.get_inputs()[3].name: np.random.randn(1, 192, p_len).astype(np.float32)}))[0][0, 0])
-
-        del feats, p_len, padding_mask, net_g
+        if self.embed_suffix == ".pt": del padding_mask
+        del feats, p_len, net_g
 
         if torch.cuda.is_available(): torch.cuda.empty_cache()
         elif torch.backends.mps.is_available(): torch.mps.empty_cache()
 
         return audio1
     
-    def pipeline(self, model, net_g, sid, audio, pitch, f0_method, file_index, index_rate, pitch_guidance, filter_radius, tgt_sr, resample_sr, volume_envelope, version, protect, hop_length, f0_autotune, f0_autotune_strength, suffix):
+    def pipeline(self, model, net_g, sid, audio, pitch, f0_method, file_index, index_rate, pitch_guidance, filter_radius, tgt_sr, resample_sr, volume_envelope, version, protect, hop_length, f0_autotune, f0_autotune_strength, suffix, embed_suffix, f0_file=None):
         self.suffix = suffix
+        self.embed_suffix = embed_suffix
 
         if file_index != "" and os.path.exists(file_index) and index_rate != 0:
             try:
@@ -518,10 +519,9 @@ class VC:
                 index = big_npy = None
         else: index = big_npy = None
 
+        opt_ts, audio_opt = [], []
         audio = signal.filtfilt(bh, ah, audio)
         audio_pad = np.pad(audio, (self.window // 2, self.window // 2), mode="reflect")
-
-        opt_ts, audio_opt = [], []
 
         if audio_pad.shape[0] > self.t_max:
             audio_sum = np.zeros_like(audio)
@@ -533,15 +533,29 @@ class VC:
                 opt_ts.append(t - self.t_query + np.where(np.abs(audio_sum[t - self.t_query : t + self.t_query]) == np.abs(audio_sum[t - self.t_query : t + self.t_query]).min())[0][0])
 
         s = 0
-        t = None
-        
+        t, inp_f0 = None, None
         audio_pad = np.pad(audio, (self.t_pad, self.t_pad), mode="reflect")
         sid = torch.tensor(sid, device=self.device).unsqueeze(0).long()
-        
         p_len = audio_pad.shape[0] // self.window
 
+        if hasattr(f0_file, "name"):
+            try:
+                with open(f0_file.name, "r") as f:
+                    raw_lines = f.read()
+
+                    if len(raw_lines) > 0:
+                        inp_f0 = []
+
+                        for line in raw_lines.strip("\n").split("\n"):
+                            inp_f0.append([float(i) for i in line.split(",")])
+
+                        inp_f0 = np.array(inp_f0, dtype=np.float32)
+            except:
+                logger.error(translations["error_readfile"])
+                inp_f0 = None
+
         if pitch_guidance:
-            pitch, pitchf = self.get_f0(audio_pad, p_len, pitch, f0_method, filter_radius, hop_length, f0_autotune, f0_autotune_strength)
+            pitch, pitchf = self.get_f0(audio_pad, p_len, pitch, f0_method, filter_radius, hop_length, f0_autotune, f0_autotune_strength, inp_f0)
             pitch, pitchf = pitch[:p_len], pitchf[:p_len]
 
             if self.device == "mps": pitchf = pitchf.astype(np.float32)
@@ -586,14 +600,26 @@ class VoiceConverter:
         self.checkpointing = False
 
     def load_embedders(self, embedder_model):
-        try:
-            models, _, _ = checkpoint_utils.load_model_ensemble_and_task([os.path.join("assets", "models", "embedders", embedder_model + '.pt')], suffix="")
-        except Exception as e:
-            logger.error(translations["read_model_error"].format(e=e))
+        embedder_model_path = os.path.join("assets", "models", "embedders", embedder_model)
+        if not os.path.exists(embedder_model_path) and not embedder_model.endswith((".pt", ".onnx")): raise FileNotFoundError(f"{translations['not_found'].format(name=translations['model'])}: {embedder_model}")  
 
-        self.hubert_model = models[0].to(self.config.device).float().eval()
+        if embedder_model.endswith(".pt"):
+            try:
+                models, _, _ = checkpoint_utils.load_model_ensemble_and_task([embedder_model_path], suffix="")
+                self.embed_suffix = ".pt"
+                self.hubert_model = models[0].to(self.config.device).float().eval()
+            except Exception as e:
+                logger.error(translations["read_model_error"].format(e=e))
+        else:
+            try:
+                sess_options = onnxruntime.SessionOptions()
+                sess_options.log_severity_level = 3
+                self.embed_suffix = ".onnx"
+                self.hubert_model = onnxruntime.InferenceSession(embedder_model_path, sess_options=sess_options, providers=get_providers())
+            except Exception as e:
+                logger.error(translations["read_model_error"].format(e=e))
 
-    def convert_audio(self, audio_input_path, audio_output_path, model_path, index_path, embedder_model, pitch, f0_method, index_rate, volume_envelope, protect, hop_length, f0_autotune, f0_autotune_strength, filter_radius, clean_audio, clean_strength, export_format, resample_sr = 0, sid = 0, checkpointing = False):
+    def convert_audio(self, audio_input_path, audio_output_path, model_path, index_path, embedder_model, pitch, f0_method, index_rate, volume_envelope, protect, hop_length, f0_autotune, f0_autotune_strength, filter_radius, clean_audio, clean_strength, export_format, resample_sr = 0, sid = 0, checkpointing = False, f0_file = None):
         try:
             self.get_vc(model_path, sid)
             audio = load_audio(audio_input_path)
@@ -602,24 +628,19 @@ class VoiceConverter:
             audio_max = np.abs(audio).max() / 0.95
             if audio_max > 1: audio /= audio_max
 
-            if not self.hubert_model: 
-                if not os.path.exists(os.path.join("assets", "models", "embedders", embedder_model + '.pt')): raise FileNotFoundError(f"{translations['not_found'].format(name=translations['model'])}: {embedder_model}")  
-                self.load_embedders(embedder_model)
-
+            if not self.hubert_model: self.load_embedders(embedder_model)
             if self.tgt_sr != resample_sr >= 16000: self.tgt_sr = resample_sr
-            target_sr = min([8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 96000], key=lambda x: abs(x - self.tgt_sr))
 
-            audio_output = self.vc.pipeline(model=self.hubert_model, net_g=self.net_g, sid=sid, audio=audio, pitch=pitch, f0_method=f0_method, file_index=(index_path.strip().strip('"').strip("\n").strip('"').strip().replace("trained", "added")), index_rate=index_rate, pitch_guidance=self.use_f0, filter_radius=filter_radius, tgt_sr=self.tgt_sr, resample_sr=target_sr, volume_envelope=volume_envelope, version=self.version, protect=protect, hop_length=hop_length, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, suffix=self.suffix)
+            target_sr = min([8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 96000], key=lambda x: abs(x - self.tgt_sr))
+            audio_output = self.vc.pipeline(model=self.hubert_model, net_g=self.net_g, sid=sid, audio=audio, pitch=pitch, f0_method=f0_method, file_index=(index_path.strip().strip('"').strip("\n").strip('"').strip().replace("trained", "added")), index_rate=index_rate, pitch_guidance=self.use_f0, filter_radius=filter_radius, tgt_sr=self.tgt_sr, resample_sr=target_sr, volume_envelope=volume_envelope, version=self.version, protect=protect, hop_length=hop_length, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, suffix=self.suffix, embed_suffix=self.embed_suffix, f0_file=f0_file)
             
             if clean_audio:
                 from main.tools.noisereduce import reduce_noise
-
-                audio_output = reduce_noise(y=audio_output, sr=target_sr, prop_decrease=clean_strength) 
+                audio_output = reduce_noise(y=audio_output, sr=target_sr, prop_decrease=clean_strength, device=config.device) 
 
             sf.write(audio_output_path, audio_output, target_sr, format=export_format)
         except Exception as e:
             logger.error(translations["error_convert"].format(e=e))
-
             import traceback
             logger.debug(traceback.format_exc())
 
@@ -657,7 +678,6 @@ class VoiceConverter:
             else: 
                 sess_options = onnxruntime.SessionOptions()
                 sess_options.log_severity_level = 3
-
                 self.cpt = onnxruntime.InferenceSession(self.loaded_model, sess_options=sess_options, providers=get_providers())
         else: self.cpt = None
 

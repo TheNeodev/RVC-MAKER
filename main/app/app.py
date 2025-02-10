@@ -60,7 +60,7 @@ translations = config.translations
 configs_json = os.path.join("main", "configs", "config.json")
 configs = json.load(open(configs_json, "r"))
 models, model_options = {}, {}
-method_f0 = ["pm", "dio", "mangio-crepe-tiny", "mangio-crepe-tiny-onnx", "mangio-crepe-small", "mangio-crepe-small-onnx", "mangio-crepe-medium", "mangio-crepe-medium-onnx", "mangio-crepe-large", "mangio-crepe-large-onnx", "mangio-crepe-full", "mangio-crepe-full-onnx", "crepe-tiny", "crepe-tiny-onnx", "crepe-small", "crepe-small-onnx", "crepe-medium", "crepe-medium-onnx", "crepe-large", "crepe-large-onnx", "crepe-full", "crepe-full-onnx", "fcpe", "fcpe-onnx", "fcpe-legacy", "fcpe-legacy-onnx", "rmvpe", "rmvpe-onnx", "rmvpe-legacy", "rmvpe-legacy-onnx", "harvest", "yin", "pyin", "hybrid"]
+method_f0 = ["pm", "dio", "mangio-crepe-tiny", "mangio-crepe-tiny-onnx", "mangio-crepe-small", "mangio-crepe-small-onnx", "mangio-crepe-medium", "mangio-crepe-medium-onnx", "mangio-crepe-large", "mangio-crepe-large-onnx", "mangio-crepe-full", "mangio-crepe-full-onnx", "crepe-tiny", "crepe-tiny-onnx", "crepe-small", "crepe-small-onnx", "crepe-medium", "crepe-medium-onnx", "crepe-large", "crepe-large-onnx", "crepe-full", "crepe-full-onnx", "fcpe", "fcpe-onnx", "fcpe-legacy", "fcpe-legacy-onnx", "rmvpe", "rmvpe-onnx", "rmvpe-legacy", "rmvpe-legacy-onnx", "harvest", "yin", "pyin"]
 paths_for_files = sorted([os.path.abspath(os.path.join(root, f)) for root, _, files in os.walk("audios") for f in files if os.path.splitext(f)[1].lower() in (".wav", ".mp3", ".flac", ".ogg", ".opus", ".m4a", ".mp4", ".aac", ".alac", ".wma", ".aiff", ".webm", ".ac3")])
 model_name, index_path, delete_index = sorted(list(model for model in os.listdir(os.path.join("assets", "weights")) if model.endswith((".pth", ".onnx")) and not model.startswith("G_") and not model.startswith("D_"))), sorted([os.path.join(root, name) for root, _, files in os.walk(os.path.join("assets", "logs"), topdown=False) for name in files if name.endswith(".index")]), sorted([os.path.join("assets", "logs", f) for f in os.listdir(os.path.join("assets", "logs")) if "mute" not in f and os.path.isdir(os.path.join("assets", "logs", f))])
 pretrainedD, pretrainedG, Allpretrained = ([model for model in os.listdir(os.path.join("assets", "models", "pretrained_custom")) if model.endswith(".pth") and "D" in model], [model for model in os.listdir(os.path.join("assets", "models", "pretrained_custom")) if model.endswith(".pth") and "G" in model], [os.path.join("assets", "models", path, model) for path in ["pretrained_v1", "pretrained_v2", "pretrained_custom"] for model in os.listdir(os.path.join("assets", "models", path)) if model.endswith(".pth") and ("D" in model or "G" in model)])
@@ -72,7 +72,6 @@ csv_path = os.path.join("assets", "spreadsheet.csv")
 
 if language == "vi-VN": gradio.strings.en = {"RUNNING_LOCALLY": "* Chạy trên liên kết nội bộ:  {}://{}:{}", "RUNNING_LOCALLY_SSR": "* Chạy trên liên kết nội bộ:  {}://{}:{}, với SSR ⚡ (thử nghiệm, để tắt hãy dùng `ssr=False` trong `launch()`)", "SHARE_LINK_DISPLAY": "* Chạy trên liên kết công khai: {}", "COULD_NOT_GET_SHARE_LINK": "\nKhông thể tạo liên kết công khai. Vui lòng kiểm tra kết nối mạng của bạn hoặc trang trạng thái của chúng tôi: https://status.gradio.app.", "COULD_NOT_GET_SHARE_LINK_MISSING_FILE": "\nKhông thể tạo liên kết công khai. Thiếu tập tin: {}. \n\nVui lòng kiểm tra kết nối internet của bạn. Điều này có thể xảy ra nếu phần mềm chống vi-rút của bạn chặn việc tải xuống tệp này. Bạn có thể cài đặt thủ công bằng cách làm theo các bước sau: \n\n1. Tải xuống tệp này: {}\n2. Đổi tên tệp đã tải xuống thành: {}\n3. Di chuyển tệp đến vị trí này: {}", "COLAB_NO_LOCAL": "Không thể hiển thị giao diện nội bộ trên google colab, liên kết công khai đã được tạo.", "PUBLIC_SHARE_TRUE": "\nĐể tạo một liên kết công khai, hãy đặt `share=True` trong `launch()`.", "MODEL_PUBLICLY_AVAILABLE_URL": "Mô hình được cung cấp công khai tại: {} (có thể mất tới một phút để sử dụng được liên kết)", "GENERATING_PUBLIC_LINK": "Đang tạo liên kết công khai (có thể mất vài giây...):", "BETA_INVITE": "\nCảm ơn bạn đã là người dùng Gradio! Nếu bạn có thắc mắc hoặc phản hồi, vui lòng tham gia máy chủ Discord của chúng tôi và trò chuyện với chúng tôi: https://discord.gg/feTf9x3ZSB", "COLAB_DEBUG_TRUE": "Đã phát hiện thấy sổ tay Colab. Ô này sẽ chạy vô thời hạn để bạn có thể xem lỗi và nhật ký. " "Để tắt, hãy đặt debug=False trong launch().", "COLAB_DEBUG_FALSE": "Đã phát hiện thấy sổ tay Colab. Để hiển thị lỗi trong sổ ghi chép colab, hãy đặt debug=True trong launch()", "COLAB_WARNING": "Lưu ý: việc mở Chrome Inspector có thể làm hỏng bản demo trong sổ tay Colab.", "SHARE_LINK_MESSAGE": "\nLiên kết công khai sẽ hết hạn sau 72 giờ. Để nâng cấp GPU và lưu trữ vĩnh viễn miễn phí, hãy chạy `gradio deploy` từ terminal trong thư mục làm việc để triển khai lên huggingface (https://huggingface.co/spaces)", "INLINE_DISPLAY_BELOW": "Đang tải giao diện bên dưới...", "COULD_NOT_GET_SHARE_LINK_CHECKSUM": "\nKhông thể tạo liên kết công khai. Tổng kiểm tra không khớp cho tập tin: {}."}
 if not os.path.exists(os.path.join("assets", "miku.png")): huggingface.HF_download_file(miku_image, os.path.join("assets", "miku.png"))
-
 if os.path.exists(csv_path): cached_data = pd.read_csv(csv_path) 
 else:
     cached_data = pd.read_csv(codecs.decode("uggcf://qbpf.tbbtyr.pbz/fcernqfurrgf/q/1gNHnDeRULtEfz1Yieaw14USUQjWJy0Oq9k0DrCrjApb/rkcbeg?sbezng=pfi&tvq=1977693859", "rot13"))
@@ -111,7 +110,7 @@ def change_separate_choices():
     return [{"choices": sorted([os.path.join("assets", "models", "uvr5", models) for models in os.listdir(os.path.join("assets", "models", "uvr5")) if model.endswith((".th", ".yaml", ".onnx"))]), "__type__": "update"}]
 
 def change_models_choices():
-    return [{"value": "", "choices": sorted(list(model for model in os.listdir(os.path.join("assets", "weights")) if model.endswith(".pth") and not model.startswith("G_") and not model.startswith("D_"))), "__type__": "update"}, {"value": "", "choices": sorted([os.path.join(root, name) for root, _, files in os.walk(os.path.join("assets", "logs"), topdown=False) for name in files if name.endswith(".index")]), "__type__": "update"}]
+    return [{"value": "", "choices": sorted(list(model for model in os.listdir(os.path.join("assets", "weights")) if model.endswith((".pth", ".onnx")) and not model.startswith("G_") and not model.startswith("D_"))), "__type__": "update"}, {"value": "", "choices": sorted([os.path.join(root, name) for root, _, files in os.walk(os.path.join("assets", "logs"), topdown=False) for name in files if name.endswith(".index")]), "__type__": "update"}]
 
 def change_allpretrained_choices():
     return [{"choices": sorted([os.path.join("assets", "models", path, model) for path in ["pretrained_v1", "pretrained_v2", "pretrained_custom"] for model in os.listdir(os.path.join("assets", "models", path)) if model.endswith(".pth") and ("D" in model or "G" in model)]), "__type__": "update"}]
@@ -162,7 +161,7 @@ def index_strength_show(index):
     return {"visible": index and os.path.exists(index), "value": 0.5, "__type__": "update"}
 
 def hoplength_show(method, hybrid_method=None):
-    show_hop_length_method = ["mangio-crepe-tiny", "mangio-crepe-tiny-onnx", "mangio-crepe-small", "mangio-crepe-small-onnx", "mangio-crepe-medium", "mangio-crepe-medium-onnx", "mangio-crepe-large", "mangio-crepe-large-onnx", "mangio-crepe-full", "mangio-crepe-full-onnx", "fcpe-legacy", "fcpe-legacy-onnx", "yin", "pyin"]
+    show_hop_length_method = ["mangio-crepe-tiny", "mangio-crepe-tiny-onnx", "mangio-crepe-small", "mangio-crepe-small-onnx", "mangio-crepe-medium", "mangio-crepe-medium-onnx", "mangio-crepe-large", "mangio-crepe-large-onnx", "mangio-crepe-full", "mangio-crepe-full-onnx", "fcpe", "fcpe-onnx", "fcpe-legacy", "fcpe-legacy-onnx", "yin", "pyin"]
 
     if method in show_hop_length_method: visible = True
     elif method == "hybrid":
@@ -304,8 +303,12 @@ def move_files_from_directory(src_dir, dest_weights, dest_logs, model_name):
                 filepath = os.path.join(model_log_dir, file.replace(' ', '_').replace('(', '').replace(')', '').replace('[', '').replace(']', '').replace(",", "").replace('"', "").replace("'", "").replace("|", "").strip())
                 if os.path.exists(filepath): os.remove(filepath)
                 shutil.move(file_path, filepath)
-            elif file.endswith((".pth", ".onnx")) and not file.startswith("D_") and not file.startswith("G_"):
+            elif file.endswith(".pth") and not file.startswith("D_") and not file.startswith("G_"):
                 pth_path = os.path.join(dest_weights, model_name + ".pth")
+                if os.path.exists(pth_path): os.remove(pth_path)
+                shutil.move(file_path, pth_path)
+            elif file.endswith(".onnx") and not file.startswith("D_") and not file.startswith("G_"):
+                pth_path = os.path.join(dest_weights, model_name + ".onnx")
                 if os.path.exists(pth_path): os.remove(pth_path)
                 shutil.move(file_path, pth_path)
 
@@ -352,7 +355,8 @@ def download_model(url=None, model=None):
     try:
         gr_info(translations["start"].format(start=translations["download"]))
 
-        if url.endswith((".pth", ".onnx")): huggingface.HF_download_file(url, os.path.join(weights_dir, f"{model}.pth"))
+        if url.endswith(".pth"): huggingface.HF_download_file(url, os.path.join(weights_dir, f"{model}.pth"))
+        elif url.endswith(".onnx"): huggingface.HF_download_file(url, os.path.join(weights_dir, f"{model}.onnx"))
         elif url.endswith(".index"):
             model_log_dir = os.path.join(logs_dir, model)
             os.makedirs(model_log_dir, exist_ok=True)
@@ -420,7 +424,7 @@ def save_drop_model(dropbox):
     try:
         file_name = os.path.basename(dropbox)
 
-        if file_name.endswith((".pth", ".onnx")) and file_name.endswith(".index"): gr_warning(translations["not_model"])
+        if file_name.endswith(".pth") and file_name.endswith(".onnx") and file_name.endswith(".index"): gr_warning(translations["not_model"])
         else:    
             if file_name.endswith(".zip"):
                 shutil.unpack_archive(os.path.join(save_model_temp, file_name), save_model_temp)
@@ -589,10 +593,6 @@ def fushion_model_onnx(name, onnx_path1, onnx_path2, ratio=0.5):
             gr_warning(translations["sr_not_same"])
             return [translations["sr_not_same"], None]
 
-        if str(model1.graph) != str(model2.graph):
-            gr_warning(translations["architectures_not_same"])
-            return [translations["architectures_not_same"], None]
-        
         gr_info(translations["start"].format(start=translations["fushion_model"]))
 
         for init1, init2 in zip(model1.graph.initializer, model2.graph.initializer):
@@ -634,8 +634,8 @@ def fushion_model(name, path_1, path_2, ratio):
         gr_warning(translations["provide_name_is_save"]) 
         return [translations["provide_name_is_save"], None]
     
-    if path_1.endswith(".onnx") and path_2.endswith(".onnx"): return fushion_model_onnx(name, path_1, path_2, ratio)
-    elif path_1.endswith(".pth") and path_2.endswith(".pth"): return fushion_model_pth(name, path_1, path_2, ratio)
+    if path_1.endswith(".onnx") and path_2.endswith(".onnx"): return fushion_model_onnx(name.replace(".pth", ".onnx"), path_1, path_2, ratio)
+    elif path_1.endswith(".pth") and path_2.endswith(".pth"): return fushion_model_pth(name.replace(".onnx", ".pth"), path_1, path_2, ratio)
     else:
         gr_warning(translations["format_not_valid"])
         return [None, None]
@@ -1550,12 +1550,12 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                             refesh0 = gr.Button(translations["refesh"])
                     with gr.Accordion(translations["setting"], open=False):
                         with gr.Accordion(translations["f0_method"], open=False):
-                            method = gr.Radio(label=translations["f0_method"], info=translations["f0_method_info"], choices=method_f0, value="rmvpe", interactive=True)
+                            method = gr.Radio(label=translations["f0_method"], info=translations["f0_method_info"], choices=method_f0+["hybrid"], value="rmvpe", interactive=True)
                             hybrid_method = gr.Dropdown(label=translations["f0_method_hybrid"], info=translations["f0_method_hybrid_info"], choices=["hybrid[pm+dio]", "hybrid[pm+crepe-tiny]", "hybrid[pm+crepe]", "hybrid[pm+fcpe]", "hybrid[pm+rmvpe]", "hybrid[pm+harvest]", "hybrid[pm+yin]", "hybrid[dio+crepe-tiny]", "hybrid[dio+crepe]", "hybrid[dio+fcpe]", "hybrid[dio+rmvpe]", "hybrid[dio+harvest]", "hybrid[dio+yin]", "hybrid[crepe-tiny+crepe]", "hybrid[crepe-tiny+fcpe]", "hybrid[crepe-tiny+rmvpe]", "hybrid[crepe-tiny+harvest]", "hybrid[crepe+fcpe]", "hybrid[crepe+rmvpe]", "hybrid[crepe+harvest]", "hybrid[crepe+yin]", "hybrid[fcpe+rmvpe]", "hybrid[fcpe+harvest]", "hybrid[fcpe+yin]", "hybrid[rmvpe+harvest]", "hybrid[rmvpe+yin]", "hybrid[harvest+yin]"], value="hybrid[pm+dio]", interactive=True, allow_custom_value=True, visible=method.value == "hybrid")
                             hop_length = gr.Slider(label="Hop length", info=translations["hop_length_info"], minimum=1, maximum=512, value=128, step=1, interactive=True, visible=False)
                         with gr.Accordion(translations["hubert_model"], open=False):
-                            embedders = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=["contentvec_base", "hubert_base", "japanese_hubert_base", "korean_hubert_base", "chinese_hubert_base", "Hidden_Rabbit_last", "portuguese_hubert_base", "custom"], value="contentvec_base", interactive=True)
-                            custom_embedders = gr.Textbox(label=translations["modelname"], info=translations["modelname_info"], value="", placeholder="hubert_base", interactive=True, visible=embedders.value == "custom")
+                            embedders = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=["contentvec_base.pt", "contentvec_base.onnx", "hubert_base.pt", "japanese_hubert_base.pt", "japanese_hubert_base.onnx", "korean_hubert_base.pt", "korean_hubert_base.onnx", "chinese_hubert_base.pt", "chinese_hubert_base.onnx", "Hidden_Rabbit_last.pt", "portuguese_hubert_base.pt", "custom"], value="contentvec_base.pt", interactive=True)
+                            custom_embedders = gr.Textbox(label=translations["modelname"], info=translations["modelname_info"], value="", placeholder="hubert_base.pt", interactive=True, visible=embedders.value == "custom")
                         with gr.Accordion(translations["use_presets"], open=False):
                             with gr.Row():
                                 presets_name = gr.Dropdown(label=translations["file_preset"], choices=sorted(presets_file), value=sorted(presets_file)[0] if len(sorted(presets_file)) > 0 else '', interactive=True, allow_custom_value=True)
@@ -1738,12 +1738,12 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                         output_audio1 = gr.Textbox(label=translations["output_tts_convert"], value="audios/tts-convert.wav", placeholder="audios/tts-convert.wav", info=translations["tts_output"], interactive=True)
                     with gr.Accordion(translations["setting"], open=False):
                         with gr.Accordion(translations["f0_method"], open=False):
-                            method0 = gr.Radio(label=translations["f0_method"], info=translations["f0_method_info"], choices=method_f0, value="rmvpe", interactive=True)
+                            method0 = gr.Radio(label=translations["f0_method"], info=translations["f0_method_info"], choices=method_f0+["hybrid"], value="rmvpe", interactive=True)
                             hybrid_method0 = gr.Dropdown(label=translations["f0_method_hybrid"], info=translations["f0_method_hybrid_info"], choices=["hybrid[pm+dio]", "hybrid[pm+crepe-tiny]", "hybrid[pm+crepe]", "hybrid[pm+fcpe]", "hybrid[pm+rmvpe]", "hybrid[pm+harvest]", "hybrid[pm+yin]", "hybrid[dio+crepe-tiny]", "hybrid[dio+crepe]", "hybrid[dio+fcpe]", "hybrid[dio+rmvpe]", "hybrid[dio+harvest]", "hybrid[dio+yin]", "hybrid[crepe-tiny+crepe]", "hybrid[crepe-tiny+fcpe]", "hybrid[crepe-tiny+rmvpe]", "hybrid[crepe-tiny+harvest]", "hybrid[crepe+fcpe]", "hybrid[crepe+rmvpe]", "hybrid[crepe+harvest]", "hybrid[crepe+yin]", "hybrid[fcpe+rmvpe]", "hybrid[fcpe+harvest]", "hybrid[fcpe+yin]", "hybrid[rmvpe+harvest]", "hybrid[rmvpe+yin]", "hybrid[harvest+yin]"], value="hybrid[pm+dio]", interactive=True, allow_custom_value=True, visible=method0.value == "hybrid")
                             hop_length0 = gr.Slider(label="Hop length", info=translations["hop_length_info"], minimum=1, maximum=512, value=128, step=1, interactive=True, visible=False)
                         with gr.Accordion(translations["hubert_model"], open=False):
-                            embedders0 = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=["contentvec_base", "hubert_base", "japanese_hubert_base", "korean_hubert_base", "chinese_hubert_base", "Hidden_Rabbit_last", "portuguese_hubert_base", "custom"], value="contentvec_base", interactive=True)
-                            custom_embedders0 = gr.Textbox(label=translations["modelname"], info=translations["modelname_info"], value="", placeholder="hubert_base", interactive=True, visible=embedders0.value == "custom")
+                            embedders0 = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=["contentvec_base.pt", "contentvec_base.onnx", "hubert_base.pt", "japanese_hubert_base.pt", "japanese_hubert_base.onnx", "korean_hubert_base.pt", "korean_hubert_base.onnx", "chinese_hubert_base.pt", "chinese_hubert_base.onnx", "Hidden_Rabbit_last.pt", "portuguese_hubert_base.pt", "custom"], value="contentvec_base.pt", interactive=True)
+                            custom_embedders0 = gr.Textbox(label=translations["modelname"], info=translations["modelname_info"], value="", placeholder="hubert_base.pt", interactive=True, visible=embedders0.value == "custom")
                         with gr.Group():
                             with gr.Row():
                                 split_audio0 = gr.Checkbox(label=translations["split_audio"], value=False, interactive=True)   
@@ -2106,12 +2106,12 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                     with gr.Row():
                         with gr.Column():
                             with gr.Accordion(label=translations["f0_method"], open=False):
-                                extract_method = gr.Radio(label=translations["f0_method"], info=translations["f0_method_info"], choices=["pm", "dio", "mangio-crepe-tiny", "mangio-crepe-tiny-onnx", "mangio-crepe-small", "mangio-crepe-small-onnx", "mangio-crepe-medium", "mangio-crepe-medium-onnx", "mangio-crepe-large", "mangio-crepe-large-onnx", "mangio-crepe-full", "mangio-crepe-full-onnx", "crepe-tiny", "crepe-tiny-onnx", "crepe-small", "crepe-small-onnx", "crepe-medium", "crepe-medium-onnx", "crepe-large", "crepe-large-onnx", "crepe-full", "crepe-full-onnx", "fcpe", "fcpe-onnx", "fcpe-legacy", "fcpe-legacy-onnx", "rmvpe", "rmvpe-onnx", "rmvpe-legacy", "rmvpe-legacy-onnx", "harvest", "yin", "pyin"], value="rmvpe", interactive=True)
+                                extract_method = gr.Radio(label=translations["f0_method"], info=translations["f0_method_info"], choices=method_f0, value="rmvpe", interactive=True)
                                 extract_hop_length = gr.Slider(label="Hop length", info=translations["hop_length_info"], minimum=1, maximum=512, value=128, step=1, interactive=True, visible=False)
                             with gr.Accordion(label=translations["hubert_model"], open=False):
-                                extract_embedders = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=["contentvec_base", "hubert_base", "japanese_hubert_base", "korean_hubert_base", "chinese_hubert_base", "Hidden_Rabbit_last", "portuguese_hubert_base", "custom"], value="contentvec_base", interactive=True)
+                                extract_embedders = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=["contentvec_base.pt", "contentvec_base.onnx", "hubert_base.pt", "japanese_hubert_base.pt", "japanese_hubert_base.onnx", "korean_hubert_base.pt", "korean_hubert_base.onnx", "chinese_hubert_base.pt", "chinese_hubert_base.onnx", "Hidden_Rabbit_last.pt", "portuguese_hubert_base.pt", "custom"], value="contentvec_base.pt", interactive=True)
                                 with gr.Row():
-                                    extract_embedders_custom = gr.Textbox(label=translations["modelname"], info=translations["modelname_info"], value="", placeholder="hubert_base", interactive=True, visible=extract_embedders.value == "custom")
+                                    extract_embedders_custom = gr.Textbox(label=translations["modelname"], info=translations["modelname_info"], value="", placeholder="hubert_base.pt", interactive=True, visible=extract_embedders.value == "custom")
                         with gr.Column():
                             extract_button = gr.Button(translations["extract_button"], scale=2)
                             extract_info = gr.Textbox(label=translations["extract_info"], value="", interactive=False)

@@ -3,6 +3,7 @@ import sys
 import onnx
 import json
 import torch
+import onnxsim
 import warnings
 
 sys.path.append(os.getcwd())
@@ -32,8 +33,7 @@ def onnx_exporter(input_path, output_path, device="cpu"):
         dynamic_axes = {"phone": [1], "rnd": [2]}
 
     torch.onnx.export(net_g, args, output_path, do_constant_folding=False, opset_version=17, verbose=False, input_names=input_names, output_names=["audio"], dynamic_axes=dynamic_axes)
-
-    model = onnx.load(output_path)
+    model, _ = onnxsim.simplify(output_path)
     model.metadata_props.append(onnx.StringStringEntryProto(key="model_info", value=json.dumps({"model_name": model_name, "author": model_author, "epoch": epochs, "step": steps, "version": version, "sr": tgt_sr, "f0": f0, "model_hash": model_hash, "creation_date": creation_date, "vocoder": vocoder, "text_enc_hidden_dim": text_enc_hidden_dim})))
 
     onnx.save(model, output_path)

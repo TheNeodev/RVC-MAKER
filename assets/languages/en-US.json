@@ -788,5 +788,6 @@
     "start_onnx_export": "Start converting model to onnx",
     "convert_model": "Convert Model",
     "pytorch2onnx": "Converting PYTORCH Model to ONNX Model",
-    "pytorch2onnx_markdown": "Convert RVC model from pytorch to onnx to optimize audio conversion"
+    "pytorch2onnx_markdown": "Convert RVC model from pytorch to onnx to optimize audio conversion",
+    "error_readfile": "An error occurred while reading the file!"
 }

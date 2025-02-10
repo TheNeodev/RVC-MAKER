@@ -47,6 +47,7 @@ beautifulsoup4
 tensorboard
 tensorboardX
 onnx>=1.14
+onnxsim>=0.4.36
 onnx2torch>=1.5
 
 # Cryptography section

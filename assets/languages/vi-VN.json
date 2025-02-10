@@ -788,5 +788,6 @@
     "start_onnx_export": "Bắt đầu chuyển đổi mô hình sang dạng onnx",
     "convert_model": "Chuyển Đổi Mô Hình",
     "pytorch2onnx": "Chuyển Đổi Mô Hình PYTORCH Sang ONNX",
-    "pytorch2onnx_markdown": "Chuyển đổi mô hình RVC từ dạng pytorch sang onnx để tối ưu cho việc chuyển đổi âm thanh"
+    "pytorch2onnx_markdown": "Chuyển đổi mô hình RVC từ dạng pytorch sang onnx để tối ưu cho việc chuyển đổi âm thanh",
+    "error_readfile": "Đã xảy ra lỗi khi đọc tệp!"
 }

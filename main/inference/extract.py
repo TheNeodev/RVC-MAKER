@@ -9,6 +9,7 @@ import librosa
 import logging
 import argparse
 import warnings
+import onnxruntime
 import parselmouth
 import logging.handlers
 
@@ -50,7 +51,7 @@ def parse_arguments():
     parser.add_argument("--cpu_cores", type=int, default=2)
     parser.add_argument("--gpu", type=str, default="-")
     parser.add_argument("--sample_rate", type=int, required=True)
-    parser.add_argument("--embedder_model", type=str, default="contentvec_base")
+    parser.add_argument("--embedder_model", type=str, default="contentvec_base.pt")
 
     return parser.parse_args()
 
@@ -89,12 +90,10 @@ def setup_paths(exp_dir, version = None):
     if version:
         out_path = os.path.join(exp_dir, f"{version}_extracted")
         os.makedirs(out_path, exist_ok=True)
-
         return wav_path, out_path
     else:
         output_root1, output_root2 = os.path.join(exp_dir, "f0"), os.path.join(exp_dir, "f0_voiced")
         os.makedirs(output_root1, exist_ok=True); os.makedirs(output_root2, exist_ok=True)
-
         return wav_path, output_root1, output_root2
 
 def read_wave(wav_path, normalize = False):
@@ -114,12 +113,20 @@ def get_device(gpu_index):
 
     try:
         index = int(gpu_index)
-
         if index < torch.cuda.device_count(): return f"cuda:{index}"
         else: logger.warning(translations["gpu_not_valid"])
     except ValueError:
         logger.warning(translations["gpu_not_valid"])
         return "cpu"
+
+def get_providers():
+    ort_providers = onnxruntime.get_available_providers()
+
+    if "CUDAExecutionProvider" in ort_providers: providers = ["CUDAExecutionProvider"]
+    elif "CoreMLExecutionProvider" in ort_providers: providers = ["CoreMLExecutionProvider"]
+    else: providers = ["CPUExecutionProvider"]
+
+    return providers
 
 class FeatureInput:
     def __init__(self, sample_rate=16000, hop_size=160, device="cpu"):
@@ -131,22 +138,10 @@ class FeatureInput:
         self.f0_mel_min = 1127 * np.log(1 + self.f0_min / 700)
         self.f0_mel_max = 1127 * np.log(1 + self.f0_max / 700)
         self.device = device
-
-    def get_providers(self):
-        import onnxruntime
-
-        ort_providers = onnxruntime.get_available_providers()
-
-        if "CUDAExecutionProvider" in ort_providers: providers = ["CUDAExecutionProvider"]
-        elif "CoreMLExecutionProvider" in ort_providers: providers = ["CoreMLExecutionProvider"]
-        else: providers = ["CPUExecutionProvider"]
-
-        return providers
     
     def compute_f0_hybrid(self, methods_str, np_arr, hop_length):
         methods_str = re.search("hybrid\[(.+)\]", methods_str)
         if methods_str: methods = [method.strip() for method in methods_str.group(1).split("+")]
-
         f0_computation_stack, resampled_stack = [], []
         logger.debug(translations["hybrid_methods"].format(methods=methods))
 
@@ -240,39 +235,31 @@ class FeatureInput:
         return f0
     
     def get_mangio_crepe(self, x, hop_length, model="full", onnx=False):
-        providers = self.get_providers() if onnx else None
-
         audio = torch.from_numpy(x.astype(np.float32)).to(self.device)
         audio /= torch.quantile(torch.abs(audio), 0.999)
         audio = audio.unsqueeze(0)
 
-        source = predict(audio, self.fs, hop_length, self.f0_min, self.f0_max, model=model, batch_size=hop_length * 2, device=self.device, pad=True, providers=providers, onnx=onnx).squeeze(0).cpu().float().numpy()
+        source = predict(audio, self.fs, hop_length, self.f0_min, self.f0_max, model=model, batch_size=hop_length * 2, device=self.device, pad=True, providers=get_providers(), onnx=onnx).squeeze(0).cpu().float().numpy()
         source[source < 0.001] = np.nan
 
         return np.nan_to_num(np.interp(np.arange(0, len(source) * (x.size // self.hop), len(source)) / (x.size // self.hop), np.arange(0, len(source)), source))
     
     def get_crepe(self, x, model="full", onnx=False):
-        providers = self.get_providers() if onnx else None
-        
-        f0, pd = predict(torch.tensor(np.copy(x))[None].float(), self.fs, 160, self.f0_min, self.f0_max, model, batch_size=512, device=self.device, return_periodicity=True, providers=providers, onnx=onnx)
+        f0, pd = predict(torch.tensor(np.copy(x))[None].float(), self.fs, 160, self.f0_min, self.f0_max, model, batch_size=512, device=self.device, return_periodicity=True, providers=get_providers(), onnx=onnx)
         f0, pd = mean(f0, 3), median(pd, 3)
         f0[pd < 0.1] = 0
 
         return f0[0].cpu().numpy()
     
     def get_fcpe(self, x, hop_length, legacy=False, onnx=False):
-        providers = self.get_providers() if onnx else None
-
-        model_fcpe = FCPE(os.path.join("assets", "models", "predictors", "fcpe" + (".onnx" if onnx else ".pt")), hop_length=int(hop_length), f0_min=int(self.f0_min), f0_max=int(self.f0_max), dtype=torch.float32, device=self.device, sample_rate=self.fs, threshold=0.03, providers=providers, onnx=onnx) if legacy else FCPE(os.path.join("assets", "models", "predictors", "fcpe" + (".onnx" if onnx else ".pt")), hop_length=160, f0_min=0, f0_max=8000, dtype=torch.float32, device=self.device, sample_rate=self.fs, threshold=0.006, providers=providers, onnx=onnx)
+        model_fcpe = FCPE(os.path.join("assets", "models", "predictors", ("fcpe_legacy" if legacy else"fcpe") + (".onnx" if onnx else ".pt")), hop_length=int(hop_length), f0_min=int(self.f0_min), f0_max=int(self.f0_max), dtype=torch.float32, device=self.device, sample_rate=self.fs, threshold=0.03, providers=get_providers(), onnx=onnx, legacy=legacy)
         f0 = model_fcpe.compute_f0(x, p_len=(x.size // self.hop))
 
         del model_fcpe
         return f0
     
     def get_rmvpe(self, x, legacy=False, onnx=False):
-        providers = self.get_providers() if onnx else None
-
-        rmvpe_model = RMVPE(os.path.join("assets", "models", "predictors", "rmvpe" + (".onnx" if onnx else ".pt")), device=self.device, onnx=onnx, providers=providers)
+        rmvpe_model = RMVPE(os.path.join("assets", "models", "predictors", "rmvpe" + (".onnx" if onnx else ".pt")), device=self.device, onnx=onnx, providers=get_providers())
         f0 = rmvpe_model.infer_from_audio_with_pitch(x, thred=0.03, f0_min=self.f0_min, f0_max=self.f0_max) if legacy else rmvpe_model.infer_from_audio(x, thred=0.03)
 
         del rmvpe_model
@@ -325,7 +312,6 @@ def run_pitch_extraction(exp_dir, f0_method, hop_length, num_processes, gpus):
     output_root1, output_root2 = output_roots if len(output_roots) == 2 else (output_roots[0], None)
     paths = [(os.path.join(input_root, name), os.path.join(output_root1, name) if output_root1 else None, os.path.join(output_root2, name) if output_root2 else None, load_audio(os.path.join(input_root, name))) for name in sorted(os.listdir(input_root)) if "spec" not in name]
     logger.info(translations["extract_f0_method"].format(num_processes=num_processes, f0_method=f0_method))
-
     start_time = time.time()
 
     if gpus != "-":
@@ -355,17 +341,22 @@ def run_pitch_extraction(exp_dir, f0_method, hop_length, num_processes, gpus):
     elapsed_time = time.time() - start_time
     logger.info(translations["extract_f0_success"].format(elapsed_time=f"{elapsed_time:.2f}"))
 
-def process_file_embedding(file, wav_path, out_path, model, device, version, saved_cfg):
+def extract_features(model, feats, version):
+    return torch.as_tensor(model.run(["feats_9", "feats_12"], {"feats": feats.detach().cpu().numpy()})[0 if version == "v1" else 1], dtype=torch.float32, device=feats.device)
+
+def process_file_embedding(file, wav_path, out_path, model, device, version, saved_cfg, embed_suffix):
     out_file_path = os.path.join(out_path, file.replace("wav", "npy"))
     if os.path.exists(out_file_path): return
 
-    feats = read_wave(os.path.join(wav_path, file), normalize=saved_cfg.task.normalize).to(device).float()
-    inputs = {"source": feats, "padding_mask": torch.BoolTensor(feats.shape).fill_(False).to(device), "output_layer": 9 if version == "v1" else 12}
+    feats = read_wave(os.path.join(wav_path, file), normalize=saved_cfg.task.normalize if saved_cfg else False).to(device).float()
+    if embed_suffix == ".pt": inputs = {"source": feats, "padding_mask": torch.BoolTensor(feats.shape).fill_(False).to(device), "output_layer": 9 if version == "v1" else 12}
 
     with torch.no_grad():
-        model = model.to(device).float().eval()
-        logits = model.extract_features(**inputs)
-        feats = model.final_proj(logits[0]) if version == "v1" else logits[0]
+        if embed_suffix == ".pt":
+            model = model.to(device).float().eval()
+            logits = model.extract_features(**inputs)
+            feats = model.final_proj(logits[0]) if version == "v1" else logits[0]
+        else: feats = extract_features(model, feats, version)
 
     feats = feats.squeeze(0).float().cpu().numpy()
 
@@ -377,9 +368,19 @@ def run_embedding_extraction(exp_dir, version, gpus, embedder_model):
     logger.info(translations["start_extract_hubert"])
 
     start_time = time.time()
-
+    embedder_model_path = os.path.join("assets", "models", "embedders", embedder_model)
+    if not os.path.exists(embedder_model_path) and not embedder_model.endswith((".pt", ".onnx")): raise FileNotFoundError(f"{translations['not_found'].format(name=translations['model'])}: {embedder_model}")  
+    
     try:
-        models, saved_cfg, _ = checkpoint_utils.load_model_ensemble_and_task([os.path.join("assets", "models", "embedders", embedder_model + '.pt')], suffix="")
+        if embedder_model.endswith(".pt"):
+            models, saved_cfg, _ = checkpoint_utils.load_model_ensemble_and_task([embedder_model_path], suffix="")
+            models = models[0]
+            embed_suffix = ".pt"
+        else:
+            sess_options = onnxruntime.SessionOptions()
+            sess_options.log_severity_level = 3
+            models = onnxruntime.InferenceSession(embedder_model_path, sess_options=sess_options, providers=get_providers())
+            saved_cfg, embed_suffix = None, ".onnx"
     except Exception as e:
         raise ImportError(translations["read_model_error"].format(e=e))
 
@@ -392,7 +393,7 @@ def run_embedding_extraction(exp_dir, version, gpus, embedder_model):
 
     pbar = tqdm.tqdm(total=len(paths) * len(devices), desc=translations["extract_hubert"], ncols=100, unit="p")
 
-    for task in [(file, wav_path, out_path, models[0], device, version, saved_cfg) for file in paths for device in devices]:
+    for task in [(file, wav_path, out_path, models, device, version, saved_cfg, embed_suffix) for file in paths for device in devices]:
         try:
             process_file_embedding(*task)
         except Exception as e:
@@ -442,7 +443,6 @@ if __name__ == "__main__":
         generate_filelist(pitch_guidance, exp_dir, version, sample_rate)
     except Exception as e:
         logger.error(f"{translations['extract_error']}: {e}")
-
         import traceback
         logger.debug(traceback.format_exc())
 
