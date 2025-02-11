@@ -44,6 +44,7 @@ Dự án này là một công cụ chuyển đổi giọng nói đơn giản, d�
 - Mô hình ONNX RVC cũng sẽ hỗ trợ chỉ mục để suy luận
 
 - Nhiều tùy chọn mô hình:
+
 F0: `pm, dio, mangio-crepe-tiny, mangio-crepe-tiny-onnx, mangio-crepe-small, mangio-crepe-small-onnx, mangio-crepe-medium, mangio-crepe-medium-onnx, mangio-crepe-large, mangio-crepe-large-onnx, mangio-crepe-full, mangio-crepe-full-onnx, crepe-tiny, crepe-tiny-onnx, crepe-small, crepe-small-onnx, crepe-medium, crepe-medium-onnx, crepe-large, crepe-large-onnx, crepe-full, crepe-full-onnx, fcpe, fcpe-onnx, fcpe-legacy, fcpe-legacy-onnx, rmvpe, rmvpe-onnx, rmvpe-legacy, rmvpe-legacy-onnx, harvest, yin, pyin`
 
 F0_HYBRID: Có thể kết hợp nhiều tùy chọn lại với nhau như `hybrid[rmvpe+harvest]` hoặc bạn có thể thử kết hợp toàn bộ tất cả tùy chọn lại với nhau
