@@ -1621,7 +1621,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                 model_pth.change(fn=get_index, inputs=[model_pth], outputs=[model_index])
             with gr.Row():
                 input0.upload(fn=lambda audio_in: shutil.move(audio_in.name, os.path.join("audios")), inputs=[input0], outputs=[input_audio0])
-                input_audio0.change(fn=lambda audio: audio if audio else None, inputs=[input_audio0], outputs=[play_audio])
+                input_audio0.change(fn=lambda audio: audio if os.path.isfile(audio) else None, inputs=[input_audio0], outputs=[play_audio])
             with gr.Row():
                 embedders.change(fn=lambda embedders: visible(embedders == "custom"), inputs=[embedders], outputs=[custom_embedders])
                 refesh0.click(fn=change_audios_choices, inputs=[], outputs=[input_audio0])
