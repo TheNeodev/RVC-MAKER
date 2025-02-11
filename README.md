@@ -39,6 +39,17 @@ Dự án này là một công cụ chuyển đổi giọng nói đơn giản, d�
 
 - Tìm kiếm mô hình từ web
 
+- Hỗ trợ suy luận chuyển đổi âm thanh bằng mô hình ONNX
+
+- Mô hình ONNX RVC cũng sẽ hỗ trợ chỉ mục để suy luận
+
+- Nhiều tùy chọn mô hình:
+F0: `pm, dio, mangio-crepe-tiny, mangio-crepe-tiny-onnx, mangio-crepe-small, mangio-crepe-small-onnx, mangio-crepe-medium, mangio-crepe-medium-onnx, mangio-crepe-large, mangio-crepe-large-onnx, mangio-crepe-full, mangio-crepe-full-onnx, crepe-tiny, crepe-tiny-onnx, crepe-small, crepe-small-onnx, crepe-medium, crepe-medium-onnx, crepe-large, crepe-large-onnx, crepe-full, crepe-full-onnx, fcpe, fcpe-onnx, fcpe-legacy, fcpe-legacy-onnx, rmvpe, rmvpe-onnx, rmvpe-legacy, rmvpe-legacy-onnx, harvest, yin, pyin`
+
+F0_HYBRID: Có thể kết hợp nhiều tùy chọn lại với nhau như `hybrid[rmvpe+harvest]` hoặc bạn có thể thử kết hợp toàn bộ tất cả tùy chọn lại với nhau
+
+EMBEDDERS: `contentvec_base.pt, contentvec_base.onnx, hubert_base.pt, japanese_hubert_base.pt, japanese_hubert_base.onnx, korean_hubert_base.pt, korean_hubert_base.onnx, chinese_hubert_base.pt, chinese_hubert_base.onnx, Hidden_Rabbit_last.pt, portuguese_hubert_base.pt`
+
 # Hướng dẫn sử dụng
 
 **Sẽ có nếu tôi thực sự rảnh...**
