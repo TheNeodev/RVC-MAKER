@@ -1080,21 +1080,11 @@ class FCPE:
         return np.interp(np.arange(pad_to) * self.hop_length / sample_rate, self.hop_length / sample_rate * nzindex.cpu().numpy(), f0, left=f0[0], right=f0[-1]), vuv_vector.cpu().numpy()
 
     def compute_f0(self, wav, p_len=None):
-        if self.legacy:
-            x = torch.FloatTensor(wav).to(self.dtype).to(self.device)
-            p_len = x.shape[0] // self.hop_length if p_len is None else p_len
+        x = torch.FloatTensor(wav).to(self.dtype).to(self.device)
+        p_len = x.shape[0] // self.hop_length if p_len is None else p_len
 
-            f0 = self.fcpe(x, sr=self.sample_rate, threshold=self.threshold)
-            f0 = f0[:] if f0.dim() == 1 else f0[0, :, 0]
+        f0 = self.fcpe(x, sr=self.sample_rate, threshold=self.threshold) if self.legacy else (self.fcpe(x, sr=self.sample_rate, threshold=self.threshold, f0_min=self.f0_min, f0_max=self.f0_max, p_len=p_len))
+        f0 = f0[:] if f0.dim() == 1 else f0[0, :, 0]
 
-            if torch.all(f0 == 0): return f0.cpu().numpy() if p_len is None else np.zeros(p_len), (f0.cpu().numpy() if p_len is None else np.zeros(p_len))
-            return self.post_process(x, self.sample_rate, f0, p_len)[0]
-        else:
-            x = torch.FloatTensor(wav).to(self.dtype).to(self.device)
-            p_len = x.shape[0] // self.hop_length if p_len is None else p_len
-
-            f0 = (self.fcpe(x, sr=self.sample_rate, threshold=self.threshold, f0_min=self.f0_min, f0_max=self.f0_max, p_len=p_len))
-            f0 = f0[:] if f0.dim() == 1 else f0[0, :, 0]
-
-            if torch.all(f0 == 0): return f0.cpu().numpy() if p_len is None else np.zeros(p_len), (f0.cpu().numpy() if p_len is None else np.zeros(p_len))
-            return self.post_process(x, self.sample_rate, f0, p_len)[0]
+        if torch.all(f0 == 0): return f0.cpu().numpy() if p_len is None else np.zeros(p_len), (f0.cpu().numpy() if p_len is None else np.zeros(p_len))
+        return self.post_process(x, self.sample_rate, f0, p_len)[0]

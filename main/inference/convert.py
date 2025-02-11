@@ -428,6 +428,9 @@ class VC:
         else: raise ValueError(translations["method_not_valid"])
 
         if f0_autotune: f0 = Autotune.autotune_f0(self, f0, f0_autotune_strength)
+        if isinstance(f0, tuple):
+            logger.warning("F0 TUPLE") 
+            f0 = f0[0]
 
         f0 *= pow(2, pitch / 12)
         tf0 = self.sample_rate // self.window
@@ -462,7 +465,7 @@ class VC:
             if self.embed_suffix == ".pt":
                 logits = model.extract_features(**inputs)
                 feats = model.final_proj(logits[0]) if version == "v1" else logits[0]
-            else: feats = self.extract_features(model, feats, version)
+            else: feats = self.extract_features(model, feats, version).to(self.device)
 
             if protect < 0.5 and pitch_guidance: feats0 = feats.clone()
 

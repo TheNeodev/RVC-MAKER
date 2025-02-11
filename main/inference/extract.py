@@ -80,7 +80,6 @@ def generate_filelist(pitch_guidance, model_path, rvc_version, sample_rate):
         options.append(f"{mute_audio_path}|{mute_feature_path}|{os.path.join(mute_base_path, 'f0', 'mute.wav.npy')}|{os.path.join(mute_base_path, 'f0_voiced', 'mute.wav.npy')}|0" if pitch_guidance else f"{mute_audio_path}|{mute_feature_path}|0")
 
     shuffle(options)
-
     with open(os.path.join(model_path, "filelist.txt"), "w") as f:
         f.write("\n".join(options))
 
@@ -297,6 +296,9 @@ class FeatureInput:
 
         try:
             feature_pit = self.compute_f0(np_arr, f0_method, hop_length)
+            if isinstance(f0, tuple):
+                logger.warning("F0 TUPLE") 
+                f0 = f0[0]
             np.save(opt_path2, feature_pit, allow_pickle=False)
             np.save(opt_path1, self.coarse_f0(feature_pit), allow_pickle=False)
         except Exception as e:
@@ -319,7 +321,6 @@ def run_pitch_extraction(exp_dir, f0_method, hop_length, num_processes, gpus):
         process_partials = []
 
         pbar = tqdm.tqdm(total=len(paths), desc=translations["extract_f0"], ncols=100, unit="p")
-
         for idx, gpu in enumerate(gpus):
             feature_input = FeatureInput(device=get_device(gpu))
             process_partials.append((feature_input, paths[idx::len(gpus)]))
@@ -347,7 +348,6 @@ def extract_features(model, feats, version):
 def process_file_embedding(file, wav_path, out_path, model, device, version, saved_cfg, embed_suffix):
     out_file_path = os.path.join(out_path, file.replace("wav", "npy"))
     if os.path.exists(out_file_path): return
-
     feats = read_wave(os.path.join(wav_path, file), normalize=saved_cfg.task.normalize if saved_cfg else False).to(device).float()
     if embed_suffix == ".pt": inputs = {"source": feats, "padding_mask": torch.BoolTensor(feats.shape).fill_(False).to(device), "output_layer": 9 if version == "v1" else 12}
 
