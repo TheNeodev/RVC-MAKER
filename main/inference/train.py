@@ -162,7 +162,6 @@ def main():
             for i in range(n_gpus):
                 subproc = mp.Process(target=run, args=(i, n_gpus, experiment_dir, pretrainG, pretrainD, pitch_guidance, total_epoch, save_every_weights, config, device, model_author, vocoder, checkpointing))
                 children.append(subproc)
-
                 subproc.start()
                 pid_data["process_pids"].append(subproc.pid)
 
@@ -176,7 +175,6 @@ def main():
             with open(file_path, "r") as f:
                 data = json.load(f)
                 return (data.get("loss_disc_history", []), data.get("smoothed_loss_disc_history", []), data.get("loss_gen_history", []), data.get("smoothed_loss_gen_history", []))
-            
         return [], [], [], []
 
     def continue_overtrain_detector(training_file_path):
@@ -199,11 +197,9 @@ def main():
             for name in dirs:
                 if name == "eval":
                     folder_path = os.path.join(root, name)
-
                     for item in os.listdir(folder_path):
                         item_path = os.path.join(folder_path, item)
                         if os.path.isfile(item_path): os.remove(item_path)
-
                     os.rmdir(folder_path)
 
     continue_overtrain_detector(training_file_path)
@@ -621,10 +617,8 @@ class MultiPeriodDiscriminator(torch.nn.Module):
                 y_d_r, fmap_r = d(y)
                 y_d_g, fmap_g = d(y_hat)
 
-            y_d_rs.append(y_d_r)
-            y_d_gs.append(y_d_g)
-            fmap_rs.append(fmap_r)
-            fmap_gs.append(fmap_g)
+            y_d_rs.append(y_d_r); fmap_rs.append(fmap_r)
+            y_d_gs.append(y_d_g); fmap_gs.append(fmap_g)
         return y_d_rs, y_d_gs, fmap_rs, fmap_gs
 
 class DiscriminatorS(torch.nn.Module):
@@ -753,16 +747,14 @@ def run(rank, n_gpus, experiment_dir, pretrainG, pretrainD, pitch_guidance, cust
     train_loader = tdata.DataLoader(train_dataset, num_workers=4, shuffle=False, pin_memory=True, collate_fn=TextAudioCollateMultiNSFsid(), batch_sampler=DistributedBucketSampler(train_dataset, batch_size * n_gpus, [100, 200, 300, 400, 500, 600, 700, 800, 900], num_replicas=n_gpus, rank=rank, shuffle=True), persistent_workers=True, prefetch_factor=8)
 
     net_g, net_d = Synthesizer(config.data.filter_length // 2 + 1, config.train.segment_size // config.data.hop_length, **config.model, use_f0=pitch_guidance, sr=sample_rate, vocoder=vocoder, checkpointing=checkpointing), MultiPeriodDiscriminator(version, config.model.use_spectral_norm, checkpointing=checkpointing)
-
-    if torch.cuda.is_available(): net_g, net_d = net_g.cuda(rank), net_d.cuda(rank)
-    else: net_g, net_d = net_g.to(device), net_d.to(device)
+    net_g, net_d = (net_g.cuda(rank), net_d.cuda(rank)) if torch.cuda.is_available() else (net_g.to(device), net_d.to(device))
     optim_g, optim_d = torch.optim.AdamW(net_g.parameters(), config.train.learning_rate, betas=config.train.betas, eps=config.train.eps), torch.optim.AdamW(net_d.parameters(), config.train.learning_rate, betas=config.train.betas, eps=config.train.eps)
     net_g, net_d = (DDP(net_g, device_ids=[rank]), DDP(net_d, device_ids=[rank])) if torch.cuda.is_available() else (DDP(net_g), DDP(net_d))
 
     try:
         logger.info(translations["start_training"])
-        _, _, _, epoch_str = load_checkpoint(latest_checkpoint_path(experiment_dir, "D_*.pth"), net_d, optim_d)
-        _, _, _, epoch_str = load_checkpoint(latest_checkpoint_path(experiment_dir, "G_*.pth"), net_g, optim_g)
+        _, _, _, epoch_str = load_checkpoint((os.path.join(experiment_dir, "D_latest.pth") if save_only_latest else latest_checkpoint_path(experiment_dir, "D_*.pth")), net_d, optim_d)
+        _, _, _, epoch_str = load_checkpoint((os.path.join(experiment_dir, "G_latest.pth") if save_only_latest else latest_checkpoint_path(experiment_dir, "G_*.pth")), net_g, optim_g)
         epoch_str += 1
         global_step = (epoch_str - 1) * len(train_loader)
     except:
@@ -787,9 +779,7 @@ def run(rank, n_gpus, experiment_dir, pretrainG, pretrainD, pitch_guidance, cust
         else: logger.warning(translations["not_using_pretrain"].format(dg="D"))
 
     scheduler_g, scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_g, gamma=config.train.lr_decay, last_epoch=epoch_str - 2), torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=config.train.lr_decay, last_epoch=epoch_str - 2)
-
-    optim_d.step()
-    optim_g.step()
+    optim_d.step(); optim_g.step()
 
     scaler = GradScaler(enabled=False)
     cache = []
@@ -801,8 +791,7 @@ def run(rank, n_gpus, experiment_dir, pretrainG, pretrainD, pitch_guidance, cust
 
     for epoch in range(epoch_str, total_epoch + 1):
         train_and_evaluate(rank, epoch, config, [net_g, net_d], [optim_g, optim_d], scaler, train_loader, writer_eval, cache, custom_save_every_weights, custom_total_epoch, device, reference, model_author, vocoder) 
-        scheduler_g.step()
-        scheduler_d.step()
+        scheduler_g.step(); scheduler_d.step()
 
 def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, writer, cache, custom_save_every_weights, custom_total_epoch, device, reference, model_author, vocoder):
     global global_step, lowest_value, loss_disc, consecutive_increases_gen, consecutive_increases_disc
@@ -815,8 +804,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, wri
     optim_g, optim_d = optims
     train_loader.batch_sampler.set_epoch(epoch)
 
-    net_g.train()
-    net_d.train()
+    net_g.train(); net_d.train()
 
     if device.type == "cuda" and cache_data_in_gpu:
         data_iterator = cache
@@ -838,9 +826,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, wri
             pitchf = pitchf if pitch_guidance else None
 
             with autocast(enabled=False):
-                model_output = net_g(phone, phone_lengths, pitch, pitchf, spec, spec_lengths, sid)
-                y_hat, ids_slice, _, z_mask, (_, z_p, m_p, logs_p, _, logs_q) = model_output 
-
+                y_hat, ids_slice, _, z_mask, (_, z_p, m_p, logs_p, _, logs_q) = net_g(phone, phone_lengths, pitch, pitchf, spec, spec_lengths, sid)
                 mel = spec_to_mel_torch(spec, config.data.filter_length, config.data.n_mel_channels, config.data.sample_rate, config.data.mel_fmin, config.data.mel_fmax)
                 y_mel = slice_segments(mel, ids_slice, config.train.segment_size // config.data.hop_length, dim=3)
 
@@ -867,7 +853,6 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, wri
                     loss_fm = feature_loss(fmap_r, fmap_g)
                     loss_gen, losses_gen = generator_loss(y_d_hat_g)
                     loss_gen_all = loss_gen + loss_fm + loss_mel + loss_kl
-
                     if loss_gen_all < lowest_value["value"]:
                         lowest_value["value"] = loss_gen_all
                         lowest_value["step"] = global_step
@@ -881,31 +866,28 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, wri
             scaler.step(optim_g)
             scaler.update()
 
-            if rank == 0:
-                if global_step % config.train.log_interval == 0:
-                    if loss_mel > 75: loss_mel = 75
-                    if loss_kl > 9: loss_kl = 9
+            if rank == 0 and global_step % config.train.log_interval == 0:
+                if loss_mel > 75: loss_mel = 75
+                if loss_kl > 9: loss_kl = 9
 
-                    scalar_dict = {"loss/g/total": loss_gen_all, "loss/d/total": loss_disc, "learning_rate": optim_g.param_groups[0]["lr"], "grad/norm_d": grad_norm_d, "grad/norm_g": grad_norm_g, "loss/g/fm": loss_fm, "loss/g/mel": loss_mel, "loss/g/kl": loss_kl}
-                    scalar_dict.update({f"loss/g/{i}": v for i, v in enumerate(losses_gen)})
-                    scalar_dict.update({f"loss/d_r/{i}": v for i, v in enumerate(losses_disc_r)})
-                    scalar_dict.update({f"loss/d_g/{i}": v for i, v in enumerate(losses_disc_g)})
+                scalar_dict = {"loss/g/total": loss_gen_all, "loss/d/total": loss_disc, "learning_rate": optim_g.param_groups[0]["lr"], "grad/norm_d": grad_norm_d, "grad/norm_g": grad_norm_g, "loss/g/fm": loss_fm, "loss/g/mel": loss_mel, "loss/g/kl": loss_kl}
+                scalar_dict.update({f"loss/g/{i}": v for i, v in enumerate(losses_gen)})
+                scalar_dict.update({f"loss/d_r/{i}": v for i, v in enumerate(losses_disc_r)})
+                scalar_dict.update({f"loss/d_g/{i}": v for i, v in enumerate(losses_disc_g)})
 
-                    with torch.no_grad():
-                        o, *_ = net_g.module.infer(*reference) if hasattr(net_g, "module") else net_g.infer(*reference)
+                with torch.no_grad():
+                    o, *_ = net_g.module.infer(*reference) if hasattr(net_g, "module") else net_g.infer(*reference)
 
-                    summarize(writer=writer, global_step=global_step, images={"slice/mel_org": plot_spectrogram_to_numpy(y_mel[0].data.cpu().numpy()), "slice/mel_gen": plot_spectrogram_to_numpy(y_hat_mel[0].data.cpu().numpy()), "all/mel": plot_spectrogram_to_numpy(mel[0].data.cpu().numpy())}, scalars=scalar_dict, audios={f"gen/audio_{global_step:07d}": o[0, :, :]}, audio_sample_rate=config.data.sample_rate)
+                summarize(writer=writer, global_step=global_step, images={"slice/mel_org": plot_spectrogram_to_numpy(y_mel[0].data.cpu().numpy()), "slice/mel_gen": plot_spectrogram_to_numpy(y_hat_mel[0].data.cpu().numpy()), "all/mel": plot_spectrogram_to_numpy(mel[0].data.cpu().numpy())}, scalars=scalar_dict, audios={f"gen/audio_{global_step:07d}": o[0, :, :]}, audio_sample_rate=config.data.sample_rate)
 
             global_step += 1
             pbar.update(1)
 
     def check_overtraining(smoothed_loss_history, threshold, epsilon=0.004):
         if len(smoothed_loss_history) < threshold + 1: return False
-
         for i in range(-threshold, -1):
             if smoothed_loss_history[i + 1] > smoothed_loss_history[i]: return True
             if abs(smoothed_loss_history[i + 1] - smoothed_loss_history[i]) >= epsilon: return False
-
         return True
 
     def update_exponential_moving_average(smoothed_loss_history, new_value, smoothing=0.987):
@@ -961,7 +943,6 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, wri
             logger.info(translations["training_info"].format(lowest_value_rounded=round(float(lowest_value["value"]), 3), lowest_value_epoch=lowest_value['epoch'], lowest_value_step=lowest_value['step']))
 
             pid_file_path = os.path.join(experiment_dir, "config.json")
-
             with open(pid_file_path, "r") as pid_file:
                 pid_data = json.load(pid_file)
 
@@ -977,7 +958,6 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, wri
         
         if model_add:
             ckpt = (net_g.module.state_dict() if hasattr(net_g, "module") else net_g.state_dict())
-            
             for m in model_add:
                 extract_model(ckpt=ckpt, sr=sample_rate, pitch_guidance=pitch_guidance == True, name=model_name, model_path=m, epoch=epoch, step=global_step, version=version, hps=hps, model_author=model_author, vocoder=vocoder)
 

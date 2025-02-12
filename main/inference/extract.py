@@ -296,9 +296,9 @@ class FeatureInput:
 
         try:
             feature_pit = self.compute_f0(np_arr, f0_method, hop_length)
-            if isinstance(f0, tuple):
+            if isinstance(feature_pit, tuple):
                 logger.warning("F0 TUPLE") 
-                f0 = f0[0]
+                feature_pit = feature_pit[0]
             np.save(opt_path2, feature_pit, allow_pickle=False)
             np.save(opt_path1, self.coarse_f0(feature_pit), allow_pickle=False)
         except Exception as e:
