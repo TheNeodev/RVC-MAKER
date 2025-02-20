@@ -1,18 +1,18 @@
 import os
 import sys
-import math
 import torch
 
 import numpy as np
 import torch.nn.functional as F
-import torch.utils.checkpoint as checkpoint
 
+from torch.utils.checkpoint import checkpoint
 from torch.nn.utils.parametrizations import weight_norm
 from torch.nn.utils.parametrize import remove_parametrizations
 
 sys.path.append(os.getcwd())
 
 from .commons import get_padding
+
 
 class ResBlock(torch.nn.Module):
     def __init__(self, *, in_channels, out_channels, kernel_size = 7, dilation = (1, 3, 5), leaky_relu_slope = 0.2):
@@ -119,19 +119,18 @@ class RefineGANGenerator(torch.nn.Module):
         self.upsample_rates = upsample_rates
         self.checkpointing = checkpointing
         self.leaky_relu_slope = leaky_relu_slope
-        self.upp = np.prod(upsample_rates)
+        self.upp = int(np.prod(upsample_rates))
+        assert self.upp == sample_rate // 100
         self.m_source = SineGenerator(sample_rate)
         self.pre_conv = weight_norm(torch.nn.Conv1d(in_channels=1, out_channels=upsample_initial_channel // 2, kernel_size=7, stride=1, padding=3, bias=False))
         channels = upsample_initial_channel
         self.downsample_blocks = torch.nn.ModuleList([])
 
-        stride_f0s = [math.prod(upsample_rates[i + 1 :]) if i + 1 < len(upsample_rates) else 1 for i in range(len(upsample_rates))]
+        stride_f0s = [upsample_rates[1] * upsample_rates[2] * upsample_rates[3], upsample_rates[2] * upsample_rates[3], upsample_rates[3], 1]
 
         for i, _ in enumerate(upsample_rates):
-            stride = stride_f0s[i]
-            kernel = 1 if stride == 1 else stride * 2 - stride % 2
-
-            self.downsample_blocks.append(torch.nn.Conv1d(in_channels=1, out_channels=channels // 2 ** (i + 2), kernel_size=kernel, stride=stride, padding=0 if stride == 1 else (kernel - stride) // 2))
+            if self.upp == 441: self.downsample_blocks.append(torch.nn.Conv1d(in_channels=1, out_channels=channels // 2 ** (i + 2), kernel_size = 1))
+            else: self.downsample_blocks.append(torch.nn.Conv1d(in_channels=1, out_channels=channels // 2 ** (i + 2), kernel_size=stride_f0s[i] * 2 if stride_f0s[i] > 1 else 1, stride=stride_f0s[i], padding=stride_f0s[i] // 2))
 
         self.mel_conv = weight_norm(torch.nn.Conv1d(in_channels=num_mels, out_channels=channels // 2, kernel_size=7, stride=1, padding=3))
         if gin_channels != 0: self.cond = torch.nn.Conv1d(256, channels // 2, 1)
@@ -164,7 +163,18 @@ class RefineGANGenerator(torch.nn.Module):
         x = torch.cat([mel, x], dim=1)
 
         for ups, res, down, flt in zip(self.upsample_blocks, self.upsample_conv_blocks, self.downsample_blocks, self.filters):
-            x = checkpoint(res, torch.cat([checkpoint(flt, checkpoint(ups, x, use_reentrant=False), use_reentrant=False), down(har_source)], dim=1), use_reentrant=False) if self.training and self.checkpointing else res(torch.cat([flt(ups(x)), down(har_source)], dim=1))
+            if self.training and self.checkpointing:
+                x = checkpoint(flt, checkpoint(ups, x, use_reentrant=False), use_reentrant=False)
+                h = down(har_source)
+
+                if self.upp == 441: h = F.interpolate(h, size=x.shape[-1], mode="linear") 
+                x = checkpoint(res, torch.cat([x, h], dim=1), use_reentrant=False)
+            else:
+                x = flt(ups(x))
+                h = down(har_source)
+
+                if self.upp == 441: h = F.interpolate(h, size=x.shape[-1], mode="linear")
+                x = res(torch.cat([x, h], dim=1))
 
         return torch.tanh_(self.conv_post(F.leaky_relu_(x, self.leaky_relu_slope)))
     

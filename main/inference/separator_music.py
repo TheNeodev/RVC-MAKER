@@ -5,14 +5,13 @@ import logging
 import argparse
 import logging.handlers
 
-from pydub import AudioSegment
 from distutils.util import strtobool
 
 sys.path.append(os.getcwd())
 
 from main.configs.config import Config
-from main.library.utils import pydub_convert
 from main.library.algorithm.separator import Separator
+from main.library.utils import pydub_convert, pydub_load
 
 config = Config()
 translations = config.translations 
@@ -94,6 +93,8 @@ def main():
         for key, value in log_data.items():
             logger.debug(f"{key}: {value}")
 
+        input_path = input_path.strip(" ").strip('"').strip("\n").strip('"').strip(" ")
+
         if model_name in ["HT-Tuned", "HT-Normal", "HD_MMI", "HT_6S"]: vocals, instruments = separator_music_demucs(input_path, output_path, export_format, shifts, overlap, segments_size, model_name, sample_rate)
         else: vocals, instruments = separator_music_mdx(input_path, output_path, export_format, segments_size, overlap, mdx_denoise, model_name, hop_length, batch_size, sample_rate)
 
@@ -106,6 +107,7 @@ def main():
         
         if clean_audio:
             import soundfile as sf
+            
             logger.info(f"{translations['clear_audio']}...")
 
             vocal_data, vocal_sr = sf.read(vocals_no_reverb if reverb else vocals)
@@ -123,10 +125,12 @@ def main():
             return original_output, instruments, main_output, backing_output
     except Exception as e:
         logger.error(f"{translations['separator_error']}: {e}")
+
         import traceback
         logger.debug(traceback.format_exc())
     
     if os.path.exists(pid_path): os.remove(pid_path)
+
     elapsed_time = time.time() - start_time
     logger.info(translations["separator_success"].format(elapsed_time=f"{elapsed_time:.2f}"))
 
@@ -154,7 +158,7 @@ def separator_music_demucs(input, output, format, shifts, overlap, segments_size
         elif '_(Other)_' in f: other = path
         elif '_(Vocals)_' in f: os.rename(path, os.path.join(output, f"Original_Vocals.{format}"))
 
-    pydub_convert(AudioSegment.from_file(drums)).overlay(pydub_convert(AudioSegment.from_file(bass))).overlay(pydub_convert(AudioSegment.from_file(other))).export(os.path.join(output, f"Instruments.{format}"), format=format)
+    pydub_convert(pydub_load(drums)).overlay(pydub_convert(pydub_load(bass))).overlay(pydub_convert(pydub_load(other))).export(os.path.join(output, f"Instruments.{format}"), format=format)
 
     for f in [drums, bass, other]:
         if os.path.exists(f): os.remove(f)
@@ -184,6 +188,7 @@ def separator_backing(input, output, format, segments_size, overlap, denoise, ka
     for f in backing_outputs:
         path = os.path.join(output, f)
         if not os.path.exists(path): logger.error(translations["not_found"].format(name=path))
+
         if '_(Instrumental)_' in f: os.rename(path, backing_output)
         elif '_(Vocals)_' in f: os.rename(path, main_output)
 
@@ -211,6 +216,7 @@ def separator_music_mdx(input, output, format, segments_size, overlap, denoise, 
     for f in output_music:
         path = os.path.join(output, f)
         if not os.path.exists(path): logger.error(translations["not_found"].format(name=path))
+
         if '_(Instrumental)_' in f: os.rename(path, instruments_output)
         elif '_(Vocals)_' in f: os.rename(path, original_output)
 
@@ -264,6 +270,7 @@ def separator_reverb(output, format, segments_size, overlap, denoise, original, 
             start_title, end_title = translations["process_backing"], translations["process_backing_success"]
 
         logger.info(start_title)
+
         output_dereveb = separator_main(audio_file=path, model_filename="Reverb_HQ_By_FoxJoy.onnx", output_format=format, output_dir=output, mdx_segment_size=segments_size, mdx_overlap=overlap, mdx_batch_size=batch_size, mdx_hop_length=hop_length, mdx_enable_denoise=denoise, sample_rate=sample_rate)
 
         for f in output_dereveb:
@@ -274,17 +281,20 @@ def separator_reverb(output, format, segments_size, overlap, denoise, original, 
             elif '_(No Reverb)_' in f: os.rename(path, no_reverb_path)
 
         logger.info(end_title)
+
     return (os.path.join(output, f"Original_Vocals_No_Reverb.{format}") if original else None), (os.path.join(output, f"Main_Vocals_No_Reverb.{format}") if backing_reverb else None), (os.path.join(output, f"Backing_Vocals_No_Reverb.{format}") if backing_reverb else None)
 
 def separator_main(audio_file=None, model_filename="UVR-MDX-NET_Main_340.onnx", output_format="wav", output_dir=".", mdx_segment_size=256, mdx_overlap=0.25, mdx_batch_size=1, mdx_hop_length=1024, mdx_enable_denoise=True, demucs_segment_size=256, demucs_shifts=2, demucs_overlap=0.25, sample_rate=44100):
     try:
         separator = Separator(logger=logger, log_formatter=file_formatter, log_level=logging.INFO, output_dir=output_dir, output_format=output_format, output_bitrate=None, normalization_threshold=0.9, output_single_stem=None, invert_using_spec=False, sample_rate=sample_rate, mdx_params={"hop_length": mdx_hop_length, "segment_size": mdx_segment_size, "overlap": mdx_overlap, "batch_size": mdx_batch_size, "enable_denoise": mdx_enable_denoise}, demucs_params={"segment_size": demucs_segment_size, "shifts": demucs_shifts, "overlap": demucs_overlap, "segments_enabled": True})
         separator.load_model(model_filename=model_filename)
+
         return separator.separate(audio_file)
     except:
         logger.debug(translations["default_setting"])
         separator = Separator(logger=logger, log_formatter=file_formatter, log_level=logging.INFO, output_dir=output_dir, output_format=output_format, output_bitrate=None, normalization_threshold=0.9, output_single_stem=None, invert_using_spec=False, sample_rate=44100, mdx_params={"hop_length": 1024, "segment_size": 256, "overlap": 0.25, "batch_size": 1, "enable_denoise": mdx_enable_denoise}, demucs_params={"segment_size": 128, "shifts": 2, "overlap": 0.25, "segments_enabled": True})
         separator.load_model(model_filename=model_filename)
+
         return separator.separate(audio_file)
 
 if __name__ == "__main__": main()

@@ -30,6 +30,7 @@ def check_predictors(method):
     if "hybrid" in method:
         methods_str = re.search("hybrid\[(.+)\]", method)
         if methods_str: methods = [method.strip() for method in methods_str.group(1).split("+")]
+
         for method in methods:
             if method in model_dict: download(model_dict[method])
     elif method in model_dict: download(model_dict[method])
@@ -39,33 +40,42 @@ def check_embedders(hubert):
         model_path = os.path.join("assets", "models", "embedders", hubert)
         if not os.path.exists(model_path): huggingface.HF_download_file(codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/erfbyir/znva/rzorqqref/", "rot13") + hubert, model_path)
 
-def load_audio(file):
+def load_audio(logger, file, sample_rate=16000):
     try:
         file = file.strip(" ").strip('"').strip("\n").strip('"').strip(" ")
         if not os.path.isfile(file): raise FileNotFoundError(translations["not_found"].format(name=file))
 
-        audio, sr = sf.read(file)
+        try:
+            logger.debug(translations['read_sf'])
+            audio, sr = sf.read(file)
+        except:
+            logger.debug(translations['read_librosa'])
+            audio, sr = librosa.load(file, sr=None)
 
         if len(audio.shape) > 1: audio = librosa.to_mono(audio.T)
-        if sr != 16000: audio = librosa.resample(audio, orig_sr=sr, target_sr=16000, res_type="soxr_vhq")
+        if sr != sample_rate: audio = librosa.resample(audio, orig_sr=sr, target_sr=sample_rate, res_type="soxr_vhq")
     except Exception as e:
         raise RuntimeError(f"{translations['errors_loading_audio']}: {e}")
+    
     return audio.flatten()
 
 def process_audio(logger, file_path, output_path):
     try:
-        song = pydub_convert(AudioSegment.from_file(file_path))
+        song = pydub_convert(pydub_load(file_path))
         cut_files, time_stamps = [], []
 
-        for i, (start_i, end_i) in enumerate(silence.detect_nonsilent(song, min_silence_len=750, silence_thresh=-70)):
+        for i, (start_i, end_i) in enumerate(silence.detect_nonsilent(song, min_silence_len=250, silence_thresh=-60)):
             chunk = song[start_i:end_i]
-            if len(chunk) > 10:
-                chunk_file_path = os.path.join(output_path, f"chunk{i}.wav")
-                if os.path.exists(chunk_file_path): os.remove(chunk_file_path)
-                chunk.export(chunk_file_path, format="wav")
-                cut_files.append(chunk_file_path)
-                time_stamps.append((start_i, end_i))
-            else: logger.debug(translations["skip_file"].format(i=i, chunk=len(chunk)))
+
+            chunk_file_path = os.path.join(output_path, f"chunk{i}.wav")
+            logger.debug(f"{chunk_file_path}: {len(chunk)}")
+
+            if os.path.exists(chunk_file_path): os.remove(chunk_file_path)
+            chunk.export(chunk_file_path, format="wav")
+
+            cut_files.append(chunk_file_path)
+            time_stamps.append((start_i, end_i))
+        
         logger.info(f"{translations['split_total']}: {len(cut_files)}")
         return cut_files, time_stamps
     except Exception as e:
@@ -77,24 +87,34 @@ def merge_audio(files_list, time_stamps, original_file_path, output_path, format
             match = re.search(r'_(\d+)', filename)
             return int(match.group(1)) if match else 0
 
-        total_duration = len(AudioSegment.from_file(original_file_path))
+        total_duration = len(pydub_load(original_file_path))
+
         combined = AudioSegment.empty() 
         current_position = 0 
 
         for file, (start_i, end_i) in zip(sorted(files_list, key=extract_number), time_stamps):
             if start_i > current_position: combined += AudioSegment.silent(duration=start_i - current_position)  
-            combined += AudioSegment.from_file(file)  
+            
+            combined += pydub_load(file)  
             current_position = end_i
 
         if current_position < total_duration: combined += AudioSegment.silent(duration=total_duration - current_position)
         combined.export(output_path, format=format)
+
         return output_path
     except Exception as e:
         raise RuntimeError(f"{translations['merge_error']}: {e}")
 
 def pydub_convert(audio):
     samples = np.frombuffer(audio.raw_data, dtype=np.int16)
-
     if samples.dtype != np.int16: samples = (samples * 32767).astype(np.int16)
 
     return AudioSegment(samples.tobytes(), frame_rate=audio.frame_rate, sample_width=samples.dtype.itemsize, channels=audio.channels)
+
+def pydub_load(input_path):
+    if input_path.endswith(".wav"): audio = AudioSegment.from_wav(input_path)
+    elif input_path.endswith(".mp3"): audio = AudioSegment.from_mp3(input_path)
+    elif input_path.endswith(".ogg"): audio = AudioSegment.from_ogg(input_path)
+    else: audio = AudioSegment.from_file(input_path)
+    
+    return audio

@@ -16,11 +16,11 @@ import matplotlib.pyplot as plt
 import torch.distributed as dist
 import torch.utils.data as tdata
 import torch.multiprocessing as mp
-import torch.utils.checkpoint as checkpoint
 
 from tqdm import tqdm
 from collections import OrderedDict
 from random import randint, shuffle
+from torch.utils.checkpoint import checkpoint
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.tensorboard import SummaryWriter
 
@@ -612,7 +612,7 @@ class MultiPeriodDiscriminator(torch.nn.Module):
                     y_d_r, fmap_r = d(y)
                     y_d_g, fmap_g = d(y_hat)
                     return y_d_r, fmap_r, y_d_g, fmap_g
-                y_d_r, fmap_r, y_d_g, fmap_g = checkpoint.checkpoint(forward_discriminator, d, y, y_hat, use_reentrant=False)
+                y_d_r, fmap_r, y_d_g, fmap_g = checkpoint(forward_discriminator, d, y, y_hat, use_reentrant=False)
             else:
                 y_d_r, fmap_r = d(y)
                 y_d_g, fmap_g = d(y_hat)
@@ -633,7 +633,7 @@ class DiscriminatorS(torch.nn.Module):
     def forward(self, x):
         fmap = []
         for conv in self.convs:
-            x = checkpoint.checkpoint(self.lrelu, checkpoint.checkpoint(conv, x, use_reentrant = False), use_reentrant = False) if self.training and self.checkpointing else self.lrelu(conv(x))
+            x = checkpoint(self.lrelu, checkpoint(conv, x, use_reentrant = False), use_reentrant = False) if self.training and self.checkpointing else self.lrelu(conv(x))
             fmap.append(x)
 
         x = self.conv_post(x)
@@ -656,7 +656,7 @@ class DiscriminatorP(torch.nn.Module):
         if t % self.period != 0: x = torch.nn.functional.pad(x, (0, (self.period - (t % self.period))), "reflect")
         x = x.view(b, c, -1, self.period)
         for conv in self.convs:
-            x = checkpoint.checkpoint(self.lrelu, checkpoint.checkpoint(conv, x, use_reentrant = False), use_reentrant = False) if self.training and self.checkpointing else self.lrelu(conv(x))
+            x = checkpoint(self.lrelu, checkpoint(conv, x, use_reentrant = False), use_reentrant = False) if self.training and self.checkpointing else self.lrelu(conv(x))
             fmap.append(x)
 
         x = self.conv_post(x)

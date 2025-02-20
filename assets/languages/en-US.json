@@ -383,7 +383,6 @@
     "errors_loading_audio": "Error loading audio: {e}",
     "apply_error": "An error occurred while applying effects: {e}",
     "indexpath": "Index path",
-    "skip_file": "Part {i} skipped because it is too short: {chunk}ms",
     "split_total": "Total parts split",
     "process_audio_error": "An error occurred while processing the audio",
     "merge_error": "An error occurred while merging audio",
@@ -789,5 +788,7 @@
     "convert_model": "Convert Model",
     "pytorch2onnx": "Converting PYTORCH Model to ONNX Model",
     "pytorch2onnx_markdown": "Convert RVC model from pytorch to onnx to optimize audio conversion",
-    "error_readfile": "An error occurred while reading the file!"
+    "error_readfile": "An error occurred while reading the file!",
+    "read_sf": "Read audio file using soundfile...",
+    "read_librosa": "Read audio files using librosa because soundfile does not support..."
 }

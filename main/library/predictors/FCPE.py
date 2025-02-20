@@ -885,7 +885,7 @@ class FCPEInfer:
     @torch.no_grad()
     def __call__(self, audio, sr, threshold=0.05, f0_min=50, f0_max=1100, p_len=None):
         if self.onnx: self.wav2mel = Wav2Mel(device=self.device, dtype=self.dtype)
-        return (torch.as_tensor(self.model.run([self.model.get_outputs()[0].name], {self.model.get_inputs()[0].name: self.wav2mel(audio=audio[None, :], sample_rate=sr).to(self.dtype).detach().cpu().numpy(), self.model.get_inputs()[1].name: np.array(threshold, dtype=np.float32)})[0], dtype=self.dtype, device=self.device).squeeze() if self.onnx else self.model.infer(audio[None, :], sr, threshold=threshold, f0_min=f0_min, f0_max=f0_max, output_interp_target_length=p_len))
+        return (torch.as_tensor(self.model.run([self.model.get_outputs()[0].name], {self.model.get_inputs()[0].name: self.wav2mel(audio=audio[None, :], sample_rate=sr).to(self.dtype).detach().cpu().numpy(), self.model.get_inputs()[1].name: np.array(threshold, dtype=np.float32)})[0], dtype=self.dtype, device=self.device) if self.onnx else self.model.infer(audio[None, :], sr, threshold=threshold, f0_min=f0_min, f0_max=f0_max, output_interp_target_length=p_len))
 
 class MelModule(torch.nn.Module):
     def __init__(self, sr, n_mels, n_fft, win_size, hop_length, fmin = None, fmax = None, clip_val = 1e-5, out_stft = False):

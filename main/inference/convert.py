@@ -114,8 +114,7 @@ def run_batch_convert(params):
         sys.exit(1)
 
 def run_convert_script(pitch=0, filter_radius=3, index_rate=0.5, volume_envelope=1, protect=0.5, hop_length=64, f0_method="rmvpe", input_path=None, output_path="./output.wav", pth_path=None, index_path=None, f0_autotune=False, f0_autotune_strength=1, clean_audio=False, clean_strength=0.7, export_format="wav", embedder_model="contentvec_base.pt", resample_sr=0, split_audio=False, checkpointing=False, f0_file=None):
-    check_predictors(f0_method)
-    check_embedders(embedder_model)
+    check_predictors(f0_method); check_embedders(embedder_model)
 
     cvt = VoiceConverter()
     start_time = time.time()
@@ -215,7 +214,6 @@ def run_convert_script(pitch=0, filter_radius=3, index_rate=0.5, volume_envelope
                 logger.error(translations["error_convert"].format(e=e))
 
         if os.path.exists(pid_path): os.remove(pid_path)
-
         elapsed_time = time.time() - start_time
         logger.info(translations["convert_audio_success"].format(input_path=input_path, elapsed_time=f"{elapsed_time:.2f}", output_path=output_path.replace('wav', export_format)))
 
@@ -284,27 +282,27 @@ class VC:
         if audio.ndim == 2 and audio.shape[0] > 1: audio = torch.mean(audio, dim=0, keepdim=True).detach()
 
         p_len = p_len or x.shape[0] // hop_length
-        source = np.array(predict(audio.detach(), self.sample_rate, hop_length, self.f0_min, self.f0_max, model, batch_size=hop_length * 2, device=self.device, pad=True, providers=(get_providers() if onnx else None), onnx=onnx).squeeze(0).cpu().float().numpy())
+        source = np.array(predict(audio.detach(), self.sample_rate, hop_length, self.f0_min, self.f0_max, model, batch_size=hop_length * 2, device=self.device, pad=True, providers=get_providers(), onnx=onnx).squeeze(0).cpu().float().numpy())
         source[source < 0.001] = np.nan
 
         return np.nan_to_num(np.interp(np.arange(0, len(source) * p_len, len(source)) / p_len, np.arange(0, len(source)), source))
 
     def get_f0_crepe(self, x, model="full", onnx=False):
-        f0, pd = predict(torch.tensor(np.copy(x))[None].float(), self.sample_rate, self.window, self.f0_min, self.f0_max, model, batch_size=512, device=self.device, return_periodicity=True, providers=(get_providers() if onnx else None), onnx=onnx)
+        f0, pd = predict(torch.tensor(np.copy(x))[None].float(), self.sample_rate, self.window, self.f0_min, self.f0_max, model, batch_size=512, device=self.device, return_periodicity=True, providers=get_providers(), onnx=onnx)
         f0, pd = mean(f0, 3), median(pd, 3)
         f0[pd < 0.1] = 0
 
         return f0[0].cpu().numpy()
 
     def get_f0_fcpe(self, x, p_len, hop_length, onnx=False, legacy=False):
-        model_fcpe = FCPE(os.path.join("assets", "models", "predictors", ("fcpe_legacy" if legacy else"fcpe") + (".onnx" if onnx else ".pt")), hop_length=int(hop_length), f0_min=int(self.f0_min), f0_max=int(self.f0_max), dtype=torch.float32, device=self.device, sample_rate=self.sample_rate, threshold=0.03, providers=(get_providers() if onnx else None), onnx=onnx, legacy=legacy)
+        model_fcpe = FCPE(os.path.join("assets", "models", "predictors", ("fcpe_legacy" if legacy else"fcpe") + (".onnx" if onnx else ".pt")), hop_length=int(hop_length), f0_min=int(self.f0_min), f0_max=int(self.f0_max), dtype=torch.float32, device=self.device, sample_rate=self.sample_rate, threshold=0.03, providers=get_providers(), onnx=onnx, legacy=legacy)
         f0 = model_fcpe.compute_f0(x, p_len=p_len)
 
         del model_fcpe
         return f0
     
     def get_f0_rmvpe(self, x, legacy=False, onnx=False):
-        rmvpe_model = RMVPE(os.path.join("assets", "models", "predictors", "rmvpe" + (".onnx" if onnx else ".pt")), device=self.device, onnx=onnx, providers=(get_providers() if onnx else None))
+        rmvpe_model = RMVPE(os.path.join("assets", "models", "predictors", "rmvpe" + (".onnx" if onnx else ".pt")), device=self.device, onnx=onnx, providers=get_providers())
         f0 = rmvpe_model.infer_from_audio_with_pitch(x, thred=0.03, f0_min=self.f0_min, f0_max=self.f0_max) if legacy else rmvpe_model.infer_from_audio(x, thred=0.03)
 
         del rmvpe_model
@@ -341,7 +339,6 @@ class VC:
 
         f0_computation_stack, resampled_stack = [], []
         logger.debug(translations["hybrid_methods"].format(methods=methods))
-
         x = x.astype(np.float32)
         x /= np.quantile(np.abs(x), 0.999)
 
@@ -428,9 +425,7 @@ class VC:
         else: raise ValueError(translations["method_not_valid"])
 
         if f0_autotune: f0 = Autotune.autotune_f0(self, f0, f0_autotune_strength)
-        if isinstance(f0, tuple):
-            logger.warning("F0 TUPLE") 
-            f0 = f0[0]
+        if isinstance(f0, tuple): f0 = f0[0]
 
         f0 *= pow(2, pitch / 12)
         tf0 = self.sample_rate // self.window
@@ -472,10 +467,8 @@ class VC:
             if (not isinstance(index, type(None)) and not isinstance(big_npy, type(None)) and index_rate != 0):
                 npy = feats[0].cpu().numpy()
                 score, ix = index.search(npy, k=8)
-
                 weight = np.square(1 / score)
                 weight /= weight.sum(axis=1, keepdims=True)
-
                 npy = np.sum(big_npy[ix] * np.expand_dims(weight, axis=2), axis=1)
                 feats = (torch.from_numpy(npy).unsqueeze(0).to(self.device) * index_rate + (1 - index_rate) * feats)
 
@@ -503,7 +496,6 @@ class VC:
 
         if self.embed_suffix == ".pt": del padding_mask
         del feats, p_len, net_g
-
         if torch.cuda.is_available(): torch.cuda.empty_cache()
         elif torch.backends.mps.is_available(): torch.mps.empty_cache()
 
@@ -560,9 +552,7 @@ class VC:
         if pitch_guidance:
             pitch, pitchf = self.get_f0(audio_pad, p_len, pitch, f0_method, filter_radius, hop_length, f0_autotune, f0_autotune_strength, inp_f0)
             pitch, pitchf = pitch[:p_len], pitchf[:p_len]
-
             if self.device == "mps": pitchf = pitchf.astype(np.float32)
-
             pitch, pitchf = torch.tensor(pitch, device=self.device).unsqueeze(0).long(), torch.tensor(pitchf, device=self.device).unsqueeze(0).float()
 
         for t in opt_ts:
@@ -606,26 +596,23 @@ class VoiceConverter:
         embedder_model_path = os.path.join("assets", "models", "embedders", embedder_model)
         if not os.path.exists(embedder_model_path) and not embedder_model.endswith((".pt", ".onnx")): raise FileNotFoundError(f"{translations['not_found'].format(name=translations['model'])}: {embedder_model}")  
 
-        if embedder_model.endswith(".pt"):
-            try:
+        try:
+            if embedder_model.endswith(".pt"):
                 models, _, _ = checkpoint_utils.load_model_ensemble_and_task([embedder_model_path], suffix="")
                 self.embed_suffix = ".pt"
                 self.hubert_model = models[0].to(self.config.device).float().eval()
-            except Exception as e:
-                logger.error(translations["read_model_error"].format(e=e))
-        else:
-            try:
+            else:
                 sess_options = onnxruntime.SessionOptions()
                 sess_options.log_severity_level = 3
                 self.embed_suffix = ".onnx"
                 self.hubert_model = onnxruntime.InferenceSession(embedder_model_path, sess_options=sess_options, providers=get_providers())
-            except Exception as e:
-                logger.error(translations["read_model_error"].format(e=e))
+        except Exception as e:
+            logger.error(translations["read_model_error"].format(e=e))
 
     def convert_audio(self, audio_input_path, audio_output_path, model_path, index_path, embedder_model, pitch, f0_method, index_rate, volume_envelope, protect, hop_length, f0_autotune, f0_autotune_strength, filter_radius, clean_audio, clean_strength, export_format, resample_sr = 0, sid = 0, checkpointing = False, f0_file = None):
         try:
             self.get_vc(model_path, sid)
-            audio = load_audio(audio_input_path)
+            audio = load_audio(logger, audio_input_path, 16000)
             self.checkpointing = checkpointing
 
             audio_max = np.abs(audio).max() / 0.95
@@ -650,14 +637,12 @@ class VoiceConverter:
     def get_vc(self, weight_root, sid):
         if sid == "" or sid == []:
             self.cleanup()
-
             if torch.cuda.is_available(): torch.cuda.empty_cache()
             elif torch.backends.mps.is_available(): torch.mps.empty_cache()
 
         if not self.loaded_model or self.loaded_model != weight_root:
             self.loaded_model = weight_root
             self.load_model()
-
             if self.cpt is not None: self.setup()
 
     def cleanup(self):
@@ -669,7 +654,6 @@ class VoiceConverter:
             elif torch.backends.mps.is_available(): torch.mps.empty_cache()
 
         del self.net_g, self.cpt
-        
         if torch.cuda.is_available(): torch.cuda.empty_cache()
         elif torch.backends.mps.is_available(): torch.mps.empty_cache()
 
@@ -689,30 +673,23 @@ class VoiceConverter:
             if self.loaded_model.endswith(".pth"):
                 self.tgt_sr = self.cpt["config"][-1]
                 self.cpt["config"][-3] = self.cpt["weight"]["emb_g.weight"].shape[0]
-                
                 self.use_f0 = self.cpt.get("f0", 1)
                 self.version = self.cpt.get("version", "v1")
                 self.vocoder = self.cpt.get("vocoder", "Default")
-
                 self.text_enc_hidden_dim = 768 if self.version == "v2" else 256
                 self.net_g = Synthesizer(*self.cpt["config"], use_f0=self.use_f0, text_enc_hidden_dim=self.text_enc_hidden_dim, vocoder=self.vocoder, checkpointing=self.checkpointing)
-
                 del self.net_g.enc_q
-
                 self.net_g.load_state_dict(self.cpt["weight"], strict=False)
                 self.net_g.eval().to(self.config.device).float()
-
                 self.n_spk = self.cpt["config"][-3]
                 self.suffix = ".pth"
             else:
                 model = onnx.load(self.loaded_model)
                 metadata_dict = None
-
                 for prop in model.metadata_props:
                     if prop.key == "model_info":
                         metadata_dict = json.loads(prop.value)
                         break
-
                 self.net_g = self.cpt
                 self.tgt_sr = metadata_dict.get("sr", 32000)
                 self.use_f0 = metadata_dict.get("f0", 1)

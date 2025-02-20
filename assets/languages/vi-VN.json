@@ -383,7 +383,6 @@
     "errors_loading_audio": "Lỗi khi tải âm thanh: {e}",
     "apply_error": "Đã xảy ra lỗi khi áp dụng hiệu ứng: {e}",
     "indexpath": "Đường dẫn chỉ mục",
-    "skip_file": "Phần {i} được bỏ qua vì quá ngắn: {chunk}ms",
     "split_total": "Tổng số phần đã cắt",
     "process_audio_error": "Đã xảy ra lỗi khi xử lý âm thanh",
     "merge_error": "Đã xảy ra lỗi khi ghép âm thanh",
@@ -789,5 +788,7 @@
     "convert_model": "Chuyển Đổi Mô Hình",
     "pytorch2onnx": "Chuyển Đổi Mô Hình PYTORCH Sang ONNX",
     "pytorch2onnx_markdown": "Chuyển đổi mô hình RVC từ dạng pytorch sang onnx để tối ưu cho việc chuyển đổi âm thanh",
-    "error_readfile": "Đã xảy ra lỗi khi đọc tệp!"
+    "error_readfile": "Đã xảy ra lỗi khi đọc tệp!",
+    "read_sf": "Đọc tệp âm thanh bằng soundfile...",
+    "read_librosa": "Đọc tệp âm thanh bằng librosa do soundfile không hỗ trợ..."
 }

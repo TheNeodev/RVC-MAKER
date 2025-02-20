@@ -23,13 +23,12 @@ from time import sleep
 from subprocess import Popen
 from bs4 import BeautifulSoup
 from datetime import datetime
-from pydub import AudioSegment
 from multiprocessing import cpu_count
 
 sys.path.append(os.getcwd())
 
 from main.configs.config import Config
-from main.library.utils import pydub_convert
+from main.library.utils import pydub_convert, pydub_load
 from main.tools import gdown, meganz, mediafire, pixeldrain, huggingface, edge_tts, google_tts
 
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -867,7 +866,7 @@ def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not
 
                 gr_info(translations["merge_backup"])
 
-                pydub_convert(AudioSegment.from_file(output_path)).overlay(pydub_convert(AudioSegment.from_file(backing_source))).export(output_merge_backup, format=format)
+                pydub_convert(pydub_load(output_path)).overlay(pydub_convert(pydub_load(backing_source))).export(output_merge_backup, format=format)
 
                 gr_info(translations["merge_success"])
 
@@ -883,7 +882,7 @@ def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not
                 if instruments == translations["notfound"]: 
                     gr_warning(translations["not_found_instruments"])
                     output_merge_instrument = None
-                else: pydub_convert(AudioSegment.from_file(instruments)).overlay(pydub_convert(AudioSegment.from_file(vocals))).export(output_merge_instrument, format=format)
+                else: pydub_convert(pydub_load(instruments)).overlay(pydub_convert(pydub_load(vocals))).export(output_merge_instrument, format=format)
                 
                 gr_info(translations["merge_success"])
         except:
@@ -2607,6 +2606,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
 
     logger.info(translations["start_app"])
     logger.info(translations["set_lang"].format(lang=language))
+    
     port = configs.get("app_port", 7860)
 
     for i in range(configs.get("num_of_restart", 5)):

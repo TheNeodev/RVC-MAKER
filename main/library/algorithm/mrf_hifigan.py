@@ -1,13 +1,11 @@
-import math
 import torch
 
 import numpy as np
 import torch.nn.functional as F
-import torch.utils.checkpoint as checkpoint
 
 from torch.nn.utils import remove_weight_norm
+from torch.utils.checkpoint import checkpoint
 from torch.nn.utils.parametrizations import weight_norm
-
 
 LRELU_SLOPE = 0.1
 
@@ -103,26 +101,30 @@ class HiFiGANMRFGenerator(torch.nn.Module):
         super().__init__()
         self.num_kernels = len(resblock_kernel_sizes)
 
-        self.f0_upsample = torch.nn.Upsample(scale_factor=np.prod(upsample_rates))
+        self.upp = int(np.prod(upsample_rates))
+        self.f0_upsample = torch.nn.Upsample(scale_factor=self.upp)
         self.m_source = SourceModuleHnNSF(sample_rate, harmonic_num)
 
         self.conv_pre = weight_norm(torch.nn.Conv1d(in_channel, upsample_initial_channel, kernel_size=7, stride=1, padding=3))
         self.checkpointing = checkpointing
 
         self.upsamples = torch.nn.ModuleList()
+        self.upsampler = torch.nn.ModuleList()
         self.noise_convs = torch.nn.ModuleList()
 
-        stride_f0s = [math.prod(upsample_rates[i + 1 :]) if i + 1 < len(upsample_rates) else 1 for i in range(len(upsample_rates))]
+        stride_f0s = [upsample_rates[1] * upsample_rates[2] * upsample_rates[3], upsample_rates[2] * upsample_rates[3], upsample_rates[3], 1]
 
         for i, (u, k) in enumerate(zip(upsample_rates, upsample_kernel_sizes)):
-            self.upsamples.append(weight_norm(torch.nn.ConvTranspose1d(upsample_initial_channel // (2**i), upsample_initial_channel // (2 ** (i + 1)), kernel_size=k, stride=u, padding=(((k - u) // 2) if u % 2 == 0 else (u // 2 + u % 2)), output_padding=u % 2)))
-            stride = stride_f0s[i]
-
-            kernel = 1 if stride == 1 else stride * 2 - stride % 2
-            self.noise_convs.append(torch.nn.Conv1d(1, upsample_initial_channel // (2 ** (i + 1)), kernel_size=kernel, stride=stride, padding=( 0 if stride == 1 else (kernel - stride) // 2)))
+            if self.upp == 441:
+                self.upsampler.append(torch.nn.Upsample(scale_factor=u, mode="linear"))
+                self.upsamples.append(weight_norm(torch.nn.Conv1d(upsample_initial_channel // (2**i), upsample_initial_channel // (2 ** (i + 1)), kernel_size=1)))
+                self.noise_convs.append(torch.nn.Conv1d(in_channels=1, out_channels=upsample_initial_channel // (2 ** (i + 1)), kernel_size = 1))
+            else:
+                self.upsampler.append(torch.nn.Identity())
+                self.upsamples.append(weight_norm(torch.nn.ConvTranspose1d(upsample_initial_channel // (2**i), upsample_initial_channel // (2 ** (i + 1)), kernel_size=k, stride=u, padding=(k - u) // 2)))
+                self.noise_convs.append(torch.nn.Conv1d(1, upsample_initial_channel // (2 ** (i + 1)), kernel_size=stride_f0s[i] * 2 if stride_f0s[i] > 1 else 1, stride=stride_f0s[i], padding=stride_f0s[i] // 2))
 
         self.mrfs = torch.nn.ModuleList()
-
         for i in range(len(self.upsamples)):
             channel = upsample_initial_channel // (2 ** (i + 1))
             self.mrfs.append(torch.nn.ModuleList([MRFBlock(channel, kernel_size=k, dilations=d) for k, d in zip(resblock_kernel_sizes, resblock_dilations)]))
@@ -132,19 +134,27 @@ class HiFiGANMRFGenerator(torch.nn.Module):
 
     def forward(self, x, f0, g = None):
         har_source = self.m_source(self.f0_upsample(f0[:, None, :]).transpose(-1, -2)).transpose(-1, -2)
-
         x = self.conv_pre(x)
-        if g is not None: x = x + self.cond(g)
+        if g is not None: x += self.cond(g)
 
-        for ups, mrf, noise_conv in zip(self.upsamples, self.mrfs, self.noise_convs):
+        for ups, upr, mrf, noise_conv in zip(self.upsamples, self.upsampler, self.mrfs, self.noise_convs):
             x = F.leaky_relu(x, LRELU_SLOPE)
-            x = checkpoint.checkpoint(ups, x, use_reentrant=False) if self.training and self.checkpointing else ups(x)
-            x += noise_conv(har_source)
+
+            if self.training and self.checkpointing:
+                if self.upp == 441: x = upr(x)
+                x = checkpoint(ups, x, use_reentrant=False)
+            else:
+                if self.upp == 441: x = upr(x)
+                x = ups(x)
+
+            h = noise_conv(har_source)
+            if self.upp == 441: h = torch.nn.functional.interpolate(h, size=x.shape[-1], mode="linear")
+            x += h
 
             def mrf_sum(x, layers):
                 return sum(layer(x) for layer in layers) / self.num_kernels
             
-            x = checkpoint.checkpoint(mrf_sum, x, mrf, use_reentrant=False) if self.training and self.checkpointing else mrf_sum(x, mrf)
+            x = checkpoint(mrf_sum, x, mrf, use_reentrant=False) if self.training and self.checkpointing else mrf_sum(x, mrf)
 
         return torch.tanh(self.conv_post(F.leaky_relu(x)))
 

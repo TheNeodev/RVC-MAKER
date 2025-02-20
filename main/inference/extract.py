@@ -18,10 +18,10 @@ import soundfile as sf
 import torch.nn.functional as F
 
 from random import shuffle
+from functools import partial
 from multiprocessing import Pool
 from distutils.util import strtobool
 from fairseq import checkpoint_utils
-from functools import partial
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.append(os.getcwd())
@@ -296,9 +296,8 @@ class FeatureInput:
 
         try:
             feature_pit = self.compute_f0(np_arr, f0_method, hop_length)
-            if isinstance(feature_pit, tuple):
-                logger.warning("F0 TUPLE") 
-                feature_pit = feature_pit[0]
+            if isinstance(feature_pit, tuple): feature_pit = feature_pit[0]
+
             np.save(opt_path2, feature_pit, allow_pickle=False)
             np.save(opt_path1, self.coarse_f0(feature_pit), allow_pickle=False)
         except Exception as e:
@@ -312,7 +311,7 @@ class FeatureInput:
 def run_pitch_extraction(exp_dir, f0_method, hop_length, num_processes, gpus):
     input_root, *output_roots = setup_paths(exp_dir)
     output_root1, output_root2 = output_roots if len(output_roots) == 2 else (output_roots[0], None)
-    paths = [(os.path.join(input_root, name), os.path.join(output_root1, name) if output_root1 else None, os.path.join(output_root2, name) if output_root2 else None, load_audio(os.path.join(input_root, name))) for name in sorted(os.listdir(input_root)) if "spec" not in name]
+    paths = [(os.path.join(input_root, name), os.path.join(output_root1, name) if output_root1 else None, os.path.join(output_root2, name) if output_root2 else None, load_audio(logger, os.path.join(input_root, name), 16000)) for name in sorted(os.listdir(input_root)) if "spec" not in name]
     logger.info(translations["extract_f0_method"].format(num_processes=num_processes, f0_method=f0_method))
     start_time = time.time()
 
@@ -356,7 +355,7 @@ def process_file_embedding(file, wav_path, out_path, model, device, version, sav
             model = model.to(device).float().eval()
             logits = model.extract_features(**inputs)
             feats = model.final_proj(logits[0]) if version == "v1" else logits[0]
-        else: feats = extract_features(model, feats, version)
+        else: feats = extract_features(model, feats, version).to(device)
 
     feats = feats.squeeze(0).float().cpu().numpy()
 
@@ -409,6 +408,7 @@ def run_embedding_extraction(exp_dir, version, gpus, embedder_model):
 if __name__ == "__main__":
     args = parse_arguments()
     exp_dir = os.path.join("assets", "logs", args.model_name)
+    
     f0_method, hop_length, num_processes, gpus, version, pitch_guidance, sample_rate, embedder_model = args.f0_method, args.hop_length, args.cpu_cores, args.gpu, args.rvc_version, args.pitch_guidance, args.sample_rate, args.embedder_model
 
     check_predictors(f0_method)

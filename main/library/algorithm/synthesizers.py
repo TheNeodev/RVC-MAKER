@@ -4,9 +4,9 @@ import math
 import torch
 import numpy as np
 import torch.nn.functional as F
-import torch.utils.checkpoint as checkpoint
 
 from torch.nn.utils import remove_weight_norm
+from torch.utils.checkpoint import checkpoint
 from torch.nn.utils.parametrizations import weight_norm
 
 sys.path.append(os.getcwd())
@@ -16,7 +16,6 @@ from .refinegan import RefineGANGenerator
 from .mrf_hifigan import HiFiGANMRFGenerator
 from .residuals import ResidualCouplingBlock, ResBlock, LRELU_SLOPE
 from .commons import init_weights, slice_segments, rand_slice_segments, sequence_mask, convert_pad_shape
-
 
 class Generator(torch.nn.Module):
     def __init__(self, initial_channel, resblock_kernel_sizes, resblock_dilation_sizes, upsample_rates, upsample_initial_channel, upsample_kernel_sizes, gin_channels=0):
@@ -29,7 +28,6 @@ class Generator(torch.nn.Module):
         for i, (u, k) in enumerate(zip(upsample_rates, upsample_kernel_sizes)):
             self.ups_and_resblocks.append(weight_norm(torch.nn.ConvTranspose1d(upsample_initial_channel // (2**i), upsample_initial_channel // (2 ** (i + 1)), k, u, padding=(k - u) // 2)))
             ch = upsample_initial_channel // (2 ** (i + 1))
-
             for _, (k, d) in enumerate(zip(resblock_kernel_sizes, resblock_dilation_sizes)):
                 self.ups_and_resblocks.append(ResBlock(ch, k, d))
 
@@ -116,44 +114,61 @@ class GeneratorNSF(torch.nn.Module):
     def __init__(self, initial_channel, resblock_kernel_sizes, resblock_dilation_sizes, upsample_rates, upsample_initial_channel, upsample_kernel_sizes, gin_channels, sr, checkpointing = False):
         super(GeneratorNSF, self).__init__()
         self.num_kernels = len(resblock_kernel_sizes)
-        self.num_upsamples = len(upsample_rates)
-        self.f0_upsamp = torch.nn.Upsample(scale_factor=math.prod(upsample_rates))
+
+        self.upp = int(np.prod(upsample_rates))
+        self.f0_upsamp = torch.nn.Upsample(scale_factor=self.upp)
         self.m_source = SourceModuleHnNSF(sample_rate=sr, harmonic_num=0)
+
         self.conv_pre = torch.nn.Conv1d(initial_channel, upsample_initial_channel, 7, 1, padding=3)
         self.checkpointing = checkpointing
+
         self.ups = torch.nn.ModuleList()
+        self.upsampler = torch.nn.ModuleList()
         self.noise_convs = torch.nn.ModuleList()
+
         channels = [upsample_initial_channel // (2 ** (i + 1)) for i in range(len(upsample_rates))]
-        stride_f0s = [math.prod(upsample_rates[i + 1 :]) if i + 1 < len(upsample_rates) else 1 for i in range(len(upsample_rates))]
+        stride_f0s = [upsample_rates[1] * upsample_rates[2] * upsample_rates[3], upsample_rates[2] * upsample_rates[3], upsample_rates[3], 1]
 
         for i, (u, k) in enumerate(zip(upsample_rates, upsample_kernel_sizes)):
-            self.ups.append(weight_norm(torch.nn.ConvTranspose1d(upsample_initial_channel // (2**i), channels[i], k, u, padding=(k - u) // 2)))
-            self.noise_convs.append(torch.nn.Conv1d(1, channels[i], kernel_size=(stride_f0s[i] * 2 if stride_f0s[i] > 1 else 1), stride=stride_f0s[i], padding=(stride_f0s[i] // 2 if stride_f0s[i] > 1 else 0)))
+            if self.upp == 441:
+                self.upsampler.append(torch.nn.Upsample(scale_factor=u, mode="linear"))
+                self.ups.append(weight_norm(torch.nn.Conv1d(upsample_initial_channel // (2**i), channels[i], kernel_size=1)))
+                self.noise_convs.append(torch.nn.Conv1d(in_channels=1, out_channels=channels[i], kernel_size = 1))
+            else:
+                self.upsampler.append(torch.nn.Identity())
+                self.ups.append(weight_norm(torch.nn.ConvTranspose1d(upsample_initial_channel // (2**i), channels[i], kernel_size=k, stride=u, padding=(k - u) // 2)))
+                self.noise_convs.append(torch.nn.Conv1d(1, channels[i], kernel_size=stride_f0s[i] * 2 if stride_f0s[i] > 1 else 1, stride=stride_f0s[i], padding=stride_f0s[i] // 2))
 
         self.resblocks = torch.nn.ModuleList([ResBlock(channels[i], k, d) for i in range(len(self.ups)) for k, d in zip(resblock_kernel_sizes, resblock_dilation_sizes)])
         self.conv_post = torch.nn.Conv1d(channels[-1], 1, 7, 1, padding=3, bias=False)
+
         self.ups.apply(init_weights)
-
         if gin_channels != 0: self.cond = torch.nn.Conv1d(gin_channels, upsample_initial_channel, 1)
-
-        self.upp = math.prod(upsample_rates)
-        self.lrelu_slope = LRELU_SLOPE
 
     def forward(self, x, f0, g = None):
         har_source = self.m_source(f0, self.upp).transpose(1, 2)
         x = self.conv_pre(x)
-        if g is not None: x = x + self.cond(g)
+        if g is not None: x += self.cond(g)
 
-        for i, (ups, noise_convs) in enumerate(zip(self.ups, self.noise_convs)):
-            x = F.leaky_relu(x, self.lrelu_slope)
-            x = checkpoint.checkpoint(ups, x, use_reentrant=False) if self.training and self.checkpointing else ups(x)      
-            x += noise_convs(har_source)
+        for i, (ups, upr, noise_convs) in enumerate(zip(self.ups, self.upsampler, self.noise_convs)):
+            x = F.leaky_relu(x, LRELU_SLOPE)
+
+            if self.training and self.checkpointing:
+                if self.upp == 441: x = upr(x)
+                x = checkpoint(ups, x, use_reentrant=False)
+            else:
+                if self.upp == 441: x = upr(x)
+                x = ups(x)
+
+            h = noise_convs(har_source)
+            if self.upp == 441: h = torch.nn.functional.interpolate(h, size=x.shape[-1], mode="linear")
+            x += h
 
             def resblock_forward(x, blocks):
                 return sum(block(x) for block in blocks) / len(blocks)
             
             blocks = self.resblocks[i * self.num_kernels:(i + 1) * self.num_kernels]
-            x = checkpoint.checkpoint(resblock_forward, x, blocks, use_reentrant=False)if self.training and self.checkpointing else resblock_forward(x, blocks)
+            x = checkpoint(resblock_forward, x, blocks, use_reentrant=False) if self.training and self.checkpointing else resblock_forward(x, blocks)
 
         return torch.tanh(self.conv_post(F.leaky_relu(x)))
 
@@ -170,7 +185,6 @@ class LayerNorm(torch.nn.Module):
         self.channels = channels
         self.eps = eps
         self.onnx = onnx
-
         self.gamma = torch.nn.Parameter(torch.ones(channels))
         self.beta = torch.nn.Parameter(torch.zeros(channels))
 
@@ -362,9 +376,7 @@ class TextEncoder(torch.nn.Module):
         self.proj = torch.nn.Conv1d(hidden_channels, out_channels * 2, 1)
 
     def forward(self, phone, pitch, lengths):
-        x = self.emb_phone(phone) if pitch is None else (self.emb_phone(phone) + self.emb_pitch(pitch))
-        x = torch.transpose(self.lrelu((x * math.sqrt(self.hidden_channels))), 1, -1) 
-
+        x = torch.transpose(self.lrelu(((self.emb_phone(phone) if pitch is None else (self.emb_phone(phone) + self.emb_pitch(pitch))) * math.sqrt(self.hidden_channels))), 1, -1) 
         x_mask = torch.unsqueeze(sequence_mask(lengths, x.size(2)), 1).to(x.dtype)
         m, logs = torch.split((self.proj(self.encoder(x * x_mask, x_mask)) * x_mask), self.out_channels, dim=1)
 
@@ -476,10 +488,8 @@ class SynthesizerONNX(Synthesizer):
 
     def construct_spkmixmap(self, n_speaker):
         self.speaker_map = torch.zeros((n_speaker, 1, 1, self.gin_channels))
-
         for i in range(n_speaker):
             self.speaker_map[i] = self.emb_g(torch.LongTensor([[i]]))
-
         self.speaker_map = self.speaker_map.unsqueeze(0)
 
     def forward(self, phone, phone_lengths, g=None, rnd=None, pitch=None, nsff0=None, max_len=None):

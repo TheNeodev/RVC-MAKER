@@ -13,9 +13,10 @@ from pedalboard import Pedalboard, Chorus, Distortion, Reverb, PitchShift, Delay
 sys.path.append(os.getcwd())
 
 from main.configs.config import Config
-from main.library.utils import pydub_convert
+from main.library.utils import pydub_convert, pydub_load
 
 translations = Config().translations
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -82,12 +83,14 @@ def process_audio(input_path, output_path, resample, resample_sr, chorus_depth, 
     def bass_boost(audio, gain_db, frequency, sample_rate):
         if gain_db >= 1:
             b, a = butter(4, frequency / (0.5 * sample_rate), btype='low')
+
             return filtfilt(b, a, audio) * 10 ** (gain_db / 20)
         else: return audio
     
     def treble_boost(audio, gain_db, frequency, sample_rate):
         if gain_db >=1:
             b, a = butter(4, frequency / (0.5 * sample_rate), btype='high')
+            
             return filtfilt(b, a, audio) * 10 ** (gain_db / 20)
         else: return audio
 
@@ -122,9 +125,17 @@ def process_audio(input_path, output_path, resample, resample_sr, chorus_depth, 
     if os.path.exists(output_path): os.remove(output_path)
     
     try:
-        audio, sample_rate = sf.read(input_path)
+        input_path = input_path.strip(" ").strip('"').strip("\n").strip('"').strip(" ")
+        
+        try:
+            audio, sample_rate = sf.read(input_path)
+        except:
+            audio, sample_rate = librosa.load(input_path, sr=None)
     except Exception as e:
-        raise RuntimeError(translations["errors_loading_audio"].format(e=e))
+        raise RuntimeError(f"{translations['errors_loading_audio']}: {e}")
+    
+    audio = audio.flatten()
+
 
     try:
         board = Pedalboard([HighpassFilter()])
@@ -158,11 +169,10 @@ def process_audio(input_path, output_path, resample, resample_sr, chorus_depth, 
 
         sf.write(output_path.replace("wav", export_format), processed_audio, sample_rate, format=export_format)
 
-        if audio_combination: 
-            from pydub import AudioSegment
-            pydub_convert(AudioSegment.from_file(audio_combination_input)).overlay(pydub_convert(AudioSegment.from_file(output_path.replace("wav", export_format)))).export(output_path.replace("wav", export_format), format=export_format)
+        if audio_combination: pydub_convert(pydub_load(audio_combination_input)).overlay(pydub_convert(pydub_load(output_path.replace("wav", export_format)))).export(output_path.replace("wav", export_format), format=export_format)
     except Exception as e:
         raise RuntimeError(translations["apply_error"].format(e=e))
+    
     return output_path
 
 if __name__ == "__main__":

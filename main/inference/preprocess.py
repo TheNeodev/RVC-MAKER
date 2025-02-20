@@ -18,6 +18,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 sys.path.append(os.getcwd())
 
+from main.library.utils import load_audio
 from main.configs.config import Config
 
 logger = logging.getLogger(__name__)
@@ -40,17 +41,6 @@ def parse_arguments():
     parser.add_argument("--clean_strength", type=float, default=0.7)
 
     return parser.parse_args()
-
-def load_audio(file, sample_rate):
-    try:
-        audio, sr = sf.read(file.strip(" ").strip('"').strip("\n").strip('"').strip(" "))
-
-        if len(audio.shape) > 1: audio = librosa.to_mono(audio.T)
-        if sr != sample_rate: audio = librosa.resample(audio, orig_sr=sr, target_sr=sample_rate, res_type="soxr_vhq")
-    except Exception as e:
-        raise RuntimeError(f"{translations['errors_loading_audio']}: {e}")
-
-    return audio.flatten()
 
 class Slicer:
     def __init__(self, sr, threshold = -40.0, min_length = 5000, min_interval = 300, hop_size = 20, max_sil_kept = 5000):
@@ -173,7 +163,7 @@ class PreProcess:
 
     def process_audio(self, path, idx0, sid, cut_preprocess, process_effects, clean_dataset, clean_strength):
         try:
-            audio = load_audio(path, self.sr)
+            audio = load_audio(logger, path, self.sr)
 
             if process_effects: 
                 audio = signal.lfilter(self.b_high, self.a_high, audio)
