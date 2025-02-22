@@ -455,9 +455,9 @@ def save_drop_model(dropbox):
         shutil.rmtree(save_model_temp, ignore_errors=True)
 
 def download_pretrained_model(choices, model, sample_rate):
+    pretraineds_custom_path = os.path.join("assets", "models", "pretrained_custom")
     if choices == translations["list_model"]:
         paths = fetch_pretrained_data()[model][sample_rate]
-        pretraineds_custom_path = os.path.join("assets", "models", "pretrained_custom")
 
         if not os.path.exists(pretraineds_custom_path): os.makedirs(pretraineds_custom_path, exist_ok=True)
         url = codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/erfbyir/znva/cergenvarq_phfgbz/", "rot13") + paths
