@@ -531,6 +531,8 @@ def fushion_model_pth(name, pth_1, pth_2, ratio):
         cfg_version = ckpt1["version"]
         cfg_sr = ckpt1["sr"]
 
+        vocoder = ckpt1.get("vocoder", "Default")
+
         ckpt1 = extract(ckpt1) if "model" in ckpt1 else ckpt1["weight"]
         ckpt2 = extract(ckpt2) if "model" in ckpt2 else ckpt2["weight"]
 
@@ -554,6 +556,7 @@ def fushion_model_pth(name, pth_1, pth_2, ratio):
         opt["f0"] = cfg_f0
         opt["version"] = cfg_version
         opt["infos"] = translations["model_fushion_info"].format(name=name, pth_1=pth_1, pth_2=pth_2, ratio=ratio)
+        opt["vocoder"] = vocoder
 
         output_model = os.path.join("assets", "weights")
         if not os.path.exists(output_model): os.makedirs(output_model, exist_ok=True)
@@ -699,9 +702,10 @@ def model_info(path):
     creation_date_str = prettify_date(creation_date) if creation_date else translations["not_found_create_time"]
     model_name = model_data.get("model_name", translations["unregistered"])
     model_author = model_data.get("author", translations["not_author"])
+    vocoder = model_data.get("vocoder", "Default")
 
     gr_info(translations["success"])
-    return translations["model_info"].format(model_name=model_name, model_author=model_author, epochs=epochs, steps=steps, version=version, sr=sr, pitch_guidance=pitch_guidance, model_hash=model_hash, creation_date_str=creation_date_str)
+    return translations["model_info"].format(model_name=model_name, model_author=model_author, epochs=epochs, steps=steps, version=version, sr=sr, pitch_guidance=pitch_guidance, model_hash=model_hash, creation_date_str=creation_date_str, vocoder=vocoder)
 
 def audio_effects(input_path, output_path, resample, resample_sr, chorus_depth, chorus_rate, chorus_mix, chorus_delay, chorus_feedback, distortion_drive, reverb_room_size, reverb_damping, reverb_wet_level, reverb_dry_level, reverb_width, reverb_freeze_mode, pitch_shift, delay_seconds, delay_feedback, delay_mix, compressor_threshold, compressor_ratio, compressor_attack_ms, compressor_release_ms, limiter_threshold, limiter_release, gain_db, bitcrush_bit_depth, clipping_threshold, phaser_rate_hz, phaser_depth, phaser_centre_frequency_hz, phaser_feedback, phaser_mix, bass_boost_db, bass_boost_frequency, treble_boost_db, treble_boost_frequency, fade_in_duration, fade_out_duration, export_format, chorus, distortion, reverb, delay, compressor, limiter, gain, bitcrush, clipping, phaser, treble_bass_boost, fade_in_out, audio_combination, audio_combination_input):
     if not input_path or not os.path.exists(input_path) or os.path.isdir(input_path): 
