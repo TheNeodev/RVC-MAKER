@@ -137,7 +137,7 @@ class GeneratorNSF(torch.nn.Module):
             else:
                 self.upsampler.append(torch.nn.Identity())
                 self.ups.append(weight_norm(torch.nn.ConvTranspose1d(upsample_initial_channel // (2**i), channels[i], kernel_size=k, stride=u, padding=(k - u) // 2)))
-                self.noise_convs.append(torch.nn.Conv1d(1, channels[i], kernel_size=stride_f0s[i] * 2 if stride_f0s[i] > 1 else 1, stride=stride_f0s[i], padding=stride_f0s[i] // 2))
+                self.noise_convs.append(torch.nn.Conv1d(1, channels[i], kernel_size=stride_f0s[i] * 2 if stride_f0s[i] > 1 else 1, stride=stride_f0s[i], padding=(stride_f0s[i] // 2 if stride_f0s[i] > 1 else 0)))
 
         self.resblocks = torch.nn.ModuleList([ResBlock(channels[i], k, d) for i in range(len(self.ups)) for k, d in zip(resblock_kernel_sizes, resblock_dilation_sizes)])
         self.conv_post = torch.nn.Conv1d(channels[-1], 1, 7, 1, padding=3, bias=False)
