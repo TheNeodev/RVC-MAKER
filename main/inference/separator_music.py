@@ -115,6 +115,7 @@ def main():
 def separation(input_path, output_path, export_format, shifts, overlap, segments_size, model_name, sample_rate, mdx_denoise, hop_length, batch_size, backing, reverb, kara_model, backing_reverb, clean_audio, clean_strength):
     filename, _ = os.path.splitext(os.path.basename(input_path))
     output_path = os.path.join(output_path, filename)
+    os.makedirs(output_path, exist_ok=True)
 
     if model_name in ["HT-Tuned", "HT-Normal", "HD_MMI", "HT_6S"]: vocals, _ = separator_music_demucs(input_path, output_path, export_format, shifts, overlap, segments_size, model_name, sample_rate)
     else: vocals, _ = separator_music_mdx(input_path, output_path, export_format, segments_size, overlap, mdx_denoise, model_name, hop_length, batch_size, sample_rate)
@@ -280,7 +281,6 @@ def separator_reverb(output, format, segments_size, overlap, denoise, original, 
             start_title, end_title = translations["process_backing"], translations["process_backing_success"]
 
         logger.info(start_title)
-
         output_dereveb = separator_main(audio_file=path, model_filename="Reverb_HQ_By_FoxJoy.onnx", output_format=format, output_dir=output, mdx_segment_size=segments_size, mdx_overlap=overlap, mdx_batch_size=batch_size, mdx_hop_length=hop_length, mdx_enable_denoise=denoise, sample_rate=sample_rate)
 
         for f in output_dereveb:
