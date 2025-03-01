@@ -76,6 +76,9 @@ def main():
             logger.warning(translations["turn_on_separator_backing"])
             sys.exit(1)
 
+        input_path = input_path.strip(" ").strip('"').strip("\n").strip('"').strip(" ")
+        output_path = os.path.dirname(output_path) or output_path
+
         log_data = {translations['audio_path']: input_path, translations['output_path']: output_path, translations['export_format']: export_format, translations['shift']: shifts, translations['segments_size']: segments_size, translations['overlap']: overlap, translations['modelname']: model_name, translations['denoise_mdx']: mdx_denoise, "Hop length": hop_length, translations['batch_size']: batch_size, translations['sr']: sample_rate}
 
         if clean_audio:
@@ -93,36 +96,11 @@ def main():
         for key, value in log_data.items():
             logger.debug(f"{key}: {value}")
 
-        input_path = input_path.strip(" ").strip('"').strip("\n").strip('"').strip(" ")
+        if os.path.isdir(input_path):
+            for f in input_path:
+                separation(f, output_path, export_format, shifts, overlap, segments_size, model_name, sample_rate, mdx_denoise, hop_length, batch_size, backing, reverb, kara_model, backing_reverb, clean_audio, clean_strength)
+        else: separation(input_path, output_path, export_format, shifts, overlap, segments_size, model_name, sample_rate, mdx_denoise, hop_length, batch_size, backing, reverb, kara_model, backing_reverb, clean_audio, clean_strength)
 
-        if model_name in ["HT-Tuned", "HT-Normal", "HD_MMI", "HT_6S"]: vocals, instruments = separator_music_demucs(input_path, output_path, export_format, shifts, overlap, segments_size, model_name, sample_rate)
-        else: vocals, instruments = separator_music_mdx(input_path, output_path, export_format, segments_size, overlap, mdx_denoise, model_name, hop_length, batch_size, sample_rate)
-
-        if backing: main_vocals, backing_vocals = separator_backing(vocals, output_path, export_format, segments_size, overlap, mdx_denoise, kara_model, hop_length, batch_size, sample_rate)
-        if reverb: vocals_no_reverb, main_vocals_no_reverb, backing_vocals_no_reverb = separator_reverb(output_path, export_format, segments_size, overlap, mdx_denoise, reverb, backing_reverb, hop_length, batch_size, sample_rate)
-
-        original_output = os.path.join(output_path, f"Original_Vocals_No_Reverb.{export_format}") if reverb else os.path.join(output_path, f"Original_Vocals.{export_format}")
-        main_output = os.path.join(output_path, f"Main_Vocals_No_Reverb.{export_format}") if reverb and backing_reverb else os.path.join(output_path, f"Main_Vocals.{export_format}")
-        backing_output = os.path.join(output_path, f"Backing_Vocals_No_Reverb.{export_format}") if reverb and backing_reverb else os.path.join(output_path, f"Backing_Vocals.{export_format}")
-        
-        if clean_audio:
-            import soundfile as sf
-            
-            logger.info(f"{translations['clear_audio']}...")
-
-            vocal_data, vocal_sr = sf.read(vocals_no_reverb if reverb else vocals)
-            main_data, main_sr = sf.read(main_vocals_no_reverb if reverb and backing else main_vocals)
-            backing_data, backing_sr = sf.read(backing_vocals_no_reverb if reverb and backing_reverb else backing_vocals)
-
-            from main.tools.noisereduce import reduce_noise
-            sf.write(original_output, reduce_noise(y=vocal_data, prop_decrease=clean_strength), vocal_sr, format=export_format, device=config.device)
-
-            if backing:
-                sf.write(main_output, reduce_noise(y=main_data, sr=main_sr, prop_decrease=clean_strength), main_sr, format=export_format, device=config.device)
-                sf.write(backing_output, reduce_noise(y=backing_data, sr=backing_sr, prop_decrease=clean_strength), backing_sr, format=export_format, device=config.device)  
-
-            logger.info(translations["clean_audio_success"])
-            return original_output, instruments, main_output, backing_output
     except Exception as e:
         logger.error(f"{translations['separator_error']}: {e}")
 
@@ -134,6 +112,38 @@ def main():
     elapsed_time = time.time() - start_time
     logger.info(translations["separator_success"].format(elapsed_time=f"{elapsed_time:.2f}"))
 
+def separation(input_path, output_path, export_format, shifts, overlap, segments_size, model_name, sample_rate, mdx_denoise, hop_length, batch_size, backing, reverb, kara_model, backing_reverb, clean_audio, clean_strength):
+    filename, _ = os.path.splitext(os.path.basename(input_path))
+    output_path = os.path.join(output_path, filename)
+
+    if model_name in ["HT-Tuned", "HT-Normal", "HD_MMI", "HT_6S"]: vocals, _ = separator_music_demucs(input_path, output_path, export_format, shifts, overlap, segments_size, model_name, sample_rate)
+    else: vocals, _ = separator_music_mdx(input_path, output_path, export_format, segments_size, overlap, mdx_denoise, model_name, hop_length, batch_size, sample_rate)
+
+    if backing: main_vocals, backing_vocals = separator_backing(vocals, output_path, export_format, segments_size, overlap, mdx_denoise, kara_model, hop_length, batch_size, sample_rate)
+    if reverb: vocals_no_reverb, main_vocals_no_reverb, backing_vocals_no_reverb = separator_reverb(output_path, export_format, segments_size, overlap, mdx_denoise, reverb, backing_reverb, hop_length, batch_size, sample_rate)
+
+    original_output = os.path.join(output_path, f"Original_Vocals_No_Reverb.{export_format}") if reverb else os.path.join(output_path, f"Original_Vocals.{export_format}")
+    main_output = os.path.join(output_path, f"Main_Vocals_No_Reverb.{export_format}") if reverb and backing_reverb else os.path.join(output_path, f"Main_Vocals.{export_format}")
+    backing_output = os.path.join(output_path, f"Backing_Vocals_No_Reverb.{export_format}") if reverb and backing_reverb else os.path.join(output_path, f"Backing_Vocals.{export_format}")
+    
+    if clean_audio:
+        import soundfile as sf
+        
+        logger.info(f"{translations['clear_audio']}...")
+
+        vocal_data, vocal_sr = sf.read(vocals_no_reverb if reverb else vocals)
+        main_data, main_sr = sf.read(main_vocals_no_reverb if reverb and backing else main_vocals)
+        backing_data, backing_sr = sf.read(backing_vocals_no_reverb if reverb and backing_reverb else backing_vocals)
+
+        from main.tools.noisereduce import reduce_noise
+        sf.write(original_output, reduce_noise(y=vocal_data, prop_decrease=clean_strength), vocal_sr, format=export_format, device=config.device)
+
+        if backing:
+            sf.write(main_output, reduce_noise(y=main_data, sr=main_sr, prop_decrease=clean_strength), main_sr, format=export_format, device=config.device)
+            sf.write(backing_output, reduce_noise(y=backing_data, sr=backing_sr, prop_decrease=clean_strength), backing_sr, format=export_format, device=config.device)  
+
+        logger.info(translations["clean_audio_success"])
+        
 def separator_music_demucs(input, output, format, shifts, overlap, segments_size, demucs_model, sample_rate):
     if not os.path.exists(input): 
         logger.warning(translations["input_not_valid"])

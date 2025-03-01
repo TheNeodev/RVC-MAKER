@@ -2,6 +2,6 @@
 setlocal
 title Vietnamese RVC By Anh
 
-env\\Scripts\\python.exe main\\app\\app.py
+env\\Scripts\\python.exe main\\app\\app.py --app --allow_all_disk
 echo.
 pause

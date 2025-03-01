@@ -7,8 +7,6 @@ import argparse
 import logging.handlers
 
 import numpy as np
-import soundfile as sf
-import multiprocessing as mp
 
 from tqdm import tqdm
 from scipy import signal
@@ -64,7 +62,6 @@ class Slicer:
     def slice(self, waveform):
         samples = waveform.mean(axis=0) if len(waveform.shape) > 1 else waveform
         if samples.shape[0] <= self.min_length: return [waveform]
-
         rms_list = get_rms(y=samples, frame_length=self.win_size, hop_length=self.hop_size).squeeze(0)
         sil_tags = []
         silence_start, clip_start = None, 0
@@ -85,12 +82,10 @@ class Slicer:
 
             if i - silence_start <= self.max_sil_kept:
                 pos = rms_list[silence_start : i + 1].argmin() + silence_start
-
                 sil_tags.append((0, pos) if silence_start == 0 else (pos, pos))   
                 clip_start = pos
             elif i - silence_start <= self.max_sil_kept * 2:
                 pos = rms_list[i - self.max_sil_kept : silence_start + self.max_sil_kept + 1].argmin()
-
                 pos += i - self.max_sil_kept
                 pos_r = (rms_list[i - self.max_sil_kept : i + 1].argmin() + i - self.max_sil_kept)
 
@@ -102,7 +97,6 @@ class Slicer:
                     clip_start = max(pos_r, pos)
             else:
                 pos_r = (rms_list[i - self.max_sil_kept : i + 1].argmin() + i - self.max_sil_kept)
-
                 sil_tags.append((0, pos_r) if silence_start == 0 else ((rms_list[silence_start : silence_start + self.max_sil_kept + 1].argmin() + silence_start), pos_r))
                 clip_start = pos_r
 
@@ -124,15 +118,11 @@ class Slicer:
 def get_rms(y, frame_length=2048, hop_length=512, pad_mode="constant"):
     y = np.pad(y, (int(frame_length // 2), int(frame_length // 2)), mode=pad_mode)
     axis = -1
-
     x_shape_trimmed = list(y.shape)
     x_shape_trimmed[axis] -= frame_length - 1
-
     xw = np.moveaxis(np.lib.stride_tricks.as_strided(y, shape=tuple(x_shape_trimmed) + tuple([frame_length]), strides=y.strides + tuple([y.strides[axis]])), -1, axis - 1 if axis < 0 else axis + 1)
-
     slices = [slice(None)] * xw.ndim
     slices[axis] = slice(0, None, hop_length)
-
     return np.sqrt(np.mean(np.abs(xw[tuple(slices)]) ** 2, axis=-2, keepdims=True))
 
 class PreProcess:
@@ -217,7 +207,7 @@ def preprocess_training_set(input_root, sr, num_processes, exp_dir, per, cut_pre
         except ValueError:
             raise ValueError(f"{translations['not_integer']} '{os.path.basename(root)}'.")
 
-    with tqdm(total=len(files), desc=translations["preprocess"], ncols=100, unit="f") as pbar:
+    with tqdm(total=len(files), ncols=100, unit="f") as pbar:
         with ProcessPoolExecutor(max_workers=num_processes) as executor:
             futures = [executor.submit(process_file, (pp, file, cut_preprocess, process_effects, clean_dataset, clean_strength)) for file in files]
             for future in as_completed(futures):
@@ -235,7 +225,7 @@ if __name__ == "__main__":
     args = parse_arguments()
     experiment_directory = os.path.join("assets", "logs", args.model_name)
     num_processes = args.cpu_cores
-    num_processes = mp.cpu_count() if num_processes is None else int(num_processes)
+    num_processes = 2 if num_processes is None else int(num_processes)
     dataset = args.dataset_path
     sample_rate = args.sample_rate
     cut_preprocess = args.cut_preprocess

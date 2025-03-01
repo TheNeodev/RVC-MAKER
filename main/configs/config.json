@@ -19,6 +19,7 @@
     "read_tab": true,
     "onnx_tab": true,
     "downloads_tab": true,
+    "f0_extractor_tab": true,
     "settings_tab": true,
     "report_bug_tab": true,
 

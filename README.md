@@ -45,7 +45,9 @@ Dự án này là một công cụ chuyển đổi giọng nói đơn giản, d�
 
 - Nhiều tùy chọn mô hình:
 
-F0: `pm, dio, mangio-crepe-tiny, mangio-crepe-tiny-onnx, mangio-crepe-small, mangio-crepe-small-onnx, mangio-crepe-medium, mangio-crepe-medium-onnx, mangio-crepe-large, mangio-crepe-large-onnx, mangio-crepe-full, mangio-crepe-full-onnx, crepe-tiny, crepe-tiny-onnx, crepe-small, crepe-small-onnx, crepe-medium, crepe-medium-onnx, crepe-large, crepe-large-onnx, crepe-full, crepe-full-onnx, fcpe, fcpe-onnx, fcpe-legacy, fcpe-legacy-onnx, rmvpe, rmvpe-onnx, rmvpe-legacy, rmvpe-legacy-onnx, harvest, yin, pyin`
+F0: `pm, diow, dio, mangio-crepe-tiny, mangio-crepe-small, mangio-crepe-medium, mangio-crepe-large, mangio-crepe-full, crepe-tiny, crepe-small, crepe-medium, crepe-large, crepe-full, fcpe, fcpe-legacy, rmvpe, rmvpe-legacy, harvestw, harvest, yin, pyin, swipe`
+
+F0_ONNX: Một số mô hình được chuyển đổi sang ONNX để hỗ trợ tăng tốc trích xuất
 
 F0_HYBRID: Có thể kết hợp nhiều tùy chọn lại với nhau như `hybrid[rmvpe+harvest]` hoặc bạn có thể thử kết hợp toàn bộ tất cả tùy chọn lại với nhau
 
@@ -65,12 +67,14 @@ EMBEDDERS: `contentvec_base.pt, contentvec_base.onnx, hubert_base.pt, japanese_h
 ```
 python -m venv env
 env\\Scripts\\activate
+python -m pip install pywebview
 python -m pip install -r requirements.txt
 ```
 - B5: **Chạy tệp run_app để mở giao diện sử dụng(Lưu ý: không tắt Command Prompt hoặc Terminal của giao diện)**
 - Hoặc sử dụng cửa sổ Command Prompt hoặc cửa sổ Terminal trong thư mục mã nguồn
+- Nếu muốn cho phép giao diện truy cập được các tệp ngoài dự án hãy thêm --allow_all_disk vào lệnh
 ```
-env\\Scripts\\python.exe main\\app\\app.py
+env\\Scripts\\python.exe main\\app\\app.py --app
 ```
 
 **Với trường hợp bạn sử dụng Tensorboard để kiểm tra huấn luyện**
@@ -79,6 +83,8 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 ```
 
 # Các đường dẫn thư mục chính của mã nguồn:
+
+`assets\\f0`: **Thư mục chứa các tệp trích xuất F0**
 
 `assets\\languages`: **Thư mục chứa các tệp ngôn ngữ**
 
@@ -148,19 +154,29 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 
 `main\\library\\algorithm\\separator.py`: **Tệp tin thuật toán tách nhạc chính của DEMUCS\MDX**
 
+`main\\library\\algorithm\\stftpitchshift.py`: **Tệp tin thuật toán dịch chuyển cao độ và âm sắc**
+
 `main\\library\\algorithm\\synthesizers.py`: **Tệp tin thuật toán tổng hợp**
 
 `main\\library\\architectures\\demucs_separator.py`: **Tệp tin cấu trúc của bộ tách nhạc Demucs**
 
 `main\\library\\architectures\\mdx_separator.py`: **Tệp tin cấu trúc của bộ tách nhạc MDX**
 
-`main\\library\\predictors\\CREPE.py`: **Tệp tin bộ trích xuất cao độ F0 CREPE và CREPE-TINY**
+`main\\library\\predictors\\pyworld\\dio.py`: **Tệp tin thuật toán trích xuất cao độ DIO**
+
+`main\\library\\predictors\\pyworld\\harvest.py`: **Tệp tin thuật toán trích xuất cao độ HARVEST**
+
+`main\\library\\predictors\\pyworld\\stonemask.py`: **Tệp tin bộ cải thiện độ chính xác F0 dành cho thuật toán trích xuất F0 HARVEST và DIO**
+
+`main\\library\\predictors\\pyworld\\`: **Tệp tin bộ trích xuất cao độ F0 CREPE và CREPE-TINY**
 
 `main\\library\\predictors\\FCPE.py`: **Tệp tin bộ trích xuất cao độ F0 FCPE**
 
 `main\\library\\predictors\\RMVPE.py`: **Tệp tin bộ trích xuất cao độ F0 RMVPE**
 
-`main\\library\\predictors\\WORLD.py`: **Tệp tin bộ trích xuất cao độ F0 HARVEST VÀ DIO**
+`main\\library\\predictors\\SWIPE.py`: **Tệp tin thuật toán trích xuất cao độ F0 SWIPE**
+
+`main\\library\\predictors\\WORLD_WRAPPER.py`: **Tệp tin trình bao bộc trích xuất cao độ F0 HARVEST VÀ DIO**
 
 `main\\library\\uvr5_separator\\demucs\\apply.py`: **Tệp tin áp dụng dành riêng cho DEMUCS**
 
@@ -198,6 +214,7 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 
 # LƯU Ý
 
+- **Dự án này chỉ hỗ trợ trên gpu của NVIDIA (Có thể sẽ hỗ trợ AMD sau nếu tôi có gpu AMD để thử)**
 - **Hiện tại các bộ mã hóa mới như MRF HIFIGAN và REFINEGAN vẫn chưa đầy đủ các bộ huấn luyện trước**
 - **Bộ mã hóa MRF HIFIGAN và REFINEGAN không hỗ trợ huấn luyện khi không không huấn luyện cao độ**
 - **MRF HIFIGAN và REFINEGAN chưa có bất cứ huấn luyện trước nào**
@@ -224,11 +241,12 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 - **[Torch-Onnx-Crepe-By-Anh](https://github.com/PhamHuynhAnh16/TORCH-ONNX-CREPE)**
 - **[Local-attention](https://github.com/lucidrains/local-attention)**
 - **[TorchFcpe](https://github.com/CNChTu/FCPE/tree/main)**
-- **[FcpeONNX](https://huggingface.co/deiteris/weights/tree/main)**
+- **[FcpeONNX](https://github.com/deiteris/voice-changer/blob/master-custom/server/utils/fcpe_onnx.py)**
 - **[ContentVec](https://github.com/auspicious3000/contentvec)**
 - **[Mediafiredl](https://github.com/Gann4Life/mediafiredl)**
 - **[Noisereduce](https://github.com/timsainb/noisereduce)**
 - **[World.py-By-Anh](https://github.com/PhamHuynhAnh16/world.py)**
+- **[Python-WORLD](https://github.com/tuanad121/Python-WORLD)**
 - **[Mega.py](https://github.com/odwyersoftware/mega.py)**
 - **[Edge-TTS](https://github.com/rany2/edge-tts)**
 - **[Gdown](https://github.com/wkentaro/gdown)**

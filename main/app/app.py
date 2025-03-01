@@ -58,17 +58,29 @@ python = sys.executable
 translations = config.translations 
 configs_json = os.path.join("main", "configs", "config.json")
 configs = json.load(open(configs_json, "r"))
+
 models, model_options = {}, {}
-method_f0 = ["pm", "dio", "mangio-crepe-tiny", "mangio-crepe-tiny-onnx", "mangio-crepe-small", "mangio-crepe-small-onnx", "mangio-crepe-medium", "mangio-crepe-medium-onnx", "mangio-crepe-large", "mangio-crepe-large-onnx", "mangio-crepe-full", "mangio-crepe-full-onnx", "crepe-tiny", "crepe-tiny-onnx", "crepe-small", "crepe-small-onnx", "crepe-medium", "crepe-medium-onnx", "crepe-large", "crepe-large-onnx", "crepe-full", "crepe-full-onnx", "fcpe", "fcpe-onnx", "fcpe-legacy", "fcpe-legacy-onnx", "rmvpe", "rmvpe-onnx", "rmvpe-legacy", "rmvpe-legacy-onnx", "harvest", "yin", "pyin"]
+method_f0 = ["pm", "diow", "dio", "mangio-crepe-tiny", "mangio-crepe-small", "mangio-crepe-medium", "mangio-crepe-large", "mangio-crepe-full", "crepe-tiny", "crepe-small", "crepe-medium", "crepe-large", "crepe-full", "fcpe", "fcpe-legacy", "rmvpe", "rmvpe-legacy", "harvestw", "harvest", "yin", "pyin", "swipe"]
+
 paths_for_files = sorted([os.path.abspath(os.path.join(root, f)) for root, _, files in os.walk("audios") for f in files if os.path.splitext(f)[1].lower() in (".wav", ".mp3", ".flac", ".ogg", ".opus", ".m4a", ".mp4", ".aac", ".alac", ".wma", ".aiff", ".webm", ".ac3")])
 model_name, index_path, delete_index = sorted(list(model for model in os.listdir(os.path.join("assets", "weights")) if model.endswith((".pth", ".onnx")) and not model.startswith("G_") and not model.startswith("D_"))), sorted([os.path.join(root, name) for root, _, files in os.walk(os.path.join("assets", "logs"), topdown=False) for name in files if name.endswith(".index")]), sorted([os.path.join("assets", "logs", f) for f in os.listdir(os.path.join("assets", "logs")) if "mute" not in f and os.path.isdir(os.path.join("assets", "logs", f))])
 pretrainedD, pretrainedG, Allpretrained = ([model for model in os.listdir(os.path.join("assets", "models", "pretrained_custom")) if model.endswith(".pth") and "D" in model], [model for model in os.listdir(os.path.join("assets", "models", "pretrained_custom")) if model.endswith(".pth") and "G" in model], [os.path.join("assets", "models", path, model) for path in ["pretrained_v1", "pretrained_v2", "pretrained_custom"] for model in os.listdir(os.path.join("assets", "models", path)) if model.endswith(".pth") and ("D" in model or "G" in model)])
 separate_model = sorted([os.path.join("assets", "models", "uvr5", models) for models in os.listdir(os.path.join("assets", "models", "uvr5")) if models.endswith((".th", ".yaml", ".onnx"))])
 presets_file = sorted(list(f for f in os.listdir(os.path.join("assets", "presets")) if f.endswith(".json")))
+f0_file = sorted([os.path.abspath(os.path.join(root, f)) for root, _, files in os.walk(os.path.join("assets", "f0")) for f in files if f.endswith(".txt")])
+
 language, theme, edgetts, google_tts_voice, mdx_model, uvr_model = configs.get("language", "vi-VN"), configs.get("theme", "NoCrypt/miku"), configs.get("edge_tts", ["vi-VN-HoaiMyNeural", "vi-VN-NamMinhNeural"]), configs.get("google_tts_voice", ["vi", "en"]), configs.get("mdx_model", "MDXNET_Main"), (configs.get("demucs_model", "HD_MMI") + configs.get("mdx_model", "MDXNET_Main"))
 miku_image = codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/erfbyir/znva/zvxh.cat", "rot13")
 csv_path = os.path.join("assets", "spreadsheet.csv")
 
+logger.info(config.device)
+
+app_mode = "--app" in sys.argv
+
+if "--allow_all_disk" in sys.argv:
+    import win32api
+    allow_disk = win32api.GetLogicalDriveStrings().split('\x00')[:-1]
+else: allow_disk = []
 
 if language == "vi-VN": gradio.strings.en = {"RUNNING_LOCALLY": "* Chạy trên liên kết nội bộ:  {}://{}:{}", "RUNNING_LOCALLY_SSR": "* Chạy trên liên kết nội bộ:  {}://{}:{}, với SSR ⚡ (thử nghiệm, để tắt hãy dùng `ssr=False` trong `launch()`)", "SHARE_LINK_DISPLAY": "* Chạy trên liên kết công khai: {}", "COULD_NOT_GET_SHARE_LINK": "\nKhông thể tạo liên kết công khai. Vui lòng kiểm tra kết nối mạng của bạn hoặc trang trạng thái của chúng tôi: https://status.gradio.app.", "COULD_NOT_GET_SHARE_LINK_MISSING_FILE": "\nKhông thể tạo liên kết công khai. Thiếu tập tin: {}. \n\nVui lòng kiểm tra kết nối internet của bạn. Điều này có thể xảy ra nếu phần mềm chống vi-rút của bạn chặn việc tải xuống tệp này. Bạn có thể cài đặt thủ công bằng cách làm theo các bước sau: \n\n1. Tải xuống tệp này: {}\n2. Đổi tên tệp đã tải xuống thành: {}\n3. Di chuyển tệp đến vị trí này: {}", "COLAB_NO_LOCAL": "Không thể hiển thị giao diện nội bộ trên google colab, liên kết công khai đã được tạo.", "PUBLIC_SHARE_TRUE": "\nĐể tạo một liên kết công khai, hãy đặt `share=True` trong `launch()`.", "MODEL_PUBLICLY_AVAILABLE_URL": "Mô hình được cung cấp công khai tại: {} (có thể mất tới một phút để sử dụng được liên kết)", "GENERATING_PUBLIC_LINK": "Đang tạo liên kết công khai (có thể mất vài giây...):", "BETA_INVITE": "\nCảm ơn bạn đã là người dùng Gradio! Nếu bạn có thắc mắc hoặc phản hồi, vui lòng tham gia máy chủ Discord của chúng tôi và trò chuyện với chúng tôi: https://discord.gg/feTf9x3ZSB", "COLAB_DEBUG_TRUE": "Đã phát hiện thấy sổ tay Colab. Ô này sẽ chạy vô thời hạn để bạn có thể xem lỗi và nhật ký. " "Để tắt, hãy đặt debug=False trong launch().", "COLAB_DEBUG_FALSE": "Đã phát hiện thấy sổ tay Colab. Để hiển thị lỗi trong sổ ghi chép colab, hãy đặt debug=True trong launch()", "COLAB_WARNING": "Lưu ý: việc mở Chrome Inspector có thể làm hỏng bản demo trong sổ tay Colab.", "SHARE_LINK_MESSAGE": "\nLiên kết công khai sẽ hết hạn sau 72 giờ. Để nâng cấp GPU và lưu trữ vĩnh viễn miễn phí, hãy chạy `gradio deploy` từ terminal trong thư mục làm việc để triển khai lên huggingface (https://huggingface.co/spaces)", "INLINE_DISPLAY_BELOW": "Đang tải giao diện bên dưới...", "COULD_NOT_GET_SHARE_LINK_CHECKSUM": "\nKhông thể tạo liên kết công khai. Tổng kiểm tra không khớp cho tập tin: {}."}
 if not os.path.exists(os.path.join("assets", "miku.png")): huggingface.HF_download_file(miku_image, os.path.join("assets", "miku.png"))
@@ -89,7 +101,6 @@ for _, row in cached_data.iterrows():
 
     if url: models[filename] = url
 
-
 def gr_info(message):
     gr.Info(message, duration=2)
     logger.info(message)
@@ -108,8 +119,13 @@ def get_gpu_info():
 
     return "\n".join(gpu_infos) if len(gpu_infos) > 0 else translations["no_support_gpu"]
 
+def change_f0_choices(): 
+    f0_file = sorted([os.path.abspath(os.path.join(root, f)) for root, _, files in os.walk(os.path.join("assets", "f0")) for f in files if f.endswith(".txt")])
+    return {"value": f0_file[0] if len(f0_file) >= 1 else None, "choices": f0_file, "__type__": "update"}
+
 def change_audios_choices(): 
-    return {"value": "", "choices": sorted([os.path.abspath(os.path.join(root, f)) for root, _, files in os.walk("audios") for f in files if os.path.splitext(f)[1].lower() in (".wav", ".mp3", ".flac", ".ogg", ".opus", ".m4a", ".mp4", ".aac", ".alac", ".wma", ".aiff", ".webm", ".ac3")]), "__type__": "update"}
+    audios = sorted([os.path.abspath(os.path.join(root, f)) for root, _, files in os.walk("audios") for f in files if os.path.splitext(f)[1].lower() in (".wav", ".mp3", ".flac", ".ogg", ".opus", ".m4a", ".mp4", ".aac", ".alac", ".wma", ".aiff", ".webm", ".ac3")])
+    return {"value": audios[0] if len(audios) >= 1 else None, "choices": audios, "__type__": "update"}
 
 def change_separate_choices():
     return [{"choices": sorted([os.path.join("assets", "models", "uvr5", models) for models in os.listdir(os.path.join("assets", "models", "uvr5")) if model.endswith((".th", ".yaml", ".onnx"))]), "__type__": "update"}]
@@ -166,7 +182,7 @@ def index_strength_show(index):
     return {"visible": index and os.path.exists(index), "value": 0.5, "__type__": "update"}
 
 def hoplength_show(method, hybrid_method=None):
-    show_hop_length_method = ["mangio-crepe-tiny", "mangio-crepe-tiny-onnx", "mangio-crepe-small", "mangio-crepe-small-onnx", "mangio-crepe-medium", "mangio-crepe-medium-onnx", "mangio-crepe-large", "mangio-crepe-large-onnx", "mangio-crepe-full", "mangio-crepe-full-onnx", "fcpe", "fcpe-onnx", "fcpe-legacy", "fcpe-legacy-onnx", "yin", "pyin"]
+    show_hop_length_method = ["mangio-crepe-tiny", "mangio-crepe-small", "mangio-crepe-medium", "mangio-crepe-large", "mangio-crepe-full", "fcpe", "fcpe-legacy", "yin", "pyin"]
 
     if method in show_hop_length_method: visible = True
     elif method == "hybrid":
@@ -219,7 +235,7 @@ def restart_app():
     os.system("cls" if platform.system() == "Windows" else "clear")
     
     app.close()
-    os.system(f"{python} {os.path.join('main', 'app', 'app.py')} --share")
+    os.system(f"{python} {os.path.join('main', 'app', 'app.py')} {sys.argv}")
 
 def change_language(lang):
     with open(configs_json, "r") as f:
@@ -245,7 +261,7 @@ def zip_file(name, pth, index):
     pth_path = os.path.join("assets", "weights", pth)
     if not pth or not os.path.exists(pth_path) or not pth.endswith((".pth", ".onnx")): return gr_warning(translations["provide_file"].format(filename=translations["model"]))
 
-    zip_file_path = os.path.join("assets", name + ".zip")
+    zip_file_path = os.path.join("assets", "logs", pth.replace(".pth", ""), name + ".zip")
     gr_info(translations["start"].format(start=translations["zip"]))
 
     import zipfile
@@ -769,9 +785,6 @@ def separator_music(input, output_audio, format, shifts, segments_size, overlap,
     if not os.path.exists(output): 
         gr_warning(translations["output_not_valid"])
         return [None]*4
-    
-    filename, _ = os.path.splitext(os.path.basename(input))
-    output = os.path.join(output, filename)
 
     if not os.path.exists(output): os.makedirs(output)
     gr_info(translations["start"].format(start=translations["separator_music"]))
@@ -779,12 +792,12 @@ def separator_music(input, output_audio, format, shifts, segments_size, overlap,
     os.system(f'{python} main/inference/separator_music.py --input_path "{input}" --output_path "{output}" --format {format} --shifts {shifts} --segments_size {segments_size} --overlap {overlap} --mdx_hop_length {hop_length} --mdx_batch_size {batch_size} --clean_audio {clean_audio} --clean_strength {clean_strength} --kara_model {kara_model} --backing {backing} --mdx_denoise {denoise} --reverb {reverb} --backing_reverb {backing_reverb} --model_name "{separator_model}" --sample_rate {sample_rate}')
     gr_info(translations["success"])
 
-    return [os.path.join(output, f"Original_Vocals_No_Reverb.{format}") if reverb else os.path.join(output, f"Original_Vocals.{format}"), os.path.join(output, f"Instruments.{format}"), (os.path.join(output, f"Main_Vocals_No_Reverb.{format}") if reverb else os.path.join(output, f"Main_Vocals.{format}") if backing else None), (os.path.join(output, f"Backing_Vocals_No_Reverb.{format}") if backing_reverb else os.path.join(output, f"Backing_Vocals.{format}") if backing else None)]
+    return [os.path.join(output, f"Original_Vocals_No_Reverb.{format}") if reverb else os.path.join(output, f"Original_Vocals.{format}"), os.path.join(output, f"Instruments.{format}"), (os.path.join(output, f"Main_Vocals_No_Reverb.{format}") if reverb else os.path.join(output, f"Main_Vocals.{format}") if backing else None), (os.path.join(output, f"Backing_Vocals_No_Reverb.{format}") if backing_reverb else os.path.join(output, f"Backing_Vocals.{format}") if backing else None)] if os.path.isfile(input) else [None]*4
 
-def convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0_method, input_path, output_path, pth_path, index_path, f0_autotune, clean_audio, clean_strength, export_format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing):    
-    os.system(f'{python} main/inference/convert.py --pitch {pitch} --filter_radius {filter_radius} --index_rate {index_rate} --volume_envelope {volume_envelope} --protect {protect} --hop_length {hop_length} --f0_method {f0_method} --input_path "{input_path}" --output_path "{output_path}" --pth_path "{pth_path}" --index_path "{index_path}" --f0_autotune {f0_autotune} --clean_audio {clean_audio} --clean_strength {clean_strength} --export_format {export_format} --embedder_model {embedder_model} --resample_sr {resample_sr} --split_audio {split_audio} --f0_autotune_strength {f0_autotune_strength} --checkpointing {checkpointing}')
+def convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0_method, input_path, output_path, pth_path, index_path, f0_autotune, clean_audio, clean_strength, export_format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file):    
+    os.system(f'{python} main/inference/convert.py --pitch {pitch} --filter_radius {filter_radius} --index_rate {index_rate} --volume_envelope {volume_envelope} --protect {protect} --hop_length {hop_length} --f0_method {f0_method} --input_path "{input_path}" --output_path "{output_path}" --pth_path "{pth_path}" --index_path "{index_path}" --f0_autotune {f0_autotune} --clean_audio {clean_audio} --clean_strength {clean_strength} --export_format {export_format} --embedder_model {embedder_model} --resample_sr {resample_sr} --split_audio {split_audio} --f0_autotune_strength {f0_autotune_strength} --checkpointing {checkpointing} --f0_onnx {onnx_f0_mode} --formant_shifting {formant_shifting} --formant_qfrency {formant_qfrency} --formant_timbre {formant_timbre} --f0_file "{f0_file}"')
 
-def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not_merge_backing, merge_instrument, pitch, clean_strength, model, index, index_rate, input, output, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, input_audio_name, checkpointing):
+def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not_merge_backing, merge_instrument, pitch, clean_strength, model, index, index_rate, input, output, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, input_audio_name, checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file):
     model_path = os.path.join("assets", "weights", model)
     return_none = [None]*6
     return_none[5] = {"visible": True, "__type__": "update"}
@@ -855,7 +868,7 @@ def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not
 
         gr_info(translations["convert_vocal"])
 
-        convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0method, input_path, output_path, model_path, index, autotune, clean, clean_strength, format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing)
+        convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0method, input_path, output_path, model_path, index, autotune, clean, clean_strength, format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file)
 
         gr_info(translations["convert_success"])
 
@@ -864,7 +877,7 @@ def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not
 
             gr_info(translations["convert_backup"])
 
-            convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0method, backing_path, output_backing, model_path, index, autotune, clean, clean_strength, format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing)
+            convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0method, backing_path, output_backing, model_path, index, autotune, clean, clean_strength, format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file)
 
             gr_info(translations["convert_backup_success"])
 
@@ -918,7 +931,7 @@ def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not
             gr_info(translations["batch_convert"])
             output_dir = os.path.dirname(output) or output
 
-            convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0method, input, output_dir, model_path, index, autotune, clean, clean_strength, format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing)
+            convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0method, input, output_dir, model_path, index, autotune, clean, clean_strength, format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file)
             gr_info(translations["batch_convert_success"])
 
             return return_none
@@ -929,13 +942,13 @@ def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not
             if os.path.exists(output): os.remove(output)
 
             gr_info(translations["convert_vocal"])
-            convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0method, input, output, model_path, index, autotune, clean, clean_strength, format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing)
+            convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0method, input, output, model_path, index, autotune, clean, clean_strength, format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file)
 
             gr_info(translations["convert_success"])
             return_none[0] = output
             return return_none
 
-def convert_selection(clean, autotune, use_audio, use_original, convert_backing, not_merge_backing, merge_instrument, pitch, clean_strength, model, index, index_rate, input, output, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, checkpointing):
+def convert_selection(clean, autotune, use_audio, use_original, convert_backing, not_merge_backing, merge_instrument, pitch, clean_strength, model, index, index_rate, input, output, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre):
     if use_audio:
         gr_info(translations["search_separate"])
         choice = [f for f in os.listdir("audios") if os.path.isdir(os.path.join("audios", f))]
@@ -947,14 +960,14 @@ def convert_selection(clean, autotune, use_audio, use_original, convert_backing,
 
             return [{"choices": [], "value": "", "interactive": False, "visible": False, "__type__": "update"}, None, None, None, None, None, {"visible": True, "__type__": "update"}]
         elif len(choice) == 1:
-            convert_output = convert_audio(clean, autotune, use_audio, use_original, convert_backing, not_merge_backing, merge_instrument, pitch, clean_strength, model, index, index_rate, None, None, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, choice[0], checkpointing)
+            convert_output = convert_audio(clean, autotune, use_audio, use_original, convert_backing, not_merge_backing, merge_instrument, pitch, clean_strength, model, index, index_rate, None, None, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, choice[0], checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre)
             return [{"choices": [], "value": "", "interactive": False, "visible": False, "__type__": "update"}, convert_output[0], convert_output[1], convert_output[2], convert_output[3], convert_output[4], {"visible": True, "__type__": "update"}]
         else: return [{"choices": choice, "value": "", "interactive": True, "visible": True, "__type__": "update"}, None, None, None, None, None, {"visible": False, "__type__": "update"}]
     else:
-        main_convert = convert_audio(clean, autotune, use_audio, use_original, convert_backing, not_merge_backing, merge_instrument, pitch, clean_strength, model, index, index_rate, input, output, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, None, checkpointing)
+        main_convert = convert_audio(clean, autotune, use_audio, use_original, convert_backing, not_merge_backing, merge_instrument, pitch, clean_strength, model, index, index_rate, input, output, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, None, checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre)
         return [{"choices": [], "value": "", "interactive": False, "visible": False, "__type__": "update"}, main_convert[0], None, None, None, None, {"visible": True, "__type__": "update"}]
     
-def convert_tts(clean, autotune, pitch, clean_strength, model, index, index_rate, input, output, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, checkpointing):
+def convert_tts(clean, autotune, pitch, clean_strength, model, index, index_rate, input, output, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre):
     model_path = os.path.join("assets", "weights", model)
 
     if not model_path or not os.path.exists(model_path) or os.path.isdir(model_path) or not model.endswith((".pth", ".onnx")):
@@ -989,7 +1002,7 @@ def convert_tts(clean, autotune, pitch, clean_strength, model, index, index_rate
     embedder_model = embedders if embedders != "custom" else custom_embedders
 
     gr_info(translations["convert_vocal"])
-    convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0method, input, output, model_path, index, autotune, clean, clean_strength, format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing)
+    convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0method, input, output, model_path, index, autotune, clean, clean_strength, format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file)
 
     gr_info(translations["convert_success"])
     return output
@@ -1041,7 +1054,7 @@ def preprocess(model_name, sample_rate, cpu_core, cut_preprocess, process_effect
     for log in log_read(os.path.join(model_dir, "preprocess.log"), done):
         yield log
 
-def extract(model_name, version, method, pitch_guidance, hop_length, cpu_cores, gpu, sample_rate, embedders, custom_embedders):
+def extract(model_name, version, method, pitch_guidance, hop_length, cpu_cores, gpu, sample_rate, embedders, custom_embedders, onnx_f0_mode):
     embedder_model = embedders if embedders != "custom" else custom_embedders
     sr = int(float(sample_rate.rstrip("k")) * 1000)
 
@@ -1050,7 +1063,7 @@ def extract(model_name, version, method, pitch_guidance, hop_length, cpu_cores, 
     model_dir = os.path.join("assets", "logs", model_name)
     if not any(os.path.isfile(os.path.join(model_dir, "sliced_audios", f)) for f in os.listdir(os.path.join(model_dir, "sliced_audios"))) or not any(os.path.isfile(os.path.join(model_dir, "sliced_audios_16k", f)) for f in os.listdir(os.path.join(model_dir, "sliced_audios_16k"))): return gr_warning(translations["not_found_data_preprocess"])
 
-    p = Popen(f'{python} main/inference/extract.py --model_name "{model_name}" --rvc_version {version} --f0_method {method} --pitch_guidance {pitch_guidance} --hop_length {hop_length} --cpu_cores {cpu_cores} --gpu {gpu} --sample_rate {sr} --embedder_model {embedder_model}', shell=True)
+    p = Popen(f'{python} main/inference/extract.py --model_name "{model_name}" --rvc_version {version} --f0_method {method} --pitch_guidance {pitch_guidance} --hop_length {hop_length} --cpu_cores {cpu_cores} --gpu {gpu} --sample_rate {sr} --embedder_model {embedder_model} --f0_onnx {onnx_f0_mode}', shell=True)
     done = [False]
 
     threading.Thread(target=if_done, args=(done, p)).start()
@@ -1346,20 +1359,32 @@ def delete_dataset(name):
 
             gr_info(translations["clean_dataset_success"])
 
-def load_presets(presets, cleaner, autotune, pitch, clean_strength, index_strength, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength):
+def clean_f0_files():
+    path = os.path.join("assets", "f0")
+
+    if len(os.listdir(path)) < 1: gr_warning(translations["empty_folder"])
+    else:
+        gr_info(translations["start_clean_f0"])
+
+        shutil.rmtree(path, ignore_errors=True)
+        os.makedirs(path, exist_ok=True)
+
+        gr_info(translations["clean_f0_done"])
+
+def load_presets(presets, cleaner, autotune, pitch, clean_strength, index_strength, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, formant_shifting, formant_qfrency, formant_timbre):
     if not presets: return gr_warning(translations["provide_file_settings"])
     with open(os.path.join("assets", "presets", presets)) as f:
         file = json.load(f)
 
     gr_info(translations["load_presets"].format(presets=presets))
-    return file.get("cleaner", cleaner), file.get("autotune", autotune), file.get("pitch", pitch), file.get("clean_strength", clean_strength), file.get("index_strength", index_strength), file.get("resample_sr", resample_sr), file.get("filter_radius", filter_radius), file.get("volume_envelope", volume_envelope), file.get("protect", protect), file.get("split_audio", split_audio), file.get("f0_autotune_strength", f0_autotune_strength)
+    return file.get("cleaner", cleaner), file.get("autotune", autotune), file.get("pitch", pitch), file.get("clean_strength", clean_strength), file.get("index_strength", index_strength), file.get("resample_sr", resample_sr), file.get("filter_radius", filter_radius), file.get("volume_envelope", volume_envelope), file.get("protect", protect), file.get("split_audio", split_audio), file.get("f0_autotune_strength", f0_autotune_strength), file.get("formant_shifting", formant_shifting), file.get("formant_qfrency", formant_qfrency), file.get("formant_timbre", formant_timbre)
 
-def save_presets(name, cleaner, autotune, pitch, clean_strength, index_strength, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, cleaner_chbox, autotune_chbox, pitch_chbox, index_strength_chbox, resample_sr_chbox, filter_radius_chbox, volume_envelope_chbox, protect_chbox, split_audio_chbox):  
+def save_presets(name, cleaner, autotune, pitch, clean_strength, index_strength, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, cleaner_chbox, autotune_chbox, pitch_chbox, index_strength_chbox, resample_sr_chbox, filter_radius_chbox, volume_envelope_chbox, protect_chbox, split_audio_chbox, formant_shifting_chbox, formant_shifting, formant_qfrency, formant_timbre):  
     if not name: return gr_warning(translations["provide_filename_settings"])
-    if not any([cleaner_chbox, autotune_chbox, pitch_chbox, index_strength_chbox, resample_sr_chbox, filter_radius_chbox, volume_envelope_chbox, protect_chbox, split_audio_chbox]): return gr_warning(translations["choose1"])
+    if not any([cleaner_chbox, autotune_chbox, pitch_chbox, index_strength_chbox, resample_sr_chbox, filter_radius_chbox, volume_envelope_chbox, protect_chbox, split_audio_chbox, formant_shifting_chbox]): return gr_warning(translations["choose1"])
 
     settings = {}
-    for checkbox, data in [(cleaner_chbox, {"cleaner": cleaner, "clean_strength": clean_strength}), (autotune_chbox, {"autotune": autotune, "f0_autotune_strength": f0_autotune_strength}), (pitch_chbox, {"pitch": pitch}), (index_strength_chbox, {"index_strength": index_strength}), (resample_sr_chbox, {"resample_sr": resample_sr}), (filter_radius_chbox, {"filter_radius": filter_radius}), (volume_envelope_chbox, {"volume_envelope": volume_envelope}), (protect_chbox, {"protect": protect}), (split_audio_chbox, {"split_audio": split_audio})]:
+    for checkbox, data in [(cleaner_chbox, {"cleaner": cleaner, "clean_strength": clean_strength}), (autotune_chbox, {"autotune": autotune, "f0_autotune_strength": f0_autotune_strength}), (pitch_chbox, {"pitch": pitch}), (index_strength_chbox, {"index_strength": index_strength}), (resample_sr_chbox, {"resample_sr": resample_sr}), (filter_radius_chbox, {"filter_radius": filter_radius}), (volume_envelope_chbox, {"volume_envelope": volume_envelope}), (protect_chbox, {"protect": protect}), (split_audio_chbox, {"split_audio": split_audio}), (formant_shifting_chbox, {"formant_shifting": formant_shifting, "formant_qfrency": formant_qfrency, "formant_timbre": formant_timbre})]:
         if checkbox: settings.update(data)
 
     with open(os.path.join("assets", "presets", name + ".json"), "w") as f:
@@ -1403,14 +1428,47 @@ def report_bug(error_info, provide):
             if os.path.exists(report_path): os.remove(report_path)
     else: requests.post(report_url, json={"embeds": [{"title": "Báo Cáo Lỗi", "description": error_info}]})
 
+def f0_extract(audio, f0_method, f0_onnx):
+    if not audio or not os.path.exists(audio) or os.path.isdir(audio): 
+        gr_warning(translations["input_not_valid"])
+        return [None]*2
+    
+    import librosa
+
+    from matplotlib import pyplot as plt
+    from main.inference.extract import FeatureInput
+
+    filename, _ = os.path.splitext(os.path.basename(audio))
+
+    f0_path = os.path.join("assets", "f0", filename)
+    image_path = os.path.join(f0_path, "f0.png")
+    txt_path = os.path.join(f0_path, "f0.txt")
+
+    gr_info(translations["start_extract"])
+
+    if not os.path.exists(f0_path): os.makedirs(f0_path, exist_ok=True)
+
+    y, sr = librosa.load(audio, sr=None)
+    f0 = FeatureInput(sample_rate=sr, device=config.device).compute_f0(y.flatten(), f0_method, 160, f0_onnx)
+
+    plt.figure(figsize=(10, 4))
+    plt.plot(f0)
+    plt.title(f0_method)
+    plt.xlabel(translations["time_frames"])
+    plt.ylabel(translations["Frequency"])
+    plt.savefig(image_path)
+    plt.close()
+
+    with open(txt_path, "w") as f:
+        for i, f0_value in enumerate(f0):
+            f.write(f"{i * sr / 160},{f0_value}\n")
+
+    gr_info(translations["extract_done"])
+
+    return [txt_path, image_path]
+
 with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
     gr.HTML(translations["display_title"])
-    with gr.Row(): 
-        gr.Markdown(translations["rick_roll"].format(rickroll=codecs.decode('uggcf://jjj.lbhghor.pbz/jngpu?i=qDj4j9JtKpD', 'rot13')))
-    with gr.Row(): 
-        gr.Markdown(translations["terms_of_use"])
-    with gr.Row():
-        gr.Markdown(translations["exemption"])
     with gr.Tabs():      
         with gr.TabItem(translations["separator_tab"], visible=configs.get("separator_tab", True)):
             gr.Markdown(f"## {translations['separator_tab']}")
@@ -1473,7 +1531,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                 backing.change(fn=lambda a, b, c: [visible(a or b or c in mdx_model), visible(a or b or c in mdx_model), valueFalse_interactive(a or b or c in mdx_model), visible(a), visible(a), visible(a), valueFalse_interactive(a and b)], inputs=[backing, reverb, separator_model], outputs=[mdx_batch_size, mdx_hop_length, denoise, separator_backing_model, main_vocals, backing_vocals, backing_reverb])
                 reverb.change(fn=lambda a, b, c: [visible(a or b or c in mdx_model), visible(a or b or c in mdx_model), valueFalse_interactive(a or b or c in mdx_model), valueFalse_interactive(a and b)], inputs=[backing, reverb, separator_model], outputs=[mdx_batch_size, mdx_hop_length, denoise, backing_reverb])
             with gr.Row():
-                input_audio.change(fn=lambda audio: audio if audio else None, inputs=[input_audio], outputs=[audio_input])
+                input_audio.change(fn=lambda audio: audio if os.path.isfile(audio) else None, inputs=[input_audio], outputs=[audio_input])
                 cleaner.change(fn=visible, inputs=[cleaner], outputs=[clean_strength])
             with gr.Row():
                 input.upload(fn=lambda audio_in: shutil.move(audio_in.name, os.path.join("audios")), inputs=[input], outputs=[input_audio])
@@ -1544,8 +1602,8 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                 with gr.Column():
                     with gr.Accordion(translations["model_accordion"], open=True):
                         with gr.Row():
-                            model_pth = gr.Dropdown(label=translations["model_name"], choices=sorted(model_name), value="", interactive=True, allow_custom_value=True)
-                            model_index = gr.Dropdown(label=translations["index_path"], choices=sorted(index_path), value="", interactive=True, allow_custom_value=True)
+                            model_pth = gr.Dropdown(label=translations["model_name"], choices=model_name, value=model_name[0] if len(model_name) >= 1 else "", interactive=True, allow_custom_value=True)
+                            model_index = gr.Dropdown(label=translations["index_path"], choices=index_path, value=index_path[0] if len(index_path) >= 1 else "", interactive=True, allow_custom_value=True)
                         with gr.Row():
                             refesh = gr.Button(translations["refesh"])
                         with gr.Row():
@@ -1559,15 +1617,21 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                             refesh0 = gr.Button(translations["refesh"])
                     with gr.Accordion(translations["setting"], open=False):
                         with gr.Accordion(translations["f0_method"], open=False):
-                            method = gr.Radio(label=translations["f0_method"], info=translations["f0_method_info"], choices=method_f0+["hybrid"], value="rmvpe", interactive=True)
-                            hybrid_method = gr.Dropdown(label=translations["f0_method_hybrid"], info=translations["f0_method_hybrid_info"], choices=["hybrid[pm+dio]", "hybrid[pm+crepe-tiny]", "hybrid[pm+crepe]", "hybrid[pm+fcpe]", "hybrid[pm+rmvpe]", "hybrid[pm+harvest]", "hybrid[pm+yin]", "hybrid[dio+crepe-tiny]", "hybrid[dio+crepe]", "hybrid[dio+fcpe]", "hybrid[dio+rmvpe]", "hybrid[dio+harvest]", "hybrid[dio+yin]", "hybrid[crepe-tiny+crepe]", "hybrid[crepe-tiny+fcpe]", "hybrid[crepe-tiny+rmvpe]", "hybrid[crepe-tiny+harvest]", "hybrid[crepe+fcpe]", "hybrid[crepe+rmvpe]", "hybrid[crepe+harvest]", "hybrid[crepe+yin]", "hybrid[fcpe+rmvpe]", "hybrid[fcpe+harvest]", "hybrid[fcpe+yin]", "hybrid[rmvpe+harvest]", "hybrid[rmvpe+yin]", "hybrid[harvest+yin]"], value="hybrid[pm+dio]", interactive=True, allow_custom_value=True, visible=method.value == "hybrid")
+                            with gr.Group():
+                                onnx_f0_mode = gr.Checkbox(label=translations["f0_onnx_mode"], info=translations["f0_onnx_mode_info"], value=False, interactive=True)
+                                method = gr.Radio(label=translations["f0_method"], info=translations["f0_method_info"], choices=method_f0+["hybrid"], value="rmvpe", interactive=True)
+                                hybrid_method = gr.Dropdown(label=translations["f0_method_hybrid"], info=translations["f0_method_hybrid_info"], choices=["hybrid[pm+dio]", "hybrid[pm+crepe-tiny]", "hybrid[pm+crepe]", "hybrid[pm+fcpe]", "hybrid[pm+rmvpe]", "hybrid[pm+harvest]", "hybrid[pm+yin]", "hybrid[dio+crepe-tiny]", "hybrid[dio+crepe]", "hybrid[dio+fcpe]", "hybrid[dio+rmvpe]", "hybrid[dio+harvest]", "hybrid[dio+yin]", "hybrid[crepe-tiny+crepe]", "hybrid[crepe-tiny+fcpe]", "hybrid[crepe-tiny+rmvpe]", "hybrid[crepe-tiny+harvest]", "hybrid[crepe+fcpe]", "hybrid[crepe+rmvpe]", "hybrid[crepe+harvest]", "hybrid[crepe+yin]", "hybrid[fcpe+rmvpe]", "hybrid[fcpe+harvest]", "hybrid[fcpe+yin]", "hybrid[rmvpe+harvest]", "hybrid[rmvpe+yin]", "hybrid[harvest+yin]"], value="hybrid[pm+dio]", interactive=True, allow_custom_value=True, visible=method.value == "hybrid")
                             hop_length = gr.Slider(label="Hop length", info=translations["hop_length_info"], minimum=1, maximum=512, value=128, step=1, interactive=True, visible=False)
+                        with gr.Accordion(translations["f0_file"], open=False):
+                            upload_f0_file = gr.File(label=translations["upload_f0"], file_types=[".txt"])  
+                            f0_file_dropdown = gr.Dropdown(label=translations["f0_file_2"], value="", choices=f0_file, allow_custom_value=True, interactive=True)
+                            refesh_f0_file = gr.Button(translations["refesh"])
                         with gr.Accordion(translations["hubert_model"], open=False):
                             embedders = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=["contentvec_base.pt", "contentvec_base.onnx", "hubert_base.pt", "japanese_hubert_base.pt", "japanese_hubert_base.onnx", "korean_hubert_base.pt", "korean_hubert_base.onnx", "chinese_hubert_base.pt", "chinese_hubert_base.onnx", "Hidden_Rabbit_last.pt", "portuguese_hubert_base.pt", "custom"], value="contentvec_base.pt", interactive=True)
                             custom_embedders = gr.Textbox(label=translations["modelname"], info=translations["modelname_info"], value="", placeholder="hubert_base.pt", interactive=True, visible=embedders.value == "custom")
                         with gr.Accordion(translations["use_presets"], open=False):
                             with gr.Row():
-                                presets_name = gr.Dropdown(label=translations["file_preset"], choices=sorted(presets_file), value=sorted(presets_file)[0] if len(sorted(presets_file)) > 0 else '', interactive=True, allow_custom_value=True)
+                                presets_name = gr.Dropdown(label=translations["file_preset"], choices=presets_file, value=presets_file[0] if len(presets_file) > 0 else '', interactive=True, allow_custom_value=True)
                                 with gr.Row():
                                     load_click = gr.Button(translations["load_file"], variant="primary")
                                     refesh_click = gr.Button(translations["refesh"])
@@ -1585,6 +1649,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                                                 volume_envelope_chbox = gr.Checkbox(label=translations["save_envelope"], value=True, interactive=True)
                                                 protect_chbox = gr.Checkbox(label=translations["save_protect"], value=True, interactive=True)
                                                 split_audio_chbox = gr.Checkbox(label=translations["save_split"], value=True, interactive=True)
+                                                formant_shifting_chbox = gr.Checkbox(label=translations["formantshift"], value=True, interactive=True)
                                 with gr.Row():
                                     with gr.Column():
                                         name_to_save_file = gr.Textbox(label=translations["filename_to_save"])
@@ -1592,13 +1657,17 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                             with gr.Row():
                                 upload_presets = gr.File(label=translations["upload_presets"], file_types=[".json"])  
                         with gr.Column():
-                            with gr.Group():
+                            with gr.Row():
                                 split_audio = gr.Checkbox(label=translations["split_audio"], value=False, interactive=True)
+                                formant_shifting = gr.Checkbox(label=translations["formantshift"], value=False, interactive=True)
                             f0_autotune_strength = gr.Slider(minimum=0, maximum=1, label=translations["autotune_rate"], info=translations["autotune_rate_info"], value=1, step=0.1, interactive=True, visible=autotune.value)
                             resample_sr = gr.Slider(minimum=0, maximum=96000, label=translations["resample"], info=translations["resample_info"], value=0, step=1, interactive=True)
                             filter_radius = gr.Slider(minimum=0, maximum=7, label=translations["filter_radius"], info=translations["filter_radius_info"], value=3, step=1, interactive=True)
                             volume_envelope = gr.Slider(minimum=0, maximum=1, label=translations["volume_envelope"], info=translations["volume_envelope_info"], value=1, step=0.1, interactive=True)
                             protect = gr.Slider(minimum=0, maximum=1, label=translations["protect"], info=translations["protect_info"], value=0.33, step=0.01, interactive=True)
+                        with gr.Row():
+                            formant_qfrency = gr.Slider(value=1.0, label=translations["formant_qfrency"], info=translations["formant_qfrency"], minimum=0.0, maximum=16.0, step=0.1, interactive=True, visible=False)
+                            formant_timbre = gr.Slider(value=1.0, label=translations["formant_timbre"], info=translations["formant_timbre"], minimum=0.0, maximum=16.0, step=0.1, interactive=True, visible=False)
             with gr.Row():
                 gr.Markdown(translations["output_convert"])
             with gr.Row():
@@ -1609,9 +1678,12 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                 original_convert = gr.Audio(show_download_button=True, interactive=False, label=translations["convert_original"], visible=use_original.value)
                 vocal_instrument = gr.Audio(show_download_button=True, interactive=False, label=translations["voice_or_instruments"], visible=merge_instrument.value)  
             with gr.Row():
+                upload_f0_file.upload(fn=lambda inp: shutil.move(inp.name, os.path.join("assets", "f0")), inputs=[upload_f0_file], outputs=[f0_file_dropdown])
+                refesh_f0_file.click(fn=change_f0_choices, inputs=[], outputs=[f0_file_dropdown])
+            with gr.Row():
                 refesh_click.click(fn=change_preset_choices, inputs=[], outputs=[presets_name])
-                load_click.click(fn=load_presets, inputs=[presets_name, cleaner0, autotune, pitch, clean_strength0, index_strength, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength], outputs=[cleaner0, autotune, pitch, clean_strength0, index_strength, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength])
-                save_file_button.click(fn=save_presets, inputs=[name_to_save_file, cleaner0, autotune, pitch, clean_strength0, index_strength, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, cleaner_chbox, autotune_chbox, pitch_chbox, index_strength_chbox, resample_sr_chbox, filter_radius_chbox, volume_envelope_chbox, protect_chbox, split_audio_chbox], outputs=[presets_name])
+                load_click.click(fn=load_presets, inputs=[presets_name, cleaner0, autotune, pitch, clean_strength0, index_strength, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, formant_qfrency, formant_timbre], outputs=[cleaner0, autotune, pitch, clean_strength0, index_strength, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, formant_shifting, formant_qfrency, formant_timbre])
+                save_file_button.click(fn=save_presets, inputs=[name_to_save_file, cleaner0, autotune, pitch, clean_strength0, index_strength, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, cleaner_chbox, autotune_chbox, pitch_chbox, index_strength_chbox, resample_sr_chbox, filter_radius_chbox, volume_envelope_chbox, protect_chbox, split_audio_chbox, formant_shifting_chbox, formant_shifting, formant_qfrency, formant_timbre], outputs=[presets_name])
             with gr.Row():
                 upload_presets.upload(fn=lambda audio_in: shutil.move(audio_in.name, os.path.join("assets", "presets")), inputs=[upload_presets], outputs=[presets_name])
                 autotune.change(fn=visible, inputs=[autotune], outputs=[f0_autotune_strength])
@@ -1631,6 +1703,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
             with gr.Row():
                 input0.upload(fn=lambda audio_in: shutil.move(audio_in.name, os.path.join("audios")), inputs=[input0], outputs=[input_audio0])
                 input_audio0.change(fn=lambda audio: audio if os.path.isfile(audio) else None, inputs=[input_audio0], outputs=[play_audio])
+                formant_shifting.change(fn=lambda a: [visible(a)]*2, inputs=[formant_shifting], outputs=[formant_qfrency, formant_timbre])
             with gr.Row():
                 embedders.change(fn=lambda embedders: visible(embedders == "custom"), inputs=[embedders], outputs=[custom_embedders])
                 refesh0.click(fn=change_audios_choices, inputs=[], outputs=[input_audio0])
@@ -1669,7 +1742,12 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                         protect,
                         split_audio,
                         f0_autotune_strength,
-                        checkpointing
+                        checkpointing,
+                        onnx_f0_mode,
+                        formant_shifting, 
+                        formant_qfrency, 
+                        formant_timbre,
+                        f0_file_dropdown
                     ],
                     outputs=[audio_select, main_convert, backing_convert, main_backing, original_convert, vocal_instrument, convert_button],
                     api_name="convert_selection"
@@ -1704,7 +1782,12 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                         split_audio,
                         f0_autotune_strength,
                         audio_select,
-                        checkpointing
+                        checkpointing,
+                        onnx_f0_mode,
+                        formant_shifting, 
+                        formant_qfrency, 
+                        formant_timbre,
+                        f0_file_dropdown
                     ],
                     outputs=[main_convert, backing_convert, main_backing, original_convert, vocal_instrument, convert_button],
                     api_name="convert_audio"
@@ -1735,8 +1818,8 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                 with gr.Column():
                     with gr.Accordion(translations["model_accordion"], open=True):
                         with gr.Row():
-                            model_pth0 = gr.Dropdown(label=translations["model_name"], choices=sorted(model_name), value="", interactive=True, allow_custom_value=True)
-                            model_index0 = gr.Dropdown(label=translations["index_path"], choices=sorted(index_path), value="", interactive=True, allow_custom_value=True)
+                            model_pth0 = gr.Dropdown(label=translations["model_name"], choices=model_name, value=model_name[0] if len(model_name) >= 1 else "", interactive=True, allow_custom_value=True)
+                            model_index0 = gr.Dropdown(label=translations["index_path"], choices=index_path, value=index_path[0] if len(index_path) >= 1 else "", interactive=True, allow_custom_value=True)
                         with gr.Row():
                             refesh1 = gr.Button(translations["refesh"])
                         with gr.Row():
@@ -1747,19 +1830,25 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                         output_audio1 = gr.Textbox(label=translations["output_tts_convert"], value="audios/tts-convert.wav", placeholder="audios/tts-convert.wav", info=translations["tts_output"], interactive=True)
                     with gr.Accordion(translations["setting"], open=False):
                         with gr.Accordion(translations["f0_method"], open=False):
-                            method0 = gr.Radio(label=translations["f0_method"], info=translations["f0_method_info"], choices=method_f0+["hybrid"], value="rmvpe", interactive=True)
-                            hybrid_method0 = gr.Dropdown(label=translations["f0_method_hybrid"], info=translations["f0_method_hybrid_info"], choices=["hybrid[pm+dio]", "hybrid[pm+crepe-tiny]", "hybrid[pm+crepe]", "hybrid[pm+fcpe]", "hybrid[pm+rmvpe]", "hybrid[pm+harvest]", "hybrid[pm+yin]", "hybrid[dio+crepe-tiny]", "hybrid[dio+crepe]", "hybrid[dio+fcpe]", "hybrid[dio+rmvpe]", "hybrid[dio+harvest]", "hybrid[dio+yin]", "hybrid[crepe-tiny+crepe]", "hybrid[crepe-tiny+fcpe]", "hybrid[crepe-tiny+rmvpe]", "hybrid[crepe-tiny+harvest]", "hybrid[crepe+fcpe]", "hybrid[crepe+rmvpe]", "hybrid[crepe+harvest]", "hybrid[crepe+yin]", "hybrid[fcpe+rmvpe]", "hybrid[fcpe+harvest]", "hybrid[fcpe+yin]", "hybrid[rmvpe+harvest]", "hybrid[rmvpe+yin]", "hybrid[harvest+yin]"], value="hybrid[pm+dio]", interactive=True, allow_custom_value=True, visible=method0.value == "hybrid")
+                            with gr.Group():
+                                onnx_f0_mode1 = gr.Checkbox(label=translations["f0_onnx_mode"], info=translations["f0_onnx_mode_info"], value=False, interactive=True)
+                                method0 = gr.Radio(label=translations["f0_method"], info=translations["f0_method_info"], choices=method_f0+["hybrid"], value="rmvpe", interactive=True)
+                                hybrid_method0 = gr.Dropdown(label=translations["f0_method_hybrid"], info=translations["f0_method_hybrid_info"], choices=["hybrid[pm+dio]", "hybrid[pm+crepe-tiny]", "hybrid[pm+crepe]", "hybrid[pm+fcpe]", "hybrid[pm+rmvpe]", "hybrid[pm+harvest]", "hybrid[pm+yin]", "hybrid[dio+crepe-tiny]", "hybrid[dio+crepe]", "hybrid[dio+fcpe]", "hybrid[dio+rmvpe]", "hybrid[dio+harvest]", "hybrid[dio+yin]", "hybrid[crepe-tiny+crepe]", "hybrid[crepe-tiny+fcpe]", "hybrid[crepe-tiny+rmvpe]", "hybrid[crepe-tiny+harvest]", "hybrid[crepe+fcpe]", "hybrid[crepe+rmvpe]", "hybrid[crepe+harvest]", "hybrid[crepe+yin]", "hybrid[fcpe+rmvpe]", "hybrid[fcpe+harvest]", "hybrid[fcpe+yin]", "hybrid[rmvpe+harvest]", "hybrid[rmvpe+yin]", "hybrid[harvest+yin]"], value="hybrid[pm+dio]", interactive=True, allow_custom_value=True, visible=method0.value == "hybrid")
                             hop_length0 = gr.Slider(label="Hop length", info=translations["hop_length_info"], minimum=1, maximum=512, value=128, step=1, interactive=True, visible=False)
+                        with gr.Accordion(translations["f0_file"], open=False):
+                            upload_f0_file0 = gr.File(label=translations["upload_f0"], file_types=[".txt"])  
+                            f0_file_dropdown0 = gr.Dropdown(label=translations["f0_file_2"], value="", choices=f0_file, allow_custom_value=True, interactive=True)
+                            refesh_f0_file0 = gr.Button(translations["refesh"])
                         with gr.Accordion(translations["hubert_model"], open=False):
                             embedders0 = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=["contentvec_base.pt", "contentvec_base.onnx", "hubert_base.pt", "japanese_hubert_base.pt", "japanese_hubert_base.onnx", "korean_hubert_base.pt", "korean_hubert_base.onnx", "chinese_hubert_base.pt", "chinese_hubert_base.onnx", "Hidden_Rabbit_last.pt", "portuguese_hubert_base.pt", "custom"], value="contentvec_base.pt", interactive=True)
                             custom_embedders0 = gr.Textbox(label=translations["modelname"], info=translations["modelname_info"], value="", placeholder="hubert_base.pt", interactive=True, visible=embedders0.value == "custom")
                         with gr.Group():
                             with gr.Row():
+                                formant_shifting1 = gr.Checkbox(label=translations["formantshift"], value=False, interactive=True)  
                                 split_audio0 = gr.Checkbox(label=translations["split_audio"], value=False, interactive=True)   
-                                cleaner1 = gr.Checkbox(label=translations["clear_audio"], value=False, interactive=True)       
-                        with gr.Row():
-                            autotune3 = gr.Checkbox(label=translations["autotune"], value=False, interactive=True) 
-                            checkpointing0 = gr.Checkbox(label=translations["memory_efficient_training"], value=False, interactive=True)         
+                                cleaner1 = gr.Checkbox(label=translations["clear_audio"], value=False, interactive=True)     
+                                autotune3 = gr.Checkbox(label=translations["autotune"], value=False, interactive=True) 
+                                checkpointing0 = gr.Checkbox(label=translations["memory_efficient_training"], value=False, interactive=True)         
                         with gr.Column():
                             f0_autotune_strength0 = gr.Slider(minimum=0, maximum=1, label=translations["autotune_rate"], info=translations["autotune_rate_info"], value=1, step=0.1, interactive=True, visible=autotune3.value)
                             clean_strength1 = gr.Slider(label=translations["clean_strength"], info=translations["clean_strength_info"], minimum=0, maximum=1, value=0.5, step=0.1, interactive=True, visible=cleaner1.value)
@@ -1767,11 +1856,17 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                             filter_radius0 = gr.Slider(minimum=0, maximum=7, label=translations["filter_radius"], info=translations["filter_radius_info"], value=3, step=1, interactive=True)
                             volume_envelope0 = gr.Slider(minimum=0, maximum=1, label=translations["volume_envelope"], info=translations["volume_envelope_info"], value=1, step=0.1, interactive=True)
                             protect0 = gr.Slider(minimum=0, maximum=1, label=translations["protect"], info=translations["protect_info"], value=0.33, step=0.01, interactive=True)
+                        with gr.Row():
+                            formant_qfrency1 = gr.Slider(value=1.0, label=translations["formant_qfrency"], info=translations["formant_qfrency"], minimum=0.0, maximum=16.0, step=0.1, interactive=True, visible=False)
+                            formant_timbre1 = gr.Slider(value=1.0, label=translations["formant_timbre"], info=translations["formant_timbre"], minimum=0.0, maximum=16.0, step=0.1, interactive=True, visible=False)
             with gr.Row():
                 gr.Markdown(translations["output_tts_markdown"])
             with gr.Row():
                 tts_voice_audio = gr.Audio(show_download_button=True, interactive=False, label=translations["output_text_to_speech"])
                 tts_voice_convert = gr.Audio(show_download_button=True, interactive=False, label=translations["output_file_tts_convert"])
+            with gr.Row():
+                upload_f0_file0.upload(fn=lambda inp: shutil.move(inp.name, os.path.join("assets", "f0")), inputs=[upload_f0_file0], outputs=[f0_file_dropdown0])
+                refesh_f0_file0.click(fn=change_f0_choices, inputs=[], outputs=[f0_file_dropdown0])
             with gr.Row():
                 autotune3.change(fn=visible, inputs=[autotune3], outputs=[f0_autotune_strength0])
                 model_pth0.change(fn=get_index, inputs=[model_pth0], outputs=[model_index0])
@@ -1782,6 +1877,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
             with gr.Row():
                 refesh1.click(fn=change_models_choices, inputs=[], outputs=[model_pth0, model_index0])
                 embedders0.change(fn=lambda embedders: visible(embedders == "custom"), inputs=[embedders0], outputs=[custom_embedders0])
+                formant_shifting1.change(fn=lambda a: [visible(a)]*2, inputs=[formant_shifting1], outputs=[formant_qfrency1, formant_timbre1])
             with gr.Row():
                 model_index0.change(fn=index_strength_show, inputs=[model_index0], outputs=[index_strength0])
                 txt_input.upload(fn=process_input, inputs=[txt_input], outputs=[prompt])
@@ -1825,7 +1921,12 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                         protect0,
                         split_audio0,
                         f0_autotune_strength0,
-                        checkpointing0
+                        checkpointing0,
+                        onnx_f0_mode1,
+                        formant_shifting1, 
+                        formant_qfrency1, 
+                        formant_timbre1,
+                        f0_file_dropdown0
                     ],
                     outputs=[tts_voice_convert],
                     api_name="convert_tts"
@@ -2100,11 +2201,11 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                             training_ver = gr.Radio(label=translations["training_version"], info=translations["training_version_info"], choices=["v1", "v2"], value="v2", interactive=True) 
                             with gr.Row():
                                 clean_dataset = gr.Checkbox(label=translations["clear_dataset"], value=False, interactive=True)
+                                preprocess_cut = gr.Checkbox(label=translations["split_audio"], value=True, interactive=True)
+                                process_effects = gr.Checkbox(label=translations["preprocess_effect"], value=False, interactive=True)
                                 checkpointing1 = gr.Checkbox(label=translations["memory_efficient_training"], value=False, interactive=True)
-                                training_f0 = gr.Checkbox(label=translations["training_pitch"], info=translations["training_pitch_info"], value=True, interactive=True)
-                                upload = gr.Checkbox(label=translations["upload"], info=translations["upload_dataset"], value=False, interactive=True)
-                                preprocess_cut = gr.Checkbox(label=translations["split_audio"], info=translations["preprocess_split"], value=True, interactive=True)
-                                process_effects = gr.Checkbox(label=translations["preprocess_effect"], info=translations["preprocess_effect_info"], value=False, interactive=True)
+                                training_f0 = gr.Checkbox(label=translations["training_pitch"], value=True, interactive=True)
+                                upload = gr.Checkbox(label=translations["upload_dataset"], value=False, interactive=True)
                             with gr.Row():
                                 clean_dataset_strength = gr.Slider(label=translations["clean_strength"], info=translations["clean_strength_info"], minimum=0, maximum=1, value=0.7, step=0.1, interactive=True, visible=clean_dataset.value)
                         with gr.Column():
@@ -2115,7 +2216,9 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                     with gr.Row():
                         with gr.Column():
                             with gr.Accordion(label=translations["f0_method"], open=False):
-                                extract_method = gr.Radio(label=translations["f0_method"], info=translations["f0_method_info"], choices=method_f0, value="rmvpe", interactive=True)
+                                with gr.Group():
+                                    onnx_f0_mode2 = gr.Checkbox(label=translations["f0_onnx_mode"], info=translations["f0_onnx_mode_info"], value=False, interactive=True)
+                                    extract_method = gr.Radio(label=translations["f0_method"], info=translations["f0_method_info"], choices=method_f0, value="rmvpe", interactive=True)
                                 extract_hop_length = gr.Slider(label="Hop length", info=translations["hop_length_info"], minimum=1, maximum=512, value=128, step=1, interactive=True, visible=False)
                             with gr.Accordion(label=translations["hubert_model"], open=False):
                                 extract_embedders = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=["contentvec_base.pt", "contentvec_base.onnx", "hubert_base.pt", "japanese_hubert_base.pt", "japanese_hubert_base.onnx", "korean_hubert_base.pt", "korean_hubert_base.onnx", "chinese_hubert_base.pt", "chinese_hubert_base.onnx", "Hidden_Rabbit_last.pt", "portuguese_hubert_base.pt", "custom"], value="contentvec_base.pt", interactive=True)
@@ -2163,8 +2266,8 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                             with gr.Row():
                                 with gr.Column():
                                     with gr.Accordion(translations["custom_pretrain_info"], open=False, visible=custom_pretrain.value and not not_use_pretrain.value) as pretrain_setting:
-                                        pretrained_D = gr.Dropdown(label=translations["pretrain_file"].format(dg="D"), choices=sorted(pretrainedD), value=sorted(pretrainedD)[0] if len(sorted(pretrainedD)) > 0 else '', interactive=True, allow_custom_value=True)
-                                        pretrained_G = gr.Dropdown(label=translations["pretrain_file"].format(dg="G"), choices=sorted(pretrainedG), value=sorted(pretrainedG)[0] if len(sorted(pretrainedG)) > 0 else '', interactive=True, allow_custom_value=True)
+                                        pretrained_D = gr.Dropdown(label=translations["pretrain_file"].format(dg="D"), choices=pretrainedD, value=pretrainedD[0] if len(pretrainedD) > 0 else '', interactive=True, allow_custom_value=True)
+                                        pretrained_G = gr.Dropdown(label=translations["pretrain_file"].format(dg="G"), choices=pretrainedG, value=pretrainedG[0] if len(pretrainedG) > 0 else '', interactive=True, allow_custom_value=True)
                                         refesh_pretrain = gr.Button(translations["refesh"], scale=2)
                     with gr.Row():
                         training_info = gr.Textbox(label=translations["train_info"], value="", interactive=False)
@@ -2172,8 +2275,8 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                         with gr.Column():
                             with gr.Accordion(translations["export_model"], open=False):
                                 with gr.Row():
-                                    model_file= gr.Dropdown(label=translations["model_name"], choices=sorted(model_name), value="", interactive=True, allow_custom_value=True)
-                                    index_file = gr.Dropdown(label=translations["index_path"], choices=sorted(index_path), value="", interactive=True, allow_custom_value=True)
+                                    model_file= gr.Dropdown(label=translations["model_name"], choices=model_name, value=model_name[0] if len(model_name) >= 1 else "", interactive=True, allow_custom_value=True)
+                                    index_file = gr.Dropdown(label=translations["index_path"], choices=index_path, value=index_path[0] if len(index_path) >= 1 else "", interactive=True, allow_custom_value=True)
                                 with gr.Row():
                                     refesh_file = gr.Button(f"1. {translations['refesh']}", scale=2)
                                     zip_model = gr.Button(translations["zip_model"], variant="primary", scale=2)
@@ -2231,7 +2334,8 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                         gpu_number,
                         training_sr, 
                         extract_embedders, 
-                        extract_embedders_custom
+                        extract_embedders_custom,
+                        onnx_f0_mode2
                     ],
                     outputs=[extract_info],
                     api_name="extract"
@@ -2482,6 +2586,45 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                     api_name="upload_embedder"
                 )
 
+        with gr.TabItem(translations["f0_extractor_tab"], visible=configs.get("f0_extractor_tab", True)):
+            gr.Markdown(translations["f0_extractor_markdown"])
+            with gr.Row():
+                gr.Markdown(translations["f0_extractor_markdown_2"])
+            with gr.Row():
+                extractor_button = gr.Button(translations["extract_button"].replace("2. ", ""), variant="primary")
+            with gr.Row():
+                with gr.Column():
+                    upload_audio_file = gr.File(label=translations["drop_audio"], file_types=[".wav", ".mp3", ".flac", ".ogg", ".opus", ".m4a", ".mp4", ".aac", ".alac", ".wma", ".aiff", ".webm", ".ac3"])
+                    audioplay = gr.Audio(show_download_button=True, interactive=False, label=translations["input_audio"])
+                with gr.Column():
+                    with gr.Accordion(translations["f0_method"], open=False):
+                        with gr.Group():
+                            onnx_f0_mode3 = gr.Checkbox(label=translations["f0_onnx_mode"], info=translations["f0_onnx_mode_info"], value=False, interactive=True)
+                            f0_method_extract = gr.Radio(label=translations["f0_method"], info=translations["f0_method_info"], choices=method_f0, value="rmvpe", interactive=True)
+                    with gr.Accordion(translations["input_output"], open=True):
+                        input_audio_path = gr.Dropdown(label=translations["audio_path"], value="", choices=paths_for_files, allow_custom_value=True, interactive=True)
+                        refesh_audio_button = gr.Button(translations["refesh"])
+            with gr.Row():
+                gr.Markdown("___")
+            with gr.Row():
+                file_output = gr.File(label="", file_types=[".txt"], interactive=False)
+                image_output = gr.Image(label="", interactive=False, show_download_button=True)
+            with gr.Row():
+                upload_audio_file.upload(fn=lambda audio_in: shutil.move(audio_in.name, os.path.join("audios")), inputs=[upload_audio_file], outputs=[input_audio_path])
+                input_audio_path.change(fn=lambda audio: audio if os.path.isfile(audio) else None, inputs=[input_audio_path], outputs=[audioplay])
+                refesh_audio_button.click(fn=change_audios_choices, inputs=[], outputs=[input_audio_path])
+            with gr.Row():
+                extractor_button.click(
+                    fn=f0_extract,
+                    inputs=[
+                        input_audio_path,
+                        f0_method_extract,
+                        onnx_f0_mode3
+                    ],
+                    outputs=[file_output, image_output],
+                    api_name="f0_extract"
+                )
+
         with gr.TabItem(translations["settings"], visible=configs.get("settings_tab", True)):
             gr.Markdown(translations["settings_markdown"])
             with gr.Row():
@@ -2518,8 +2661,8 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                                     delete_audio = gr.Button(translations["clean_file"], variant="primary")
                         with gr.Accordion(translations["clean_models"], open=False):
                             with gr.Row():
-                                model_select = gr.Dropdown(label=translations["model_name"], choices=sorted(model_name), value="", interactive=True, allow_custom_value=True)
-                                index_select = gr.Dropdown(label=translations["index_path"], choices=sorted(delete_index), value=sorted(delete_index)[0] if len(sorted(delete_index)) > 0 else '', interactive=True, allow_custom_value=True)
+                                model_select = gr.Dropdown(label=translations["model_name"], choices=model_name, value="", interactive=True, allow_custom_value=True)
+                                index_select = gr.Dropdown(label=translations["index_path"], choices=delete_index, value=delete_index[0] if len(delete_index) > 0 else '', interactive=True, allow_custom_value=True)
                             with gr.Row():
                                 refesh_model_select = gr.Button(translations["refesh"])
                             with gr.Row():
@@ -2527,7 +2670,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                                 delete_model_button = gr.Button(translations["clean_file"], variant="primary")
                         with gr.Accordion(translations["clean_pretrained"], open=False):
                             with gr.Row():
-                                pretrain_select = gr.Dropdown(label=translations["pretrain_file"].format(dg=" "), choices=sorted(Allpretrained), value=sorted(Allpretrained)[0] if len(sorted(Allpretrained)) > 0 else '', interactive=True, allow_custom_value=True)
+                                pretrain_select = gr.Dropdown(label=translations["pretrain_file"].format(dg=" "), choices=Allpretrained, value=Allpretrained[0] if len(Allpretrained) > 0 else '', interactive=True, allow_custom_value=True)
                             with gr.Column():
                                 refesh_pretrain_select = gr.Button(translations["refesh"])
                                 with gr.Row():
@@ -2535,7 +2678,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                                     delete_pretrain = gr.Button(translations["clean_file"], variant="primary")
                         with gr.Accordion(translations["clean_separated"], open=False):
                             with gr.Row():
-                                separate_select = gr.Dropdown(label=translations["separator_model"], choices=sorted(separate_model), value=sorted(separate_model)[0] if len(sorted(separate_model)) > 0 else '', interactive=True, allow_custom_value=True)
+                                separate_select = gr.Dropdown(label=translations["separator_model"], choices=separate_model, value=separate_model[0] if len(separate_model) > 0 else '', interactive=True, allow_custom_value=True)
                             with gr.Column():
                                 refesh_separate_select = gr.Button(translations["refesh"])
                                 with gr.Row():
@@ -2543,7 +2686,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                                     delete_separate = gr.Button(translations["clean_file"], variant="primary")
                         with gr.Accordion(translations["clean_presets"], open=False):
                             with gr.Row():
-                                presets_select = gr.Dropdown(label=translations["file_preset"], choices=sorted(presets_file), value=sorted(presets_file)[0] if len(sorted(presets_file)) > 0 else '', interactive=True, allow_custom_value=True)
+                                presets_select = gr.Dropdown(label=translations["file_preset"], choices=presets_file, value=presets_file[0] if len(presets_file) > 0 else '', interactive=True, allow_custom_value=True)
                             with gr.Column():
                                 refesh_presets_select = gr.Button(translations["refesh"])
                                 with gr.Row():
@@ -2556,6 +2699,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                             clean_log = gr.Button(translations["clean_log"], variant="primary")
                             clean_predictor = gr.Button(translations["clean_predictors"], variant="primary")
                             clean_embedders = gr.Button(translations["clean_embed"], variant="primary")
+                            clean_f0_file = gr.Button(translations["clean_f0_file"], variant="primary")
             with gr.Row():
                 toggle_button.click(fn=None, js="() => {document.body.classList.toggle('dark')}")
             with gr.Row():
@@ -2598,6 +2742,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                 clean_log.click(fn=delete_all_log, inputs=[], outputs=[])
                 clean_predictor.click(fn=delete_all_predictors, inputs=[], outputs=[])
                 clean_embedders.click(fn=delete_all_embedders, inputs=[], outputs=[])
+                clean_f0_file.click(fn=clean_f0_files, inputs=[], outputs=[])
 
         with gr.TabItem(translations["report_bugs"], visible=configs.get("report_bug_tab", True)):
             gr.Markdown(translations["report_bugs"])
@@ -2614,6 +2759,13 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
             with gr.Row():
                 report_button.click(fn=report_bug, inputs=[report_text, agree_log], outputs=[])
 
+    with gr.Row(): 
+        gr.Markdown(translations["rick_roll"].format(rickroll=codecs.decode('uggcf://jjj.lbhghor.pbz/jngpu?i=qDj4j9JtKpD', 'rot13')))
+    with gr.Row(): 
+        gr.Markdown(translations["terms_of_use"])
+    with gr.Row():
+        gr.Markdown(translations["exemption"])
+
     logger.info(translations["start_app"])
     logger.info(translations["set_lang"].format(lang=language))
 
@@ -2621,10 +2773,23 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
 
     for i in range(configs.get("num_of_restart", 5)):
         try:
-            app.queue().launch(favicon_path=os.path.join("assets", "miku.png"), server_name=configs.get("server_name", "0.0.0.0"), server_port=port, show_error=configs.get("app_show_error", False), inbrowser="--open" in sys.argv, share="--share" in sys.argv)
+            app.queue().launch(favicon_path=os.path.join("assets", "miku.png"), server_name=configs.get("server_name", "0.0.0.0"), server_port=port, show_error=configs.get("app_show_error", False), inbrowser="--open" in sys.argv and not app_mode, share="--share" in sys.argv and not app_mode, allowed_paths=allow_disk, prevent_thread_lock=app_mode)
             break
         except OSError:
             logger.debug(translations["port"].format(port=port))
             port -= 1
         except Exception as e:
             logger.error(translations["error_occurred"].format(e=e))
+            sys.exit(1)
+
+if app_mode:
+    import webview
+
+    def on_closed():
+        logger.info(translations["close"])
+        sys.exit(0)
+
+    window = webview.create_window("Vietnamese RVC", f"localhost:{port}", width=1600, height=900, min_size=(800, 600))
+    window.events.closed += on_closed
+
+    webview.start(icon=os.path.join("assets", "miku.png"), debug=False)
