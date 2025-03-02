@@ -21,7 +21,7 @@ for l in ["httpx", "httpcore"]:
 translations = Config().translations
 
 
-def check_predictors(method, f0_onnx):
+def check_predictors(method, f0_onnx=False):
     if f0_onnx and method not in ["harvestw", "diow"]: method += "-onnx"
 
     def download(predictors):
@@ -37,10 +37,12 @@ def check_predictors(method, f0_onnx):
             if method in model_dict: download(model_dict[method])
     elif method in model_dict: download(model_dict[method])
 
-def check_embedders(hubert):
-    if hubert in ["contentvec_base.pt", "contentvec_base.onnx", "hubert_base.pt", "japanese_hubert_base.pt", "japanese_hubert_base.onnx", "korean_hubert_base.pt", "korean_hubert_base.onnx", "chinese_hubert_base.pt", "chinese_hubert_base.onnx", "Hidden_Rabbit_last.pt", "portuguese_hubert_base.pt"]:
+def check_embedders(hubert, embedders_onnx=False):
+    if hubert in ["contentvec_base", "hubert_base", "japanese_hubert_base", "korean_hubert_base", "chinese_hubert_base", "portuguese_hubert_base"]:
+        hubert += ".onnx" if embedders_onnx else ".pt"
+
         model_path = os.path.join("assets", "models", "embedders", hubert)
-        if not os.path.exists(model_path): huggingface.HF_download_file(codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/erfbyir/znva/rzorqqref/", "rot13") + hubert, model_path)
+        if not os.path.exists(model_path): huggingface.HF_download_file(codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/erfbyir/znva/rzorqqref/", "rot13") + ("onnx/" if embedders_onnx else "fairseq/") + hubert, model_path)
 
 def load_audio(logger, file, sample_rate=16000, formant_shifting=False, formant_qfrency=0.8, formant_timbre=0.8):
     try:

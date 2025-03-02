@@ -45,6 +45,7 @@ def parse_arguments():
     parser.add_argument("--sample_rate", type=int, required=True)
     parser.add_argument("--embedder_model", type=str, default="contentvec_base.pt")
     parser.add_argument("--f0_onnx", type=lambda x: bool(strtobool(x)), default=False)
+    parser.add_argument("--embedders_onnx", type=lambda x: bool(strtobool(x)), default=False)
 
     return parser.parse_args()
 
@@ -359,9 +360,9 @@ def run_embedding_extraction(exp_dir, version, gpus, embedder_model):
 if __name__ == "__main__":
     args = parse_arguments()
     exp_dir = os.path.join("assets", "logs", args.model_name)
-    
-    f0_method, hop_length, num_processes, gpus, version, pitch_guidance, sample_rate, embedder_model, f0_onnx = args.f0_method, args.hop_length, args.cpu_cores, args.gpu, args.rvc_version, args.pitch_guidance, args.sample_rate, args.embedder_model, args.f0_onnx
-    check_predictors(f0_method, f0_onnx); check_embedders(embedder_model)
+    f0_method, hop_length, num_processes, gpus, version, pitch_guidance, sample_rate, embedder_model, f0_onnx, embedders_onnx = args.f0_method, args.hop_length, args.cpu_cores, args.gpu, args.rvc_version, args.pitch_guidance, args.sample_rate, args.embedder_model, args.f0_onnx, args.embedders_onnx
+    check_predictors(f0_method, f0_onnx); check_embedders(embedder_model, embedders_onnx)
+    embedder_model += ".onnx" if embedders_onnx else ".pt"
 
     if logger.hasHandlers(): logger.handlers.clear()
     else:
@@ -377,7 +378,7 @@ if __name__ == "__main__":
         logger.addHandler(file_handler)
         logger.setLevel(logging.DEBUG)
 
-    log_data = {translations['modelname']: args.model_name, translations['export_process']: exp_dir, translations['f0_method']: f0_method, translations['pretrain_sr']: sample_rate, translations['cpu_core']: num_processes, "Gpu": gpus, "Hop length": hop_length, translations['training_version']: version, translations['extract_f0']: pitch_guidance, translations['hubert_model']: embedder_model}
+    log_data = {translations['modelname']: args.model_name, translations['export_process']: exp_dir, translations['f0_method']: f0_method, translations['pretrain_sr']: sample_rate, translations['cpu_core']: num_processes, "Gpu": gpus, "Hop length": hop_length, translations['training_version']: version, translations['extract_f0']: pitch_guidance, translations['hubert_model']: embedder_model, translations["f0_onnx_mode"]: f0_onnx, translations["embed_onnx"]: embedders_onnx}
     for key, value in log_data.items():
         logger.debug(f"{key}: {value}")
 
@@ -388,7 +389,6 @@ if __name__ == "__main__":
     try:
         run_pitch_extraction(exp_dir, f0_method, hop_length, num_processes, gpus, f0_onnx)
         run_embedding_extraction(exp_dir, version, gpus, embedder_model)
-
         generate_config(version, sample_rate, exp_dir)
         generate_filelist(pitch_guidance, exp_dir, version, sample_rate)
     except Exception as e:

@@ -786,7 +786,7 @@
     "error_readfile": "An error occurred while reading the file!",
     "read_sf": "Read audio file using soundfile...",
     "read_librosa": "Read audio files using librosa as soundfile is not supported...",
-    "f0_onnx_mode": "ONNX Mode",
+    "f0_onnx_mode": "F0 ONNX Mode",
     "f0_onnx_mode_info": "Extracting pitch using the ONNX model can help improve speed",
     "formantshift": "Pitch and Formant Shift",
     "formant_qfrency": "Frequency for Formant Shift",
@@ -803,5 +803,7 @@
     "f0_file_2": "F0 File",
     "clean_f0_file": "Clean up F0 file",
     "start_clean_f0": "Starting F0 file cleanup...",
-    "clean_f0_done": "F0 file cleanup completed!"
+    "clean_f0_done": "F0 file cleanup completed!",
+    "embed_onnx": "Embedders ONNX Mode",
+    "embed_onnx_info": "Embedded extraction using the ONNX model can help improve speed"
 }

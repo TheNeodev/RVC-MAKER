@@ -51,7 +51,9 @@ F0_ONNX: Một số mô hình được chuyển đổi sang ONNX để hỗ tr�
 
 F0_HYBRID: Có thể kết hợp nhiều tùy chọn lại với nhau như `hybrid[rmvpe+harvest]` hoặc bạn có thể thử kết hợp toàn bộ tất cả tùy chọn lại với nhau
 
-EMBEDDERS: `contentvec_base.pt, contentvec_base.onnx, hubert_base.pt, japanese_hubert_base.pt, japanese_hubert_base.onnx, korean_hubert_base.pt, korean_hubert_base.onnx, chinese_hubert_base.pt, chinese_hubert_base.onnx, Hidden_Rabbit_last.pt, portuguese_hubert_base.pt`
+EMBEDDERS: `contentvec_base, hubert_base, japanese_hubert_base, korean_hubert_base, chinese_hubert_base, portuguese_hubert_base`
+
+EMBEDDERS_ONNX: Tất cả mô hình nhúng ở trên điều có phiên bản được chuyển đổi sẳn sang ONNX để sử dụng tăng tốc trích xuất nhúng
 
 # Hướng dẫn sử dụng
 

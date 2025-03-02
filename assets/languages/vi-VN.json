@@ -786,7 +786,7 @@
     "error_readfile": "Đã xảy ra lỗi khi đọc tệp!",
     "read_sf": "Đọc tệp âm thanh bằng soundfile...",
     "read_librosa": "Đọc tệp âm thanh bằng librosa do soundfile không hỗ trợ...",
-    "f0_onnx_mode": "Chế độ ONNX",
+    "f0_onnx_mode": "Chế độ F0 ONNX",
     "f0_onnx_mode_info": "Trích xuất cao độ bằng mô hình ONNX có thể giúp tăng tốc độ",
     "formantshift": "Dịch chuyển cao độ và âm sắc",
     "formant_qfrency": "Tần số cho dịch chuyển định dạng",
@@ -803,5 +803,7 @@
     "f0_file_2": "Tệp F0",
     "clean_f0_file": "Dọp dẹp tệp F0",
     "start_clean_f0": "Bắt đầu dọn dẹp tệp F0...",
-    "clean_f0_done": "Hoàn tất dọn dẹp tệp F0!"
+    "clean_f0_done": "Hoàn tất dọn dẹp tệp F0!",
+    "embed_onnx": "Chế độ nhúng ONNX",
+    "embed_onnx_info": "Trích xuất nhúng bằng mô hình ONNX có thể giúp tăng tốc độ"
 }

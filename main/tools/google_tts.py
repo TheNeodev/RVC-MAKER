@@ -5,7 +5,7 @@ import requests
 
 import soundfile as sf
 
-def google_tts(text, lang="vi", speed=1, pitch=0, output_file="output.mp3"):
+def google_tts(text, lang="vi", speed=0, pitch=0, output_file="output.mp3"):
     try:
         response = requests.get(codecs.decode("uggcf://genafyngr.tbbtyr.pbz/genafyngr_ggf", "rot13"), params={"ie": "UTF-8", "q": text, "tl": lang, "ttsspeed": speed, "client": "tw-ob"}, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"})
 
@@ -16,7 +16,7 @@ def google_tts(text, lang="vi", speed=1, pitch=0, output_file="output.mp3"):
             format = os.path.splitext(os.path.basename(output_file))[-1].lower().replace('.', '')
 
             if pitch != 0: pitch_shift(input_file=output_file, output_file=output_file, pitch=pitch, export_format=format)
-            if speed != 1: change_speed(input_file=output_file, output_file=output_file, speed=speed, export_format=format)
+            if speed != 0: change_speed(input_file=output_file, output_file=output_file, speed=speed, export_format=format)
         else: raise ValueError(f"{response.status_code}, {response.text}")
     except Exception as e:
         raise RuntimeError(e)

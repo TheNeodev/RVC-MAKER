@@ -1,4 +1,5 @@
 import os
+import io
 import math
 import torch
 import librosa
@@ -10,6 +11,8 @@ import torch.nn.functional as F
 
 from torch import nn, einsum
 from functools import partial
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import unpad
 from torchaudio.transforms import Resample
 from einops import rearrange, repeat, pack, unpack
 from torch.nn.utils.parametrizations import weight_norm
@@ -35,6 +38,15 @@ def cast_tuple(val):
 
 def l2norm(tensor):
     return F.normalize(tensor, dim = -1).type(tensor.dtype)
+
+def decrypt_model(input_path):
+    with open(input_path, "rb") as f:
+        data = f.read()
+
+    with open(os.path.join("main", "configs", "decrypt.bin"), "rb") as f:
+        key = f.read()
+
+    return io.BytesIO(unpad(AES.new(key, AES.MODE_CBC, data[:16]).decrypt(data[16:]), AES.block_size)).read()
 
 def l2_regularization(model, l2_alpha):
     l2_loss = []
@@ -840,8 +852,8 @@ class FCPEInfer_LEGACY:
         if self.onnx:
             sess_options = ort.SessionOptions()
             sess_options.log_severity_level = 3
-
-            self.model = ort.InferenceSession(model_path, sess_options=sess_options, providers=providers)
+            
+            self.model = ort.InferenceSession(decrypt_model(model_path), sess_options=sess_options, providers=providers)
         else:
             ckpt = torch.load(model_path, map_location=torch.device(self.device))
             self.args = DotDict(ckpt["config"])
@@ -870,7 +882,7 @@ class FCPEInfer:
             sess_options = ort.SessionOptions()
             sess_options.log_severity_level = 3
 
-            self.model = ort.InferenceSession(model_path, sess_options=sess_options, providers=providers)
+            self.model = ort.InferenceSession(decrypt_model(model_path), sess_options=sess_options, providers=providers)
         else:
             ckpt = torch.load(model_path, map_location=torch.device(device))
             ckpt["config_dict"]["model"]["conv_dropout"] = ckpt["config_dict"]["model"]["atten_dropout"] = 0.0
