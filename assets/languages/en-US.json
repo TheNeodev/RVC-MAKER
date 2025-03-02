@@ -805,5 +805,6 @@
     "start_clean_f0": "Starting F0 file cleanup...",
     "clean_f0_done": "F0 file cleanup completed!",
     "embed_onnx": "Embedders ONNX Mode",
-    "embed_onnx_info": "Embedded extraction using the ONNX model can help improve speed"
+    "embed_onnx_info": "Embedded extraction using the ONNX model can help improve speed",
+    "close": "The application is shutting down..."
 }
