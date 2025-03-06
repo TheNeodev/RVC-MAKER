@@ -73,7 +73,7 @@ def parse_arguments():
     parser.add_argument("--resample_sr", type=int, default=0)
     parser.add_argument("--split_audio", type=lambda x: bool(strtobool(x)), default=False)
     parser.add_argument("--checkpointing", type=lambda x: bool(strtobool(x)), default=False)
-    parser.add_argument("--f0_file", type=str, default=None)
+    parser.add_argument("--f0_file", type=str, default="")
     parser.add_argument("--f0_onnx", type=lambda x: bool(strtobool(x)), default=False)
     parser.add_argument("--embedders_onnx", type=lambda x: bool(strtobool(x)), default=False)
     parser.add_argument("--formant_shifting", type=lambda x: bool(strtobool(x)), default=False)
