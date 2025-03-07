@@ -137,7 +137,7 @@ def separation(input_path, output_path, export_format, shifts, overlap, segments
         backing_data, backing_sr = sf.read(backing_vocals_no_reverb if reverb and backing_reverb else backing_vocals)
 
         from main.tools.noisereduce import reduce_noise
-        sf.write(original_output, reduce_noise(y=vocal_data, prop_decrease=clean_strength), vocal_sr, format=export_format, device=config.device)
+        sf.write(original_output, reduce_noise(y=vocal_data, sr=vocal_sr, prop_decrease=clean_strength), vocal_sr, format=export_format, device=config.device)
 
         if backing:
             sf.write(main_output, reduce_noise(y=main_data, sr=main_sr, prop_decrease=clean_strength), main_sr, format=export_format, device=config.device)
