@@ -131,15 +131,15 @@ def separation(input_path, output_path, export_format, shifts, overlap, segments
         import soundfile as sf
         
         logger.info(f"{translations['clear_audio']}...")
-
         vocal_data, vocal_sr = sf.read(vocals_no_reverb if reverb else vocals)
-        main_data, main_sr = sf.read(main_vocals_no_reverb if reverb and backing else main_vocals)
-        backing_data, backing_sr = sf.read(backing_vocals_no_reverb if reverb and backing_reverb else backing_vocals)
 
         from main.tools.noisereduce import reduce_noise
         sf.write(original_output, reduce_noise(y=vocal_data, sr=vocal_sr, prop_decrease=clean_strength), vocal_sr, format=export_format, device=config.device)
 
         if backing:
+            main_data, main_sr = sf.read(main_vocals_no_reverb if reverb and backing else main_vocals)
+            backing_data, backing_sr = sf.read(backing_vocals_no_reverb if reverb and backing_reverb else backing_vocals)
+
             sf.write(main_output, reduce_noise(y=main_data, sr=main_sr, prop_decrease=clean_strength), main_sr, format=export_format, device=config.device)
             sf.write(backing_output, reduce_noise(y=backing_data, sr=backing_sr, prop_decrease=clean_strength), backing_sr, format=export_format, device=config.device)  
 
