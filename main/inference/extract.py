@@ -318,7 +318,7 @@ def run_embedding_extraction(exp_dir, version, gpus, embedder_model, embedders_m
 
     start_time = time.time()
     models, saved_cfg, embed_suffix = load_embedders_model(embedder_model, embedders_mode, providers=get_providers())
-    devices = [(get_device(gpu) for gpu in (gpus.split("-"))) if gpus != "-" else "cpu"]
+    devices = [get_device(gpu) for gpu in (gpus.split("-") if gpus != "-" else ["cpu"])]
     paths = sorted([file for file in os.listdir(wav_path) if file.endswith(".wav")])
 
     if not paths:
