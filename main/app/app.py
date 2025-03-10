@@ -78,12 +78,10 @@ miku_image = codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/e
 csv_path = os.path.join("assets", "spreadsheet.csv")
 
 logger.info(config.device)
-
 app_mode = "--app" in sys.argv
 
 if "--allow_all_disk" in sys.argv:
     import win32api
-
     allow_disk = win32api.GetLogicalDriveStrings().split('\x00')[:-1]
 else: allow_disk = []
 
@@ -804,10 +802,10 @@ def separator_music(input, output_audio, format, shifts, segments_size, overlap,
 
     return [os.path.join(output, f"Original_Vocals_No_Reverb.{format}") if reverb else os.path.join(output, f"Original_Vocals.{format}"), os.path.join(output, f"Instruments.{format}"), (os.path.join(output, f"Main_Vocals_No_Reverb.{format}") if reverb else os.path.join(output, f"Main_Vocals.{format}") if backing else None), (os.path.join(output, f"Backing_Vocals_No_Reverb.{format}") if backing_reverb else os.path.join(output, f"Backing_Vocals.{format}") if backing else None)] if os.path.isfile(input) else [None]*4
 
-def convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0_method, input_path, output_path, pth_path, index_path, f0_autotune, clean_audio, clean_strength, export_format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, embedders_onnx, formant_shifting, formant_qfrency, formant_timbre, f0_file):    
-    os.system(f'{python} main/inference/convert.py --pitch {pitch} --filter_radius {filter_radius} --index_rate {index_rate} --volume_envelope {volume_envelope} --protect {protect} --hop_length {hop_length} --f0_method {f0_method} --input_path "{input_path}" --output_path "{output_path}" --pth_path "{pth_path}" --index_path "{index_path}" --f0_autotune {f0_autotune} --clean_audio {clean_audio} --clean_strength {clean_strength} --export_format {export_format} --embedder_model {embedder_model} --resample_sr {resample_sr} --split_audio {split_audio} --f0_autotune_strength {f0_autotune_strength} --checkpointing {checkpointing} --f0_onnx {onnx_f0_mode} --embedders_onnx {embedders_onnx} --formant_shifting {formant_shifting} --formant_qfrency {formant_qfrency} --formant_timbre {formant_timbre} --f0_file "{f0_file}"')
+def convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0_method, input_path, output_path, pth_path, index_path, f0_autotune, clean_audio, clean_strength, export_format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, embedders_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file):    
+    os.system(f'{python} main/inference/convert.py --pitch {pitch} --filter_radius {filter_radius} --index_rate {index_rate} --volume_envelope {volume_envelope} --protect {protect} --hop_length {hop_length} --f0_method {f0_method} --input_path "{input_path}" --output_path "{output_path}" --pth_path "{pth_path}" --index_path "{index_path}" --f0_autotune {f0_autotune} --clean_audio {clean_audio} --clean_strength {clean_strength} --export_format {export_format} --embedder_model {embedder_model} --resample_sr {resample_sr} --split_audio {split_audio} --f0_autotune_strength {f0_autotune_strength} --checkpointing {checkpointing} --f0_onnx {onnx_f0_mode} --embedders_mode "{embedders_mode}" --formant_shifting {formant_shifting} --formant_qfrency {formant_qfrency} --formant_timbre {formant_timbre} --f0_file "{f0_file}"')
 
-def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not_merge_backing, merge_instrument, pitch, clean_strength, model, index, index_rate, input, output, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, input_audio_name, checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file, embedders_onnx):
+def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not_merge_backing, merge_instrument, pitch, clean_strength, model, index, index_rate, input, output, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, input_audio_name, checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file, embedders_mode):
     model_path = os.path.join("assets", "weights", model)
 
     return_none = [None]*6
@@ -879,7 +877,7 @@ def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not
 
         gr_info(translations["convert_vocal"])
 
-        convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0method, input_path, output_path, model_path, index, autotune, clean, clean_strength, format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, embedders_onnx, formant_shifting, formant_qfrency, formant_timbre, f0_file)
+        convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0method, input_path, output_path, model_path, index, autotune, clean, clean_strength, format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, embedders_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file)
 
         gr_info(translations["convert_success"])
 
@@ -888,7 +886,7 @@ def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not
 
             gr_info(translations["convert_backup"])
 
-            convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0method, backing_path, output_backing, model_path, index, autotune, clean, clean_strength, format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, embedders_onnx, formant_shifting, formant_qfrency, formant_timbre, f0_file)
+            convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0method, backing_path, output_backing, model_path, index, autotune, clean, clean_strength, format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, embedders_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file)
 
             gr_info(translations["convert_backup_success"])
 
@@ -942,7 +940,7 @@ def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not
             gr_info(translations["batch_convert"])
 
             output_dir = os.path.dirname(output) or output
-            convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0method, input, output_dir, model_path, index, autotune, clean, clean_strength, format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, embedders_onnx, formant_shifting, formant_qfrency, formant_timbre, f0_file)
+            convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0method, input, output_dir, model_path, index, autotune, clean, clean_strength, format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, embedders_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file)
 
             gr_info(translations["batch_convert_success"])
 
@@ -955,14 +953,14 @@ def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not
 
             gr_info(translations["convert_vocal"])
 
-            convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0method, input, output, model_path, index, autotune, clean, clean_strength, format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, embedders_onnx, formant_shifting, formant_qfrency, formant_timbre, f0_file)
+            convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0method, input, output, model_path, index, autotune, clean, clean_strength, format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, embedders_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file)
 
             gr_info(translations["convert_success"])
 
             return_none[0] = output
             return return_none
 
-def convert_selection(clean, autotune, use_audio, use_original, convert_backing, not_merge_backing, merge_instrument, pitch, clean_strength, model, index, index_rate, input, output, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file, embedders_onnx):
+def convert_selection(clean, autotune, use_audio, use_original, convert_backing, not_merge_backing, merge_instrument, pitch, clean_strength, model, index, index_rate, input, output, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file, embedders_mode):
     if use_audio:
         gr_info(translations["search_separate"])
 
@@ -975,16 +973,16 @@ def convert_selection(clean, autotune, use_audio, use_original, convert_backing,
 
             return [{"choices": [], "value": "", "interactive": False, "visible": False, "__type__": "update"}, None, None, None, None, None, {"visible": True, "__type__": "update"}]
         elif len(choice) == 1:
-            convert_output = convert_audio(clean, autotune, use_audio, use_original, convert_backing, not_merge_backing, merge_instrument, pitch, clean_strength, model, index, index_rate, None, None, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, choice[0], checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file, embedders_onnx)
+            convert_output = convert_audio(clean, autotune, use_audio, use_original, convert_backing, not_merge_backing, merge_instrument, pitch, clean_strength, model, index, index_rate, None, None, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, choice[0], checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file, embedders_mode)
 
             return [{"choices": [], "value": "", "interactive": False, "visible": False, "__type__": "update"}, convert_output[0], convert_output[1], convert_output[2], convert_output[3], convert_output[4], {"visible": True, "__type__": "update"}]
         else: return [{"choices": choice, "value": "", "interactive": True, "visible": True, "__type__": "update"}, None, None, None, None, None, {"visible": False, "__type__": "update"}]
     else:
-        main_convert = convert_audio(clean, autotune, use_audio, use_original, convert_backing, not_merge_backing, merge_instrument, pitch, clean_strength, model, index, index_rate, input, output, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, None, checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file, embedders_onnx)
+        main_convert = convert_audio(clean, autotune, use_audio, use_original, convert_backing, not_merge_backing, merge_instrument, pitch, clean_strength, model, index, index_rate, input, output, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, None, checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file, embedders_mode)
 
         return [{"choices": [], "value": "", "interactive": False, "visible": False, "__type__": "update"}, main_convert[0], None, None, None, None, {"visible": True, "__type__": "update"}]
     
-def convert_tts(clean, autotune, pitch, clean_strength, model, index, index_rate, input, output, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file, embedders_onnx):
+def convert_tts(clean, autotune, pitch, clean_strength, model, index, index_rate, input, output, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file, embedders_mode):
     model_path = os.path.join("assets", "weights", model)
 
     if not model_path or not os.path.exists(model_path) or os.path.isdir(model_path) or not model.endswith((".pth", ".onnx")):
@@ -1020,7 +1018,7 @@ def convert_tts(clean, autotune, pitch, clean_strength, model, index, index_rate
 
     gr_info(translations["convert_vocal"])
 
-    convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0method, input, output, model_path, index, autotune, clean, clean_strength, format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, embedders_onnx, formant_shifting, formant_qfrency, formant_timbre, f0_file)
+    convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0method, input, output, model_path, index, autotune, clean, clean_strength, format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, embedders_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file)
 
     gr_info(translations["convert_success"])
     return output
@@ -1073,7 +1071,7 @@ def preprocess(model_name, sample_rate, cpu_core, cut_preprocess, process_effect
     for log in log_read(os.path.join(model_dir, "preprocess.log"), done):
         yield log
 
-def extract(model_name, version, method, pitch_guidance, hop_length, cpu_cores, gpu, sample_rate, embedders, custom_embedders, onnx_f0_mode):
+def extract(model_name, version, method, pitch_guidance, hop_length, cpu_cores, gpu, sample_rate, embedders, custom_embedders, onnx_f0_mode, embedders_mode):
     embedder_model = embedders if embedders != "custom" else custom_embedders
     sr = int(float(sample_rate.rstrip("k")) * 1000)
 
@@ -1082,7 +1080,7 @@ def extract(model_name, version, method, pitch_guidance, hop_length, cpu_cores, 
     model_dir = os.path.join("assets", "logs", model_name)
     if not any(os.path.isfile(os.path.join(model_dir, "sliced_audios", f)) for f in os.listdir(os.path.join(model_dir, "sliced_audios"))) or not any(os.path.isfile(os.path.join(model_dir, "sliced_audios_16k", f)) for f in os.listdir(os.path.join(model_dir, "sliced_audios_16k"))): return gr_warning(translations["not_found_data_preprocess"])
 
-    p = Popen(f'{python} main/inference/extract.py --model_name "{model_name}" --rvc_version {version} --f0_method {method} --pitch_guidance {pitch_guidance} --hop_length {hop_length} --cpu_cores {cpu_cores} --gpu {gpu} --sample_rate {sr} --embedder_model {embedder_model} --f0_onnx {onnx_f0_mode}', shell=True)
+    p = Popen(f'{python} main/inference/extract.py --model_name "{model_name}" --rvc_version {version} --f0_method {method} --pitch_guidance {pitch_guidance} --hop_length {hop_length} --cpu_cores {cpu_cores} --gpu {gpu} --sample_rate {sr} --embedder_model {embedder_model} --f0_onnx {onnx_f0_mode} --embedders_mode {embedders_mode}', shell=True)
     done = [False]
 
     threading.Thread(target=if_done, args=(done, p)).start()
@@ -1458,7 +1456,10 @@ def f0_extract(audio, f0_method, f0_onnx):
     import librosa
 
     from matplotlib import pyplot as plt
+    from main.library.utils import check_predictors
     from main.inference.extract import FeatureInput
+
+    check_predictors(f0_method, f0_onnx)
 
     filename, _ = os.path.splitext(os.path.basename(audio))
 
@@ -1651,7 +1652,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                             f0_file_dropdown = gr.Dropdown(label=translations["f0_file_2"], value="", choices=f0_file, allow_custom_value=True, interactive=True)
                             refesh_f0_file = gr.Button(translations["refesh"])
                         with gr.Accordion(translations["hubert_model"], open=False):
-                            onnx_embed_mode = gr.Checkbox(label=translations["embed_onnx"], info=translations["embed_onnx_info"], value=False, interactive=True)
+                            embed_mode = gr.Radio(label=translations["embed_mode"], info=translations["embed_mode_info"], value="fairseq", choices=["fairseq", "onnx", "transformers"], interactive=True, visible=False)
                             embedders = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=embedders_model, value="contentvec_base", interactive=True)
                             custom_embedders = gr.Textbox(label=translations["modelname"], info=translations["modelname_info"], value="", placeholder="hubert_base", interactive=True, visible=embedders.value == "custom")
                         with gr.Accordion(translations["use_presets"], open=False):
@@ -1837,7 +1838,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                         formant_qfrency, 
                         formant_timbre,
                         f0_file_dropdown,
-                        onnx_embed_mode
+                        embed_mode
                     ],
                     outputs=[audio_select, main_convert, backing_convert, main_backing, original_convert, vocal_instrument, convert_button],
                     api_name="convert_selection"
@@ -1878,7 +1879,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                         formant_qfrency, 
                         formant_timbre,
                         f0_file_dropdown,
-                        onnx_embed_mode
+                        embed_mode
                     ],
                     outputs=[main_convert, backing_convert, main_backing, original_convert, vocal_instrument, convert_button],
                     api_name="convert_audio"
@@ -1931,7 +1932,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                             f0_file_dropdown0 = gr.Dropdown(label=translations["f0_file_2"], value="", choices=f0_file, allow_custom_value=True, interactive=True)
                             refesh_f0_file0 = gr.Button(translations["refesh"])
                         with gr.Accordion(translations["hubert_model"], open=False):
-                            onnx_embed_mode1 = gr.Checkbox(label=translations["embed_onnx"], info=translations["embed_onnx_info"], value=False, interactive=True)
+                            embed_mode1 = gr.Radio(label=translations["embed_mode"], info=translations["embed_mode_info"], value="fairseq", choices=["fairseq", "onnx", "transformers"], interactive=True, visible=False)
                             embedders0 = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=embedders_model, value="contentvec_base", interactive=True)
                             custom_embedders0 = gr.Textbox(label=translations["modelname"], info=translations["modelname_info"], value="", placeholder="hubert_base", interactive=True, visible=embedders0.value == "custom")
                         with gr.Group():
@@ -2019,7 +2020,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                         formant_qfrency1, 
                         formant_timbre1,
                         f0_file_dropdown0,
-                        onnx_embed_mode1
+                        embed_mode1
                     ],
                     outputs=[tts_voice_convert],
                     api_name="convert_tts"
@@ -2315,7 +2316,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                                 extract_hop_length = gr.Slider(label="Hop length", info=translations["hop_length_info"], minimum=1, maximum=512, value=128, step=1, interactive=True, visible=False)
                             with gr.Accordion(label=translations["hubert_model"], open=False):
                                 with gr.Group():
-                                    onnx_embed_mode2 = gr.Checkbox(label=translations["embed_onnx"], info=translations["embed_onnx_info"], value=False, interactive=True)
+                                    embed_mode2 = gr.Radio(label=translations["embed_mode"], info=translations["embed_mode_info"], value="fairseq", choices=["fairseq", "onnx", "transformers"], interactive=True, visible=False)
                                     extract_embedders = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=embedders_model, value="contentvec_base", interactive=True)
                                 with gr.Row():
                                     extract_embedders_custom = gr.Textbox(label=translations["modelname"], info=translations["modelname_info"], value="", placeholder="hubert_base", interactive=True, visible=extract_embedders.value == "custom")
@@ -2431,7 +2432,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
                         extract_embedders, 
                         extract_embedders_custom,
                         onnx_f0_mode2,
-                        onnx_embed_mode2
+                        embed_mode2
                     ],
                     outputs=[extract_info],
                     api_name="extract"
@@ -2864,7 +2865,6 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme) as app:
 
     logger.info(translations["start_app"])
     logger.info(translations["set_lang"].format(lang=language))
-
     port = configs.get("app_port", 7860)
 
     for i in range(configs.get("num_of_restart", 5)):

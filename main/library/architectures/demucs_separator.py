@@ -5,7 +5,6 @@ import torch
 
 import numpy as np
 
-from pathlib import Path
 from hashlib import sha256
 
 sys.path.append(os.getcwd())
@@ -16,6 +15,7 @@ from main.library.uvr5_separator.demucs import hdemucs, states, apply
 
 translations = Config().translations
 sys.path.insert(0, os.path.join(os.getcwd(), "main", "library", "uvr5_separator"))
+
 DEMUCS_4_SOURCE_MAPPER = {common_separator.CommonSeparator.BASS_STEM: 0, common_separator.CommonSeparator.DRUM_STEM: 1, common_separator.CommonSeparator.OTHER_STEM: 2, common_separator.CommonSeparator.VOCAL_STEM: 3}
 
 class DemucsSeparator(common_separator.CommonSeparator):
@@ -44,7 +44,7 @@ class DemucsSeparator(common_separator.CommonSeparator):
         self.logger.debug(translations["demix"].format(shape=mix.shape))
         self.logger.debug(translations["cancel_mix"])
         self.demucs_model_instance = hdemucs.HDemucs(sources=["drums", "bass", "other", "vocals"])
-        self.demucs_model_instance = get_demucs_model(name=os.path.splitext(os.path.basename(self.model_path))[0], repo=Path(os.path.dirname(self.model_path)))
+        self.demucs_model_instance = get_demucs_model(name=os.path.splitext(os.path.basename(self.model_path))[0], repo=os.path.abspath(os.path.dirname(self.model_path)))
         self.demucs_model_instance = apply.demucs_segments(self.segment_size, self.demucs_model_instance)
         self.demucs_model_instance.to(self.torch_device)
         self.demucs_model_instance.eval()

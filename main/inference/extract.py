@@ -17,13 +17,12 @@ import torch.nn.functional as F
 
 from random import shuffle
 from distutils.util import strtobool
-from fairseq import checkpoint_utils
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.append(os.getcwd())
 
 from main.configs.config import Config
-from main.library.utils import check_predictors, check_embedders, load_audio
+from main.library.utils import check_predictors, check_embedders, load_audio, load_embedders_model
 
 logger = logging.getLogger(__name__)
 translations = Config().translations
@@ -43,9 +42,9 @@ def parse_arguments():
     parser.add_argument("--cpu_cores", type=int, default=2)
     parser.add_argument("--gpu", type=str, default="-")
     parser.add_argument("--sample_rate", type=int, required=True)
-    parser.add_argument("--embedder_model", type=str, default="contentvec_base.pt")
+    parser.add_argument("--embedder_model", type=str, default="contentvec_base")
     parser.add_argument("--f0_onnx", type=lambda x: bool(strtobool(x)), default=False)
-    parser.add_argument("--embedders_onnx", type=lambda x: bool(strtobool(x)), default=False)
+    parser.add_argument("--embedders_mode", type=str, default="fairseq")
 
     return parser.parse_args()
 
@@ -226,7 +225,7 @@ class FeatureInput:
     def get_swipe(self, x):
         from main.library.predictors.SWIPE import swipe
 
-        f0, _ = swipe(x.astype(np.double), self.fs, f0_floor=self.f0_min, f0_ceil=self.f0_max, frame_period=1000 * self.hop / self.fs, device=self.device)
+        f0, _ = swipe(x.astype(np.double), self.fs, f0_floor=self.f0_min, f0_ceil=self.f0_max, frame_period=1000 * self.hop / self.fs)
         return f0
     
     def get_yin(self, x, hop_length, mode="yin"):
@@ -259,8 +258,7 @@ class FeatureInput:
         except Exception as e:
             raise RuntimeError(f"{translations['extract_file_error']} {inp_path}: {e}")
 
-    def process_files(self, files, f0_method, hop_length, f0_onnx, device, pbar):
-        self.device = device
+    def process_files(self, files, f0_method, hop_length, f0_onnx, pbar):
         for file_info in files:
             self.process_file(file_info, f0_method, hop_length, f0_onnx)
             pbar.update()
@@ -274,17 +272,15 @@ def run_pitch_extraction(exp_dir, f0_method, hop_length, num_processes, gpus, f0
 
     start_time = time.time()
     gpus = gpus.split("-")
-
     process_partials = []
-    devices = get_device(gpu) if gpu != "" else "cpu"
 
     pbar = tqdm.tqdm(total=len(paths), ncols=100, unit="p")
     for idx, gpu in enumerate(gpus):
-        feature_input = FeatureInput(device=devices)
+        feature_input = FeatureInput(device=get_device(gpu) if gpu != "" else "cpu")
         process_partials.append((feature_input, paths[idx::len(gpus)]))
 
     with ThreadPoolExecutor(max_workers=num_processes) as executor:
-        for future in as_completed([executor.submit(FeatureInput.process_files, feature_input, part_paths, f0_method, hop_length, f0_onnx, devices, pbar) for feature_input, part_paths in process_partials]):
+        for future in as_completed([executor.submit(FeatureInput.process_files, feature_input, part_paths, f0_method, hop_length, f0_onnx, pbar) for feature_input, part_paths in process_partials]):
             pbar.update(1)
             logger.debug(pbar.format_meter(pbar.n, pbar.total, pbar.format_dict["elapsed"]))
             future.result()
@@ -298,45 +294,30 @@ def extract_features(model, feats, version):
 def process_file_embedding(file, wav_path, out_path, model, device, version, saved_cfg, embed_suffix):
     out_file_path = os.path.join(out_path, file.replace("wav", "npy"))
     if os.path.exists(out_file_path): return
-
     feats = read_wave(os.path.join(wav_path, file), normalize=saved_cfg.task.normalize if saved_cfg else False).to(device).float()
-    if embed_suffix == ".pt": inputs = {"source": feats, "padding_mask": torch.BoolTensor(feats.shape).fill_(False).to(device), "output_layer": 9 if version == "v1" else 12}
 
     with torch.no_grad():
         if embed_suffix == ".pt":
             model = model.to(device).float().eval()
-            logits = model.extract_features(**inputs)
+            logits = model.extract_features(**{"source": feats, "padding_mask": torch.BoolTensor(feats.shape).fill_(False).to(device), "output_layer": 9 if version == "v1" else 12})
             feats = model.final_proj(logits[0]) if version == "v1" else logits[0]
-        else: feats = extract_features(model, feats, version).to(device)
+        elif embed_suffix == ".onnx": feats = extract_features(model, feats, version).to(device)
+        elif embed_suffix == ".bin":
+            model = model.to(device).float().eval()
+            logits = model(feats)["last_hidden_state"]
+            feats = (model.final_proj(logits[0]).unsqueeze(0) if version == "v1" else logits)
+        else: raise ValueError(translations["option_not_valid"])
 
     feats = feats.squeeze(0).float().cpu().numpy()
-
     if not np.isnan(feats).any(): np.save(out_file_path, feats, allow_pickle=False)
     else: logger.warning(f"{file} {translations['NaN']}")
 
-def run_embedding_extraction(exp_dir, version, gpus, embedder_model):
+def run_embedding_extraction(exp_dir, version, gpus, embedder_model, embedders_mode):
     wav_path, out_path = setup_paths(exp_dir, version)
     logger.info(translations["start_extract_hubert"])
 
     start_time = time.time()
-    embedder_model_path = os.path.join("assets", "models", "embedders", embedder_model)
-    if not os.path.exists(embedder_model_path) and not embedder_model.endswith((".pt", ".onnx")): raise FileNotFoundError(f"{translations['not_found'].format(name=translations['model'])}: {embedder_model}")  
-    
-    try:
-        if embedder_model.endswith(".pt"):
-            models, saved_cfg, _ = checkpoint_utils.load_model_ensemble_and_task([embedder_model_path], suffix="")
-
-            models = models[0]
-            embed_suffix = ".pt"
-        else:
-            sess_options = onnxruntime.SessionOptions()
-            sess_options.log_severity_level = 3
-
-            models = onnxruntime.InferenceSession(embedder_model_path, sess_options=sess_options, providers=get_providers())
-            saved_cfg, embed_suffix = None, ".onnx"
-    except Exception as e:
-        raise ImportError(translations["read_model_error"].format(e=e))
-
+    models, saved_cfg, embed_suffix = load_embedders_model(embedder_model, embedders_mode, providers=get_providers())
     devices = [(get_device(gpu) for gpu in (gpus.split("-"))) if gpus != "-" else "cpu"]
     paths = sorted([file for file in os.listdir(wav_path) if file.endswith(".wav")])
 
@@ -360,9 +341,8 @@ def run_embedding_extraction(exp_dir, version, gpus, embedder_model):
 if __name__ == "__main__":
     args = parse_arguments()
     exp_dir = os.path.join("assets", "logs", args.model_name)
-    f0_method, hop_length, num_processes, gpus, version, pitch_guidance, sample_rate, embedder_model, f0_onnx, embedders_onnx = args.f0_method, args.hop_length, args.cpu_cores, args.gpu, args.rvc_version, args.pitch_guidance, args.sample_rate, args.embedder_model, args.f0_onnx, args.embedders_onnx
-    check_predictors(f0_method, f0_onnx); check_embedders(embedder_model, embedders_onnx)
-    embedder_model += ".onnx" if embedders_onnx else ".pt"
+    f0_method, hop_length, num_processes, gpus, version, pitch_guidance, sample_rate, embedder_model, f0_onnx, embedders_mode = args.f0_method, args.hop_length, args.cpu_cores, args.gpu, args.rvc_version, args.pitch_guidance, args.sample_rate, args.embedder_model, args.f0_onnx, args.embedders_mode
+    check_predictors(f0_method, f0_onnx); check_embedders(embedder_model, embedders_mode)
 
     if logger.hasHandlers(): logger.handlers.clear()
     else:
@@ -378,7 +358,7 @@ if __name__ == "__main__":
         logger.addHandler(file_handler)
         logger.setLevel(logging.DEBUG)
 
-    log_data = {translations['modelname']: args.model_name, translations['export_process']: exp_dir, translations['f0_method']: f0_method, translations['pretrain_sr']: sample_rate, translations['cpu_core']: num_processes, "Gpu": gpus, "Hop length": hop_length, translations['training_version']: version, translations['extract_f0']: pitch_guidance, translations['hubert_model']: embedder_model, translations["f0_onnx_mode"]: f0_onnx, translations["embed_onnx"]: embedders_onnx}
+    log_data = {translations['modelname']: args.model_name, translations['export_process']: exp_dir, translations['f0_method']: f0_method, translations['pretrain_sr']: sample_rate, translations['cpu_core']: num_processes, "Gpu": gpus, "Hop length": hop_length, translations['training_version']: version, translations['extract_f0']: pitch_guidance, translations['hubert_model']: embedder_model, translations["f0_onnx_mode"]: f0_onnx, translations["embed_mode"]: embedders_mode}
     for key, value in log_data.items():
         logger.debug(f"{key}: {value}")
 
@@ -388,7 +368,7 @@ if __name__ == "__main__":
 
     try:
         run_pitch_extraction(exp_dir, f0_method, hop_length, num_processes, gpus, f0_onnx)
-        run_embedding_extraction(exp_dir, version, gpus, embedder_model)
+        run_embedding_extraction(exp_dir, version, gpus, embedder_model, embedders_mode)
         generate_config(version, sample_rate, exp_dir)
         generate_filelist(pitch_guidance, exp_dir, version, sample_rate)
     except Exception as e:

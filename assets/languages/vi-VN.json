@@ -804,7 +804,7 @@
     "clean_f0_file": "Dọp dẹp tệp F0",
     "start_clean_f0": "Bắt đầu dọn dẹp tệp F0...",
     "clean_f0_done": "Hoàn tất dọn dẹp tệp F0!",
-    "embed_onnx": "Chế độ nhúng ONNX",
-    "embed_onnx_info": "Trích xuất nhúng bằng mô hình ONNX có thể giúp tăng tốc độ",
+    "embed_mode": "Chế độ nhúng",
+    "embed_mode_info": "Trích xuất nhúng bằng các mô hình khác nhau",
     "close": "Ứng dụng đang tắt..."
 }

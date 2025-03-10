@@ -20,7 +20,6 @@ for l in ["httpx", "httpcore"]:
 
 translations = Config().translations
 
-
 def check_predictors(method, f0_onnx=False):
     if f0_onnx and method not in ["harvestw", "diow"]: method += "-onnx"
 
@@ -37,13 +36,29 @@ def check_predictors(method, f0_onnx=False):
             if method in model_dict: download(model_dict[method])
     elif method in model_dict: download(model_dict[method])
 
-def check_embedders(hubert, embedders_onnx=False):
+def check_embedders(hubert, embedders_mode="fairseq"):
+    huggingface_url = codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/erfbyir/znva/rzorqqref/", "rot13")
+
     if hubert in ["contentvec_base", "hubert_base", "japanese_hubert_base", "korean_hubert_base", "chinese_hubert_base", "portuguese_hubert_base"]:
-        hubert += ".onnx" if embedders_onnx else ".pt"
+        if embedders_mode == "fairseq": hubert += ".pt"
+        elif embedders_mode == "onnx": hubert += ".onnx"
 
         model_path = os.path.join("assets", "models", "embedders", hubert)
-        if not os.path.exists(model_path): huggingface.HF_download_file(codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/erfbyir/znva/rzorqqref/", "rot13") + ("onnx/" if embedders_onnx else "fairseq/") + hubert, model_path)
 
+        if embedders_mode == "fairseq": 
+            if not os.path.exists(model_path): huggingface.HF_download_file("".join([huggingface_url, "fairseq/", hubert]), model_path)
+        elif embedders_mode == "onnx": 
+            if not os.path.exists(model_path): huggingface.HF_download_file("".join([huggingface_url, "onnx/", hubert]), model_path)
+        elif embedders_mode == "transformers":
+            bin_file = os.path.join(model_path, "pytorch_model.bin")
+            config_file = os.path.join(model_path, "config.json")
+
+            os.makedirs(model_path, exist_ok=True)
+
+            if not os.path.exists(bin_file): huggingface.HF_download_file("".join([huggingface_url, "transformers/", hubert, "/pytorch_model.bin"]), bin_file)
+            if not os.path.exists(config_file): huggingface.HF_download_file("".join([huggingface_url, "transformers/", hubert, "/config.json"]), config_file)
+        else: raise ValueError(translations["option_not_valid"])
+    
 def load_audio(logger, file, sample_rate=16000, formant_shifting=False, formant_qfrency=0.8, formant_timbre=0.8):
     try:
         file = file.strip(" ").strip('"').strip("\n").strip('"').strip(" ")
@@ -128,3 +143,43 @@ def pydub_load(input_path):
     else: audio = AudioSegment.from_file(input_path)
     
     return audio
+
+def load_embedders_model(embedder_model, embedders_mode="fairseq", providers=None):
+    if embedders_mode == "fairseq": embedder_model += ".pt"
+    elif embedders_mode == "onnx": embedder_model += ".onnx"
+
+    embedder_model_path = os.path.join("assets", "models", "embedders", embedder_model)
+    if not os.path.exists(embedder_model_path): raise FileNotFoundError(f"{translations['not_found'].format(name=translations['model'])}: {embedder_model}")
+
+    try:
+        if embedders_mode == "fairseq":
+            from fairseq import checkpoint_utils
+
+            models, saved_cfg, _ = checkpoint_utils.load_model_ensemble_and_task([embedder_model_path], suffix="")
+            embed_suffix = ".pt"
+
+            hubert_model = models[0]
+        elif embedders_mode == "onnx":
+            import onnxruntime
+
+            sess_options = onnxruntime.SessionOptions()
+            sess_options.log_severity_level = 3
+
+            embed_suffix, saved_cfg = ".onnx", None
+            hubert_model = onnxruntime.InferenceSession(embedder_model_path, sess_options=sess_options, providers=providers)
+        elif embedders_mode == "transformers":
+            from torch import nn
+            from transformers import HubertModel
+
+            class HubertModelWithFinalProj(HubertModel):
+                def __init__(self, config):
+                    super().__init__(config)
+                    self.final_proj = nn.Linear(config.hidden_size, config.classifier_proj_size)
+                    
+            embed_suffix, saved_cfg = ".bin", None
+            hubert_model = HubertModelWithFinalProj.from_pretrained(embedder_model_path)
+        else: raise ValueError(translations["option_not_valid"])
+    except Exception as e:
+        raise RuntimeError(translations["read_model_error"].format(e=e))
+    
+    return hubert_model, saved_cfg, embed_suffix
