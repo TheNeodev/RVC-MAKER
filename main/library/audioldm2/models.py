@@ -7,8 +7,7 @@ import numpy as np
 import torch.nn.functional as F
 
 from scipy.signal import get_window
-from librosa.util import pad_center, tiny
-from librosa.core.spectrum import window_sumsquare
+from librosa.util import pad_center
 from diffusers import DDIMScheduler, AudioLDM2Pipeline
 from diffusers.models.unets.unet_2d_condition import UNet2DConditionOutput
 from transformers import RobertaTokenizer, RobertaTokenizerFast, VitsTokenizer
@@ -24,9 +23,6 @@ class Pipeline(torch.nn.Module):
         self.device = device
         self.double_precision = double_precision
         self.token = token
-
-    def get_sigma(self, timestep):
-        return torch.sqrt(1.0 / self.model.scheduler.alphas_cumprod - 1)[timestep]
 
     def load_scheduler(self):
         pass
@@ -66,7 +62,6 @@ class Pipeline(torch.nn.Module):
         sqrt_one_minus_alpha_bar = (1 - alpha_bar) ** 0.5
         timesteps = self.model.scheduler.timesteps.to(self.device)
         t_to_idx = {int(v): k for k, v in enumerate(timesteps)}
-
         xts = torch.zeros(self.get_noise_shape(x0, num_inference_steps + 1)).to(x0.device)
         xts[0] = x0
 
@@ -155,19 +150,6 @@ class STFT(torch.nn.Module):
         real_part, imag_part = transformed_signal[:, :cutoff, :], transformed_signal[:, cutoff:, :]
 
         return torch.sqrt(real_part ** 2 + imag_part ** 2), torch.atan2(imag_part, real_part)
-    
-    def inverse(self, magnitude, phase):
-        inverse_transform = F.conv_transpose1d(torch.cat([magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=1), self.inverse_basis, stride=self.hop_size, padding=0)
-        
-        if self.window_type:
-            window_sum = window_sumsquare(self.window_type, magnitude.size(-1), hop_length=self.hop_size, win_length=self.window_size, n_fft=self.fft_size, dtype=np.float32)
-            nonzero_indices = torch.from_numpy(np.where(window_sum > tiny(window_sum))[0])
-            window_sum = torch.from_numpy(window_sum)
-
-            inverse_transform[:, :, nonzero_indices] /= window_sum[nonzero_indices]
-            inverse_transform *= float(self.fft_size) / self.hop_size
-        
-        return inverse_transform[:, :, self.fft_size // 2 : -self.fft_size // 2]
 
 class MelSpectrogramProcessor(torch.nn.Module):
     def __init__(self, fft_size, hop_size, window_size, num_mel_bins, sample_rate, fmin, fmax):
@@ -250,10 +232,8 @@ class AudioLDM2(Pipeline):
     def unet_forward(self, sample, timestep, encoder_hidden_states, timestep_cond = None, class_labels = None, attention_mask = None, encoder_attention_mask = None, return_dict = True, cross_attention_kwargs = None, mid_block_additional_residual = None, replace_h_space = None, replace_skip_conns = None, zero_out_resconns = None):
         encoder_hidden_states_1 = class_labels
         class_labels = None
-
         encoder_attention_mask_1 = encoder_attention_mask
         encoder_attention_mask = None
-        
         default_overall_up_factor = 2 ** self.model.unet.num_upsamplers
         forward_upsample_size = False
         upsample_size = None
