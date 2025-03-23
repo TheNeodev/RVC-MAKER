@@ -12,13 +12,13 @@ import platform
 import requests
 import warnings
 import threading
+import subprocess
 import logging.handlers
 
 import gradio as gr
 import pandas as pd
 
 from time import sleep
-from subprocess import Popen
 from multiprocessing import cpu_count
 
 sys.path.append(os.getcwd())
@@ -239,7 +239,7 @@ def restart_app():
     os.system("cls" if platform.system() == "Windows" else "clear")
     
     app.close()
-    os.system(f"{python} {os.path.join('main', 'app', 'app.py')} {sys.argv}")
+    subprocess.run([python, os.path.join("main", "app", "app.py")] + sys.argv[1:])
 
 def change_language(lang):
     configs = json.load(open(configs_json, "r"))
@@ -770,7 +770,7 @@ def audio_effects(input_path, output_path, resample, resample_sr, chorus_depth, 
     if os.path.exists(output_path): os.remove(output_path)
     
     gr_info(translations["start"].format(start=translations["apply_effect"]))
-    os.system(f'{python} main/inference/audio_effects.py --input_path "{input_path}" --output_path "{output_path}" --resample {resample} --resample_sr {resample_sr} --chorus_depth {chorus_depth} --chorus_rate {chorus_rate} --chorus_mix {chorus_mix} --chorus_delay {chorus_delay} --chorus_feedback {chorus_feedback} --drive_db {distortion_drive} --reverb_room_size {reverb_room_size} --reverb_damping {reverb_damping} --reverb_wet_level {reverb_wet_level} --reverb_dry_level {reverb_dry_level} --reverb_width {reverb_width} --reverb_freeze_mode {reverb_freeze_mode} --pitch_shift {pitch_shift} --delay_seconds {delay_seconds} --delay_feedback {delay_feedback} --delay_mix {delay_mix} --compressor_threshold {compressor_threshold} --compressor_ratio {compressor_ratio} --compressor_attack_ms {compressor_attack_ms} --compressor_release_ms {compressor_release_ms} --limiter_threshold {limiter_threshold} --limiter_release {limiter_release} --gain_db {gain_db} --bitcrush_bit_depth {bitcrush_bit_depth} --clipping_threshold {clipping_threshold} --phaser_rate_hz {phaser_rate_hz} --phaser_depth {phaser_depth} --phaser_centre_frequency_hz {phaser_centre_frequency_hz} --phaser_feedback {phaser_feedback} --phaser_mix {phaser_mix} --bass_boost_db {bass_boost_db} --bass_boost_frequency {bass_boost_frequency} --treble_boost_db {treble_boost_db} --treble_boost_frequency {treble_boost_frequency} --fade_in_duration {fade_in_duration} --fade_out_duration {fade_out_duration} --export_format {export_format} --chorus {chorus} --distortion {distortion} --reverb {reverb} --pitchshift {pitch_shift != 0} --delay {delay} --compressor {compressor} --limiter {limiter} --gain {gain} --bitcrush {bitcrush} --clipping {clipping} --phaser {phaser} --treble_bass_boost {treble_bass_boost} --fade_in_out {fade_in_out} --audio_combination {audio_combination} --audio_combination_input "{audio_combination_input}"')
+    subprocess.run([python, "main/inference/audio_effects.py", "--input_path", input_path, "--output_path", output_path, "--resample", str(resample), "--resample_sr", str(resample_sr), "--chorus_depth", str(chorus_depth), "--chorus_rate", str(chorus_rate), "--chorus_mix", str(chorus_mix), "--chorus_delay", str(chorus_delay), "--chorus_feedback", str(chorus_feedback), "--drive_db", str(distortion_drive), "--reverb_room_size", str(reverb_room_size), "--reverb_damping", str(reverb_damping), "--reverb_wet_level", str(reverb_wet_level), "--reverb_dry_level", str(reverb_dry_level), "--reverb_width", str(reverb_width), "--reverb_freeze_mode", str(reverb_freeze_mode), "--pitch_shift", str(pitch_shift), "--delay_seconds", str(delay_seconds), "--delay_feedback", str(delay_feedback), "--delay_mix", str(delay_mix), "--compressor_threshold", str(compressor_threshold), "--compressor_ratio", str(compressor_ratio), "--compressor_attack_ms", str(compressor_attack_ms), "--compressor_release_ms", str(compressor_release_ms), "--limiter_threshold", str(limiter_threshold), "--limiter_release", str(limiter_release), "--gain_db", str(gain_db), "--bitcrush_bit_depth", str(bitcrush_bit_depth), "--clipping_threshold", str(clipping_threshold), "--phaser_rate_hz", str(phaser_rate_hz), "--phaser_depth", str(phaser_depth), "--phaser_centre_frequency_hz", str(phaser_centre_frequency_hz), "--phaser_feedback", str(phaser_feedback), "--phaser_mix", str(phaser_mix), "--bass_boost_db", str(bass_boost_db), "--bass_boost_frequency", str(bass_boost_frequency), "--treble_boost_db", str(treble_boost_db), "--treble_boost_frequency", str(treble_boost_frequency), "--fade_in_duration", str(fade_in_duration), "--fade_out_duration", str(fade_out_duration), "--export_format", export_format, "--chorus", str(chorus), "--distortion", str(distortion), "--reverb", str(reverb), "--pitchshift", str(pitch_shift != 0), "--delay", str(delay), "--compressor", str(compressor), "--limiter", str(limiter), "--gain", str(gain), "--bitcrush", str(bitcrush), "--clipping", str(clipping), "--phaser", str(phaser), "--treble_bass_boost", str(treble_bass_boost), "--fade_in_out", str(fade_in_out), "--audio_combination", str(audio_combination), "--audio_combination_input", audio_combination_input])
 
     gr_info(translations["success"])
     return output_path 
@@ -818,7 +818,7 @@ def separator_music(input, output_audio, format, shifts, segments_size, overlap,
     if not os.path.exists(output): os.makedirs(output)
     gr_info(translations["start"].format(start=translations["separator_music"]))
 
-    os.system(f'{python} main/inference/separator_music.py --input_path "{input}" --output_path "{output}" --format {format} --shifts {shifts} --segments_size {segments_size} --overlap {overlap} --mdx_hop_length {hop_length} --mdx_batch_size {batch_size} --clean_audio {clean_audio} --clean_strength {clean_strength} --kara_model {kara_model} --backing {backing} --mdx_denoise {denoise} --reverb {reverb} --backing_reverb {backing_reverb} --model_name "{separator_model}" --sample_rate {sample_rate}')
+    subprocess.run([python, "main/inference/separator_music.py", "--input_path", input, "--output_path", output, "--format", format, "--shifts", str(shifts), "--segments_size", str(segments_size), "--overlap", str(overlap), "--mdx_hop_length", str(hop_length), "--mdx_batch_size", str(batch_size), "--clean_audio", str(clean_audio), "--clean_strength", str(clean_strength), "--kara_model", kara_model, "--backing", str(backing), "--mdx_denoise", str(denoise), "--reverb", str(reverb), "--backing_reverb", str(backing_reverb), "--model_name", separator_model, "--sample_rate", str(sample_rate)])
     gr_info(translations["success"])
 
     filename, _ = os.path.splitext(os.path.basename(input))
@@ -827,7 +827,7 @@ def separator_music(input, output_audio, format, shifts, segments_size, overlap,
     return [os.path.join(output, f"Original_Vocals_No_Reverb.{format}") if reverb else os.path.join(output, f"Original_Vocals.{format}"), os.path.join(output, f"Instruments.{format}"), (os.path.join(output, f"Main_Vocals_No_Reverb.{format}") if reverb else os.path.join(output, f"Main_Vocals.{format}") if backing else None), (os.path.join(output, f"Backing_Vocals_No_Reverb.{format}") if backing_reverb else os.path.join(output, f"Backing_Vocals.{format}") if backing else None)] if os.path.isfile(input) else [None]*4
 
 def convert(pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0_method, input_path, output_path, pth_path, index_path, f0_autotune, clean_audio, clean_strength, export_format, embedder_model, resample_sr, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, embedders_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file):    
-    os.system(f'{python} main/inference/convert.py --pitch {pitch} --filter_radius {filter_radius} --index_rate {index_rate} --volume_envelope {volume_envelope} --protect {protect} --hop_length {hop_length} --f0_method {f0_method} --input_path "{input_path}" --output_path "{output_path}" --pth_path "{pth_path}" --index_path "{index_path}" --f0_autotune {f0_autotune} --clean_audio {clean_audio} --clean_strength {clean_strength} --export_format {export_format} --embedder_model {embedder_model} --resample_sr {resample_sr} --split_audio {split_audio} --f0_autotune_strength {f0_autotune_strength} --checkpointing {checkpointing} --f0_onnx {onnx_f0_mode} --embedders_mode "{embedders_mode}" --formant_shifting {formant_shifting} --formant_qfrency {formant_qfrency} --formant_timbre {formant_timbre} --f0_file "{f0_file}"')
+    subprocess.run([python, "main/inference/convert.py", "--pitch", str(pitch), "--filter_radius", str(filter_radius), "--index_rate", str(index_rate), "--volume_envelope", str(volume_envelope), "--protect", str(protect), "--hop_length", str(hop_length), "--f0_method", f0_method, "--input_path", input_path, "--output_path", output_path, "--pth_path", pth_path, "--index_path", index_path if index_path else "", "--f0_autotune", str(f0_autotune), "--clean_audio", str(clean_audio), "--clean_strength", str(clean_strength), "--export_format", export_format, "--embedder_model", embedder_model, "--resample_sr", str(resample_sr), "--split_audio", str(split_audio), "--f0_autotune_strength", str(f0_autotune_strength), "--checkpointing", str(checkpointing), "--f0_onnx", str(onnx_f0_mode), "--embedders_mode", embedders_mode, "--formant_shifting", str(formant_shifting), "--formant_qfrency", str(formant_qfrency), "--formant_timbre", str(formant_timbre), "--f0_file", f0_file])
 
 def convert_audio(clean, autotune, use_audio, use_original, convert_backing, not_merge_backing, merge_instrument, pitch, clean_strength, model, index, index_rate, input, output, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, input_audio_name, checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file, embedders_mode):
     model_path = os.path.join("assets", "weights", model)
@@ -1204,7 +1204,7 @@ def create_dataset(input_audio, output_dataset, clean_dataset, clean_strength, s
 
     gr_info(translations["start"].format(start=translations["create"]))
 
-    p = Popen(f'{python} main/inference/create_dataset.py --input_audio "{input_audio}" --output_dataset "{output_dataset}" --clean_dataset {clean_dataset} --clean_strength {clean_strength} --separator_reverb {separator_reverb} --kim_vocal_version {version} --overlap {overlap} --segments_size {segments_size} --mdx_hop_length {hop_length} --mdx_batch_size {batch_size} --denoise_mdx {denoise_mdx} --skip {skip} --skip_start_audios "{skip_start}" --skip_end_audios "{skip_end}" --sample_rate {sample_rate}', shell=True)
+    p = subprocess.Popen(f'{python} main/inference/create_dataset.py --input_audio "{input_audio}" --output_dataset "{output_dataset}" --clean_dataset {clean_dataset} --clean_strength {clean_strength} --separator_reverb {separator_reverb} --kim_vocal_version {version} --overlap {overlap} --segments_size {segments_size} --mdx_hop_length {hop_length} --mdx_batch_size {batch_size} --denoise_mdx {denoise_mdx} --skip {skip} --skip_start_audios "{skip_start}" --skip_end_audios "{skip_end}" --sample_rate {sample_rate}', shell=True)
     done = [False]
 
     threading.Thread(target=if_done, args=(done, p)).start()
@@ -1222,7 +1222,7 @@ def preprocess(model_name, sample_rate, cpu_core, cut_preprocess, process_effect
     model_dir = os.path.join("assets", "logs", model_name)
     if os.path.exists(model_dir): shutil.rmtree(model_dir, ignore_errors=True)
 
-    p = Popen(f'{python} main/inference/preprocess.py --model_name "{model_name}" --dataset_path "{dataset}" --sample_rate {sr} --cpu_cores {cpu_core} --cut_preprocess {cut_preprocess} --process_effects {process_effects} --clean_dataset {clean_dataset} --clean_strength {clean_strength}', shell=True)
+    p = subprocess.Popen(f'{python} main/inference/preprocess.py --model_name "{model_name}" --dataset_path "{dataset}" --sample_rate {sr} --cpu_cores {cpu_core} --cut_preprocess {cut_preprocess} --process_effects {process_effects} --clean_dataset {clean_dataset} --clean_strength {clean_strength}', shell=True)
     done = [False]
 
     threading.Thread(target=if_done, args=(done, p)).start()
@@ -1240,7 +1240,7 @@ def extract(model_name, version, method, pitch_guidance, hop_length, cpu_cores, 
     model_dir = os.path.join("assets", "logs", model_name)
     if not any(os.path.isfile(os.path.join(model_dir, "sliced_audios", f)) for f in os.listdir(os.path.join(model_dir, "sliced_audios"))) or not any(os.path.isfile(os.path.join(model_dir, "sliced_audios_16k", f)) for f in os.listdir(os.path.join(model_dir, "sliced_audios_16k"))): return gr_warning(translations["not_found_data_preprocess"])
 
-    p = Popen(f'{python} main/inference/extract.py --model_name "{model_name}" --rvc_version {version} --f0_method {method} --pitch_guidance {pitch_guidance} --hop_length {hop_length} --cpu_cores {cpu_cores} --gpu {gpu} --sample_rate {sr} --embedder_model {embedder_model} --f0_onnx {onnx_f0_mode} --embedders_mode {embedders_mode}', shell=True)
+    p = subprocess.Popen(f'{python} main/inference/extract.py --model_name "{model_name}" --rvc_version {version} --f0_method {method} --pitch_guidance {pitch_guidance} --hop_length {hop_length} --cpu_cores {cpu_cores} --gpu {gpu} --sample_rate {sr} --embedder_model {embedder_model} --f0_onnx {onnx_f0_mode} --embedders_mode {embedders_mode}', shell=True)
     done = [False]
 
     threading.Thread(target=if_done, args=(done, p)).start()
@@ -1255,7 +1255,7 @@ def create_index(model_name, rvc_version, index_algorithm):
 
     if not any(os.path.isfile(os.path.join(model_dir, f"{rvc_version}_extracted", f)) for f in os.listdir(os.path.join(model_dir, f"{rvc_version}_extracted"))): return gr_warning(translations["not_found_data_extract"])
 
-    p = Popen(f'{python} main/inference/create_index.py --model_name "{model_name}" --rvc_version {rvc_version} --index_algorithm {index_algorithm}', shell=True)
+    p = subprocess.Popen(f'{python} main/inference/create_index.py --model_name "{model_name}" --rvc_version {rvc_version} --index_algorithm {index_algorithm}', shell=True)
     done = [False]
 
     threading.Thread(target=if_done, args=(done, p)).start()
@@ -1304,7 +1304,7 @@ def training(model_name, rvc_version, save_every_epoch, save_only_latest, save_e
 
     gr_info(translations["start"].format(start=translations["training"]))
 
-    p = Popen(f'{python} main/inference/train.py --model_name "{model_name}" --rvc_version {rvc_version} --save_every_epoch {save_every_epoch} --save_only_latest {save_only_latest} --save_every_weights {save_every_weights} --total_epoch {total_epoch} --sample_rate {sr} --batch_size {batch_size} --gpu {gpu} --pitch_guidance {pitch_guidance} --overtraining_detector {detector} --overtraining_threshold {threshold} --cleanup {clean_up} --cache_data_in_gpu {cache} --g_pretrained_path "{pretrained_G}" --d_pretrained_path "{pretrained_D}" --model_author "{model_author}" --vocoder "{vocoder}" --checkpointing {checkpointing} --deterministic {deterministic} --benchmark {benchmark}', shell=True)
+    p = subprocess.Popen(f'{python} main/inference/train.py --model_name "{model_name}" --rvc_version {rvc_version} --save_every_epoch {save_every_epoch} --save_only_latest {save_only_latest} --save_every_weights {save_every_weights} --total_epoch {total_epoch} --sample_rate {sr} --batch_size {batch_size} --gpu {gpu} --pitch_guidance {pitch_guidance} --overtraining_detector {detector} --overtraining_threshold {threshold} --cleanup {clean_up} --cache_data_in_gpu {cache} --g_pretrained_path "{pretrained_G}" --d_pretrained_path "{pretrained_D}" --model_author "{model_author}" --vocoder "{vocoder}" --checkpointing {checkpointing} --deterministic {deterministic} --benchmark {benchmark}', shell=True)
     done = [False]
 
     threading.Thread(target=if_done, args=(done, p)).start()
@@ -1481,7 +1481,7 @@ def run_audioldm2(input_path, output_path, export_format, sample_rate, audioldm_
     if os.path.exists(output_path): os.remove(output_path)
 
     gr_info(translations["start_edit"].format(input_path=input_path))
-    os.system(f'{python} main/inference/audioldm2.py --input_path "{input_path}" --output_path "{output_path}" --export_format {export_format} --sample_rate {sample_rate} --audioldm_model "{audioldm_model}" --source_prompt "{source_prompt}" --target_prompt "{target_prompt}" --steps {steps} --cfg_scale_src {cfg_scale_src} --cfg_scale_tar {cfg_scale_tar} --t_start {t_start} --save_compute {save_compute}')
+    subprocess.run([python, "main/inference/audioldm2.py", "--input_path", input_path, "--output_path", output_path, "--export_format", str(export_format), "--sample_rate", str(sample_rate), "--audioldm_model", audioldm_model, "--source_prompt", source_prompt, "--target_prompt", target_prompt, "--steps", str(steps), "--cfg_scale_src", str(cfg_scale_src), "--cfg_scale_tar", str(cfg_scale_tar), "--t_start", str(t_start), "--save_compute", str(save_compute)])
     
     gr_info(translations["success"])
     return output_path
