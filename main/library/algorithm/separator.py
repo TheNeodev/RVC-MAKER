@@ -17,7 +17,10 @@ now_dir = os.getcwd()
 sys.path.append(now_dir)
 
 from main.configs.config import Config
+from main.tools.huggingface import HF_download_file
+
 translations = Config().translations
+
 
 class Separator:
     def __init__(self, logger=logging.getLogger(__name__), log_level=logging.INFO, log_formatter=None, model_file_dir="assets/models/uvr5", output_dir=None, output_format="wav", output_bitrate=None, normalization_threshold=0.9, output_single_stem=None, invert_using_spec=False, sample_rate=44100, mdx_params={"hop_length": 1024, "segment_size": 256, "overlap": 0.25, "batch_size": 1, "enable_denoise": False}, demucs_params={"segment_size": "Default", "shifts": 2, "overlap": 0.25, "segments_enabled": True}):
@@ -153,20 +156,7 @@ class Separator:
             return
 
         self.logger.debug(translations["download_model"].format(url=url, output_path=output_path))
-        response = requests.get(url, stream=True, timeout=300)
-
-        if response.status_code == 200:
-            from tqdm import tqdm
-
-            progress_bar = tqdm(total=int(response.headers.get("content-length", 0)), ncols=100, unit="byte")
-
-            with open(output_path, "wb") as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    progress_bar.update(len(chunk))
-                    f.write(chunk)
-
-            progress_bar.close()
-        else: raise RuntimeError(translations["download_error"].format(url=url, status_code=response.status_code))
+        HF_download_file(url, output_path)
 
     def print_uvr_vip_message(self):
         if self.model_is_uvr_vip:

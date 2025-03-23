@@ -1,4 +1,5 @@
 <div align="center">
+<img alt="LOGO" src="assets/ico.png" width="300" height="300" />
 
 # Vietnamese RVC BY ANH
 Công cụ chuyển đổi giọng nói chất lượng và hiệu suất cao đơn giản dành cho người Việt.
@@ -23,7 +24,9 @@ Dự án này là một công cụ chuyển đổi giọng nói đơn giản, d�
 
 - Tách nhạc (MDX-Net/Demucs)
 
-- Chuyển đổi giọng nói (Chuyển đổi tệp/Chuyển đổi hàng loạt/Chuyển đổi văn bản)
+- Chuyển đổi giọng nói (Chuyển đổi tệp/Chuyển đổi hàng loạt/Chuyển đổi với Whisper/Chuyển đổi văn bản)
+
+- Chỉnh sửa nhạc nền
 
 - Áp dụng hiệu ứng cho âm thanh
 
@@ -35,9 +38,13 @@ Dự án này là một công cụ chuyển đổi giọng nói đơn giản, d�
 
 - Đọc thông tin mô hình
 
+- Xuất mô hình sang ONNX
+
 - Tải xuống từ kho mô hình có sẳn
 
 - Tìm kiếm mô hình từ web
+
+- Trích xuất cao độ
 
 - Hỗ trợ suy luận chuyển đổi âm thanh bằng mô hình ONNX
 
@@ -45,7 +52,7 @@ Dự án này là một công cụ chuyển đổi giọng nói đơn giản, d�
 
 - Nhiều tùy chọn mô hình:
 
-F0: `pm, diow, dio, mangio-crepe-tiny, mangio-crepe-small, mangio-crepe-medium, mangio-crepe-large, mangio-crepe-full, crepe-tiny, crepe-small, crepe-medium, crepe-large, crepe-full, fcpe, fcpe-legacy, rmvpe, rmvpe-legacy, harvestw, harvest, yin, pyin, swipe`
+F0: `pm, dio, pt_dio, mangio-crepe-tiny, mangio-crepe-small, mangio-crepe-medium, mangio-crepe-large, mangio-crepe-full, crepe-tiny, crepe-small, crepe-medium, crepe-large, crepe-full, fcpe, fcpe-legacy, rmvpe, rmvpe-legacy, harvest, pt_harvest, yin, pyin, swipe`
 
 F0_ONNX: Một số mô hình được chuyển đổi sang ONNX để hỗ trợ tăng tốc trích xuất
 
@@ -55,6 +62,8 @@ EMBEDDERS: `contentvec_base, hubert_base, japanese_hubert_base, korean_hubert_ba
 
 EMBEDDERS_ONNX: Tất cả mô hình nhúng ở trên điều có phiên bản được chuyển đổi sẳn sang ONNX để sử dụng tăng tốc trích xuất nhúng
 
+EMBEDDERS_TRANSFORMERS: Tất cả mô hình nhúng ở trên điều có phiên bản được chuyển đổi sẳn sang huggingface để sử dụng thay thế cho fairseq
+
 # Hướng dẫn sử dụng
 
 **Sẽ có nếu tôi thực sự rảnh...**
@@ -63,9 +72,9 @@ EMBEDDERS_ONNX: Tất cả mô hình nhúng ở trên điều có phiên bản �
 
 - B1: **Cài đặt python từ trang chủ hoặc [python](https://www.python.org/ftp/python/3.10.7/python-3.10.7-amd64.exe) (YÊU CẦU PYTHON 3.10.x HOẶC PYTHON 3.11.x)**
 - B2: **Cài đặt ffmpeg từ [FFMPEG](https://github.com/BtbN/FFmpeg-Builds/releases) giải nén và thêm vào PATH**
-- B2: **Tải mã nguồn về và giải nén ra**
-- B3: **Vào thư mục mã nguồn và mở Command Prompt hoặc Terminal**
-- B4: **Nhập lệnh để cài đặt thư viện cần thiết để hoạt động**
+- B3: **Tải mã nguồn về và giải nén ra**
+- B4: **Vào thư mục mã nguồn và mở Command Prompt hoặc Terminal**
+- B5: **Nhập lệnh để cài đặt thư viện cần thiết để hoạt động**
 ```
 python -m venv env
 env\\Scripts\\activate
@@ -84,6 +93,11 @@ env\\Scripts\\python.exe main\\app\\app.py --app
 Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensorboard.py
 ```
 
+# Sử dụng với cú pháp lệnh
+```
+python main\\app\\parser.py --help
+```
+
 # Các đường dẫn thư mục chính của mã nguồn:
 
 `assets\\f0`: **Thư mục chứa các tệp trích xuất F0**
@@ -91,6 +105,8 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 `assets\\languages`: **Thư mục chứa các tệp ngôn ngữ**
 
 `assets\\logs`: **Thư mục chứa các tệp nhật ký và tệp chỉ mục mô hình**
+
+`assets\\models\\audioldm2`: **Thư mục chứa các tệp mô hình audioldm2**
 
 `assets\\models\\embedders`: **Thư mục chứa các tệp mô hình nhúng**
 
@@ -101,6 +117,10 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 `assets\\models\\pretrained_v1`: **Thư mục chứa các tệp mô hình huấn luyện trước v1**
 
 `assets\\models\\pretrained_v2`: **Thư mục chứa các tệp mô hình huấn luyện trước v2**
+
+`assets\\models\\speaker_diarization\\assets`: **Thư mục chứa các tệp cài đặt của mô hình Whisper**
+
+`assets\\models\\speaker_diarization\\models`: **Thư mục chứa các tệp mô hình Whisper và Speech Brain**
 
 `assets\\models\\uvr5`: **Thư mục chứa các tệp mô hình tách nhạc của Demucs và MDX**
 
@@ -118,6 +138,8 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 
 `main\\app\\tensorboard.py`: **Tệp tin hệ thống tensorboard**
 
+`main\\app\\parser.py`: **Tệp tin hệ thống gọi bằng cú pháp**
+
 `main\\configs\\v1`: **thư mục chứa các tệp cài đặt tốc độ lấy mẫu huấn luyện v1**
 
 `main\\configs\\v2`: **thư mục chứa các tệp cài đặt tốc độ lấy mẫu huấn luyện v2**
@@ -127,6 +149,8 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 `main\\configs\\config.py`: **Tệp khởi chạy các cài đặt**
 
 `main\\inference\\audio_effects.py`: **Tệp tin thực hiện việc áp dụng hiệu ứng cho âm thanh**
+
+`main\\inference\\audioldm2.py`: **Tệp tin thực hiện việc chỉnh sửa âm thanh nhạc nền**
 
 `main\\inference\\convert.py`: **Tệp tin thực hiện xử lý và chuyển đổi âm thanh RVC**
 
@@ -164,13 +188,17 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 
 `main\\library\\architectures\\mdx_separator.py`: **Tệp tin cấu trúc của bộ tách nhạc MDX**
 
-`main\\library\\predictors\\pyworld\\dio.py`: **Tệp tin thuật toán trích xuất cao độ DIO**
+`main\\library\\audioldm2\\models.py`: **Tệp tin chứa trình bao bộc Wrapper của Audioldm2 được triển khai bằng transformers với diffusers**
 
-`main\\library\\predictors\\pyworld\\harvest.py`: **Tệp tin thuật toán trích xuất cao độ HARVEST**
+`main\\library\\audioldm2\\utils.py`: **Tệp tin chứa một số hàm cần thiết cho Wrapper Audioldm2**
+
+`main\\library\\predictors\\pyworld\\dio.py`: **Tệp tin thuật toán trích xuất cao độ DIO được triển khai bằng PyTorch**
+
+`main\\library\\predictors\\pyworld\\harvest.py`: **Tệp tin thuật toán trích xuất cao độ HARVEST được triển khai bằng PyTorch**
 
 `main\\library\\predictors\\pyworld\\stonemask.py`: **Tệp tin bộ cải thiện độ chính xác F0 dành cho thuật toán trích xuất F0 HARVEST và DIO**
 
-`main\\library\\predictors\\pyworld\\`: **Tệp tin bộ trích xuất cao độ F0 CREPE và CREPE-TINY**
+`main\\library\\predictors\\CREPE.py`: **Tệp tin bộ trích xuất cao độ F0 CREPE**
 
 `main\\library\\predictors\\FCPE.py`: **Tệp tin bộ trích xuất cao độ F0 FCPE**
 
@@ -179,6 +207,24 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 `main\\library\\predictors\\SWIPE.py`: **Tệp tin thuật toán trích xuất cao độ F0 SWIPE**
 
 `main\\library\\predictors\\WORLD_WRAPPER.py`: **Tệp tin trình bao bộc trích xuất cao độ F0 HARVEST VÀ DIO**
+
+`main\\library\\speaker_diarization\\audio.py`: **Tệp tin chứa lớp dùng để xử lí âm thanh**
+
+`main\\library\\speaker_diarization\\ECAPA_TDNN.py`: **Tệp tin kiến trúc ECAPA-TDNN**
+
+`main\\library\\speaker_diarization\\embedding.py`: **Tệp tin chứa các hàm liên quan đến trích xuất embedding giọng nói.**
+
+`main\\library\\speaker_diarization\\encoder.py`: **Tệp tin chứa các lớp mã hóa (encoder) để trích xuất đặc trưng giọng nói.**
+
+`main\\library\\speaker_diarization\\features.py`: **Tệp tin chứa các hàm xử lý và trích xuất đặc trưng từ tín hiệu âm thanh.**
+
+`main\\library\\speaker_diarization\\parameter_transfer.py`: **Tệp tin quản lý việc tải và chuyển giao tham số mô hình.**
+
+`main\\library\\speaker_diarization\\segment.py`: **Tệp tin chứa lớp đại diện cho một đoạn âm thanh với thời gian bắt đầu và kết thúc**
+
+`main\\library\\speaker_diarization\\speechbrain.py`: **Tệp tin chứa mô hình speechbrain**
+
+`main\\library\\speaker_diarization\\whisper.py`: **Tệp tin chứa mô hình whisper**
 
 `main\\library\\uvr5_separator\\demucs\\apply.py`: **Tệp tin áp dụng dành riêng cho DEMUCS**
 
@@ -217,9 +263,8 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 # LƯU Ý
 
 - **Dự án này chỉ hỗ trợ trên gpu của NVIDIA (Có thể sẽ hỗ trợ AMD sau nếu tôi có gpu AMD để thử)**
-- **Hiện tại các bộ mã hóa mới như MRF HIFIGAN và REFINEGAN vẫn chưa đầy đủ các bộ huấn luyện trước**
+- **Hiện tại các bộ mã hóa mới như MRF HIFIGAN vẫn chưa đầy đủ các bộ huấn luyện trước**
 - **Bộ mã hóa MRF HIFIGAN và REFINEGAN không hỗ trợ huấn luyện khi không không huấn luyện cao độ**
-- **MRF HIFIGAN và REFINEGAN chưa có bất cứ huấn luyện trước nào**
 
 # Điều khoản sử dụng
 
@@ -248,14 +293,37 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 - **[Mediafiredl](https://github.com/Gann4Life/mediafiredl)**
 - **[Noisereduce](https://github.com/timsainb/noisereduce)**
 - **[World.py-By-Anh](https://github.com/PhamHuynhAnh16/world.py)**
-- **[Python-WORLD](https://github.com/tuanad121/Python-WORLD)**
 - **[Mega.py](https://github.com/odwyersoftware/mega.py)**
 - **[Edge-TTS](https://github.com/rany2/edge-tts)**
 - **[Gdown](https://github.com/wkentaro/gdown)**
+- **[Whisper](https://github.com/openai/whisper)**
+- **[PyannoteAudio](https://github.com/pyannote/pyannote-audio)**
+- **[AudioEditingCode](https://github.com/HilaManor/AudioEditingCode)**
 
 # Kho mô hình của công cụ tìm kiếm mô hình
 
 - **[VOICE-MODELS.COM](https://voice-models.com/)**
+
+# Các phương pháp trích xuất Pitch trong RVC
+
+Tài liệu này trình bày chi tiết các phương pháp trích xuất cao độ được sử dụng, thông tin về ưu, nhược điểm, sức mạnh và độ tin cậy của từng phương pháp theo trải nghiệm cá nhân.
+
+| Phương pháp        |      Loại      |          Ưu điểm          |            Hạn chế           |      Sức mạnh      |     Độ tin cậy     |
+|--------------------|----------------|---------------------------|------------------------------|--------------------|--------------------|
+| pm                 | Praat          | Nhanh                     | Kém chính xác                | Thấp               | Thấp               |
+| dio                | PYWORLD        | Thích hợp với Rap         | Kém chính xác với tần số cao | Trung bình         | Trung bình         |
+| pt_dio             | PyTorch        | Tối ưu hóa PyTorch        | Có độ trễ                    | Trung bình         | Trung bình         |
+| harvest            | PYWORLD        | Chính xác hơn DIO         | Xử lý chậm hơn               | Cao                | Rất cao            |
+| pt_harvest         | PyTorch        | Tối ưu hóa PyTorch        | Độ trễ cao hơn               | Cao                | Cao                |
+| crepe              | Deep Learning  | Chính xác cao             | Yêu cầu GPU                  | Rất cao            | Rất cao            |
+| mangio-crepe       | crepe finetune | Tối ưu hóa cho RVC        | Đôi khi kém crepe gốc        | Trung bình đến cao | Trung bình đến cao |
+| fcpe               | Deep Learning  | Chính xác, thời gian thực | Cần GPU mạnh                 | Khá                | Trung bình         |
+| fcpe-legacy        | Old            | Chính xác, thời gian thực | Cũ hơn                       | Khá                | Trung bình         |
+| rmvpe              | Deep Learning  | Hiệu quả với giọng hát    | Tốn tài nguyên               | Rất cao            | Xuất sắc           |
+| rmvpe-legacy       | Old            | Hỗ trợ hệ thống cũ        | Cũ hơn                       | Cao                | Khá                |
+| yin                | Librosa        | Đơn giản, hiệu quả        | Dễ lỗi bội                   | Trung bình         | Thấp               |
+| pyin               | Librosa        | Ổn định hơn YIN           | Tính toán phức tạp hơn       | Khá                | Khá                |
+| swipe              | WORLD          | Độ chính xác cao          | Nhạy cảm với nhiễu           | Cao                | Khá                |
 
 # Báo cáo lỗi
 

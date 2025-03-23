@@ -1,8 +1,8 @@
 import os
 import sys
 import requests
-from bs4 import BeautifulSoup
 
+from bs4 import BeautifulSoup
 
 def Mediafire_Download(url, output=None, filename=None):
     if not filename: filename = url.split('/')[-2]

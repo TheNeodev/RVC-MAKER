@@ -52,8 +52,8 @@ def get_refined_f0(x, fs, current_time, current_f0):
 
     return np.sum(amp_list * instantaneous_frequency[index_list_trim - 1]) / np.sum(amp_list * trim_index)
 
-@nb.jit((nb.float64[:],), nopython=True, cache=True)
-def round_matlab(x: np.ndarray) -> np.ndarray:
+@nb.jit((nb.float32[:],), nopython=True, cache=True)
+def round_matlab(x):
     y = x.copy()
     y[x > 0] += 0.5
     y[x <= 0] -= 0.5

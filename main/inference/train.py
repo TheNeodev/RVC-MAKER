@@ -32,13 +32,16 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils.parametrizations import spectral_norm, weight_norm
 
 sys.path.append(os.getcwd())
+
 from main.configs.config import Config
 from main.library.algorithm.residuals import LRELU_SLOPE
 from main.library.algorithm.synthesizers import Synthesizer
 from main.library.algorithm.commons import get_padding, slice_segments, clip_grad_value
 
 MATPLOTLIB_FLAG = False
-translations = Config().translations
+main_config = Config()
+translations = main_config.translations
+
 warnings.filterwarnings("ignore")
 logging.getLogger("torch").setLevel(logging.ERROR)
 
@@ -92,6 +95,8 @@ def parse_arguments():
     parser.add_argument("--model_author", type=str)
     parser.add_argument("--vocoder", type=str, default="Default")
     parser.add_argument("--checkpointing", type=lambda x: bool(strtobool(x)), default=False)
+    parser.add_argument("--deterministic", type=lambda x: bool(strtobool(x)), default=False)
+    parser.add_argument("--benchmark", type=lambda x: bool(strtobool(x)), default=False)
 
     return parser.parse_args()
 
@@ -105,8 +110,8 @@ config_save_path = os.path.join(experiment_dir, "config.json")
 os.environ["CUDA_VISIBLE_DEVICES"] = gpus.replace("-", ",")
 n_gpus = len(gpus.split("-"))
 
-torch.backends.cudnn.deterministic = False
-torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = args.deterministic
+torch.backends.cudnn.benchmark = args.benchmark
 
 lowest_value = {"step": 0, "value": float("inf"), "epoch": 0}
 global_step, last_loss_gen_all, overtrain_save_epoch = 0, 0, 0
@@ -140,70 +145,75 @@ for key, value in log_data.items():
 
 def main():
     global training_file_path, last_loss_gen_all, smoothed_loss_gen_history, loss_gen_history, loss_disc_history, smoothed_loss_disc_history, overtrain_save_epoch, model_author, vocoder, checkpointing
+    
+    try:
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(randint(20000, 55555))
 
-    os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = str(randint(20000, 55555))
+        if torch.cuda.is_available(): device, n_gpus = torch.device("cuda"), torch.cuda.device_count()
+        elif torch.backends.mps.is_available(): device, n_gpus = torch.device("mps"), 1
+        else: device, n_gpus = torch.device("cpu"), 1
 
-    if torch.cuda.is_available(): device, n_gpus = torch.device("cuda"), torch.cuda.device_count()
-    elif torch.backends.mps.is_available(): device, n_gpus = torch.device("mps"), 1
-    else: device, n_gpus = torch.device("cpu"), 1
+        def start():
+            children = []
+            pid_data = {"process_pids": []}
 
-    def start():
-        children = []
-        pid_data = {"process_pids": []}
+            with open(config_save_path, "r") as pid_file:
+                try:
+                    pid_data.update(json.load(pid_file))
+                except json.JSONDecodeError:
+                    pass
 
-        with open(config_save_path, "r") as pid_file:
-            try:
-                pid_data.update(json.load(pid_file))
-            except json.JSONDecodeError:
-                pass
+            with open(config_save_path, "w") as pid_file:
+                for i in range(n_gpus):
+                    subproc = mp.Process(target=run, args=(i, n_gpus, experiment_dir, pretrainG, pretrainD, pitch_guidance, total_epoch, save_every_weights, config, device, model_author, vocoder, checkpointing))
+                    children.append(subproc)
+                    subproc.start()
+                    pid_data["process_pids"].append(subproc.pid)
 
-        with open(config_save_path, "w") as pid_file:
+                json.dump(pid_data, pid_file, indent=4)
+
             for i in range(n_gpus):
-                subproc = mp.Process(target=run, args=(i, n_gpus, experiment_dir, pretrainG, pretrainD, pitch_guidance, total_epoch, save_every_weights, config, device, model_author, vocoder, checkpointing))
-                children.append(subproc)
-                subproc.start()
-                pid_data["process_pids"].append(subproc.pid)
+                children[i].join()
 
-            json.dump(pid_data, pid_file, indent=4)
+        def load_from_json(file_path):
+            if os.path.exists(file_path):
+                with open(file_path, "r") as f:
+                    data = json.load(f)
+                    return (data.get("loss_disc_history", []), data.get("smoothed_loss_disc_history", []), data.get("loss_gen_history", []), data.get("smoothed_loss_gen_history", []))
+            return [], [], [], []
 
-        for i in range(n_gpus):
-            children[i].join()
+        def continue_overtrain_detector(training_file_path):
+            if overtraining_detector and os.path.exists(training_file_path): (loss_disc_history, smoothed_loss_disc_history, loss_gen_history, smoothed_loss_gen_history) = load_from_json(training_file_path)
 
-    def load_from_json(file_path):
-        if os.path.exists(file_path):
-            with open(file_path, "r") as f:
-                data = json.load(f)
-                return (data.get("loss_disc_history", []), data.get("smoothed_loss_disc_history", []), data.get("loss_gen_history", []), data.get("smoothed_loss_gen_history", []))
-        return [], [], [], []
+        n_gpus = torch.cuda.device_count()
 
-    def continue_overtrain_detector(training_file_path):
-        if overtraining_detector and os.path.exists(training_file_path): (loss_disc_history, smoothed_loss_disc_history, loss_gen_history, smoothed_loss_gen_history) = load_from_json(training_file_path)
+        if not torch.cuda.is_available() and torch.backends.mps.is_available(): n_gpus = 1
+        if n_gpus < 1:
+            logger.warning(translations["not_gpu"])
+            n_gpus = 1
 
-    n_gpus = torch.cuda.device_count()
+        if cleanup:
+            for root, dirs, files in os.walk(experiment_dir, topdown=False):
+                for name in files:
+                    file_path = os.path.join(root, name)
+                    _, file_extension = os.path.splitext(name)
+                    if (file_extension == ".0" or (name.startswith("D_") and file_extension == ".pth") or (name.startswith("G_") and file_extension == ".pth") or (file_extension == ".index")): os.remove(file_path)
 
-    if not torch.cuda.is_available() and torch.backends.mps.is_available(): n_gpus = 1
-    if n_gpus < 1:
-        logger.warning(translations["not_gpu"])
-        n_gpus = 1
+                for name in dirs:
+                    if name == "eval":
+                        folder_path = os.path.join(root, name)
+                        for item in os.listdir(folder_path):
+                            item_path = os.path.join(folder_path, item)
+                            if os.path.isfile(item_path): os.remove(item_path)
+                        os.rmdir(folder_path)
 
-    if cleanup:
-        for root, dirs, files in os.walk(experiment_dir, topdown=False):
-            for name in files:
-                file_path = os.path.join(root, name)
-                _, file_extension = os.path.splitext(name)
-                if (file_extension == ".0" or (name.startswith("D_") and file_extension == ".pth") or (name.startswith("G_") and file_extension == ".pth") or (file_extension == ".index")): os.remove(file_path)
-
-            for name in dirs:
-                if name == "eval":
-                    folder_path = os.path.join(root, name)
-                    for item in os.listdir(folder_path):
-                        item_path = os.path.join(folder_path, item)
-                        if os.path.isfile(item_path): os.remove(item_path)
-                    os.rmdir(folder_path)
-
-    continue_overtrain_detector(training_file_path)
-    start()
+        continue_overtrain_detector(training_file_path)
+        start()
+    except Exception as e:
+        logger.error(f"{translations['training_error']} {e}")
+        import traceback
+        logger.debug(traceback.format_exc())
 
 def plot_spectrogram_to_numpy(spectrogram):
     global MATPLOTLIB_FLAG
@@ -739,7 +749,11 @@ def run(rank, n_gpus, experiment_dir, pretrainG, pretrainD, pitch_guidance, cust
     if rank == 0: writer_eval = SummaryWriter(log_dir=os.path.join(experiment_dir, "eval"))
     else: writer_eval = None
 
-    dist.init_process_group(backend="gloo", init_method="env://", world_size=n_gpus, rank=rank)
+    try:
+        dist.init_process_group(backend=("gloo" if os.name == "nt" or not torch.cuda.is_available() else "nccl"), init_method="env://", world_size=n_gpus, rank=rank)
+    except:
+        dist.init_process_group(backend=("gloo" if os.name == "nt" or not torch.cuda.is_available() else "nccl"), init_method="env://?use_libuv=False", world_size=n_gpus, rank=rank)
+
     torch.manual_seed(config.train.seed)
     if torch.cuda.is_available(): torch.cuda.set_device(rank)
 
@@ -748,6 +762,7 @@ def run(rank, n_gpus, experiment_dir, pretrainG, pretrainD, pitch_guidance, cust
 
     net_g, net_d = Synthesizer(config.data.filter_length // 2 + 1, config.train.segment_size // config.data.hop_length, **config.model, use_f0=pitch_guidance, sr=sample_rate, vocoder=vocoder, checkpointing=checkpointing), MultiPeriodDiscriminator(version, config.model.use_spectral_norm, checkpointing=checkpointing)
     net_g, net_d = (net_g.cuda(rank), net_d.cuda(rank)) if torch.cuda.is_available() else (net_g.to(device), net_d.to(device))
+
     optim_g, optim_d = torch.optim.AdamW(net_g.parameters(), config.train.learning_rate, betas=config.train.betas, eps=config.train.eps), torch.optim.AdamW(net_d.parameters(), config.train.learning_rate, betas=config.train.betas, eps=config.train.eps)
     net_g, net_d = (DDP(net_g, device_ids=[rank]), DDP(net_d, device_ids=[rank])) if torch.cuda.is_available() else (DDP(net_g), DDP(net_d))
 
@@ -781,7 +796,7 @@ def run(rank, n_gpus, experiment_dir, pretrainG, pretrainD, pitch_guidance, cust
     scheduler_g, scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_g, gamma=config.train.lr_decay, last_epoch=epoch_str - 2), torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=config.train.lr_decay, last_epoch=epoch_str - 2)
     optim_d.step(); optim_g.step()
 
-    scaler = GradScaler(enabled=False)
+    scaler = GradScaler(enabled=main_config.is_half and device.type == "cuda")
     cache = []
 
     for info in train_loader:
@@ -825,18 +840,18 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, wri
             pitch = pitch if pitch_guidance else None
             pitchf = pitchf if pitch_guidance else None
 
-            with autocast(enabled=False):
+            with autocast(enabled=main_config.is_half and device.type == "cuda"):
                 y_hat, ids_slice, _, z_mask, (_, z_p, m_p, logs_p, _, logs_q) = net_g(phone, phone_lengths, pitch, pitchf, spec, spec_lengths, sid)
                 mel = spec_to_mel_torch(spec, config.data.filter_length, config.data.n_mel_channels, config.data.sample_rate, config.data.mel_fmin, config.data.mel_fmax)
                 y_mel = slice_segments(mel, ids_slice, config.train.segment_size // config.data.hop_length, dim=3)
 
-                with autocast(enabled=False):
+                with autocast(enabled=main_config.is_half and device.type == "cuda"):
                     y_hat_mel = mel_spectrogram_torch(y_hat.float().squeeze(1), config.data.filter_length, config.data.n_mel_channels, config.data.sample_rate, config.data.hop_length, config.data.win_length, config.data.mel_fmin, config.data.mel_fmax)
 
                 wave = slice_segments(wave, ids_slice * config.data.hop_length, config.train.segment_size, dim=3)
                 y_d_hat_r, y_d_hat_g, _, _ = net_d(wave, y_hat.detach())
 
-                with autocast(enabled=False):
+                with autocast(enabled=main_config.is_half and device.type == "cuda"):
                     loss_disc, losses_disc_r, losses_disc_g = discriminator_loss(y_d_hat_r, y_d_hat_g)
 
             optim_d.zero_grad()
@@ -845,9 +860,9 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, wri
             grad_norm_d = clip_grad_value(net_d.parameters(), None)
             scaler.step(optim_d)
 
-            with autocast(enabled=False):
+            with autocast(enabled=main_config.is_half and device.type == "cuda"):
                 y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = net_d(wave, y_hat)
-                with autocast(enabled=False):
+                with autocast(enabled=main_config.is_half and device.type == "cuda"):
                     loss_mel = F.l1_loss(y_mel, y_hat_mel) * config.train.c_mel
                     loss_kl = (kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * config.train.c_kl)
                     loss_fm = feature_loss(fmap_r, fmap_g)
@@ -970,11 +985,6 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, wri
         last_loss_gen_all = loss_gen_all
         if done: os._exit(0)
 
-if __name__ == "__main__":
+if __name__ == "__main__": 
     torch.multiprocessing.set_start_method("spawn")
-    try:
-        main()
-    except Exception as e:
-        logger.error(f"{translations['training_error']} {e}")
-        import traceback
-        logger.debug(traceback.format_exc())
+    main()

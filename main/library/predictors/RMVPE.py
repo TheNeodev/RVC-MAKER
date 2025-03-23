@@ -46,7 +46,6 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
         self.n_encoders = n_encoders
         self.bn = nn.BatchNorm2d(in_channels, momentum=momentum)
-
         self.layers = nn.ModuleList()
         self.latent_channels = []
 
@@ -91,7 +90,6 @@ class ResDecoderBlock(nn.Module):
         super(ResDecoderBlock, self).__init__()
         out_padding = (0, 1) if stride == (1, 2) else (1, 1)
         self.n_blocks = n_blocks
-
         self.conv1 = nn.Sequential(nn.ConvTranspose2d(in_channels=in_channels, out_channels=out_channels, kernel_size=(3, 3), stride=stride, padding=(1, 1), output_padding=out_padding, bias=False), nn.BatchNorm2d(out_channels, momentum=momentum), nn.ReLU())
         self.conv2 = nn.ModuleList()
         self.conv2.append(ConvBlockRes(out_channels * 2, out_channels, momentum))
@@ -146,7 +144,7 @@ class E2E(nn.Module):
         return self.fc(self.cnn(self.unet(mel.transpose(-1, -2).unsqueeze(1))).transpose(1, 2).flatten(-2))
 
 class MelSpectrogram(torch.nn.Module):
-    def __init__(self, n_mel_channels, sample_rate, win_length, hop_length, n_fft=None, mel_fmin=0, mel_fmax=None, clamp=1e-5):
+    def __init__(self, is_half, n_mel_channels, sample_rate, win_length, hop_length, n_fft=None, mel_fmin=0, mel_fmax=None, clamp=1e-5):
         super().__init__()
         n_fft = win_length if n_fft is None else n_fft
         self.hann_window = {}
@@ -159,6 +157,7 @@ class MelSpectrogram(torch.nn.Module):
         self.sample_rate = sample_rate
         self.n_mel_channels = n_mel_channels
         self.clamp = clamp
+        self.is_half = is_half 
 
     def forward(self, audio, keyshift=0, speed=1, center=True):
         factor = 2 ** (keyshift / 12)
@@ -172,14 +171,17 @@ class MelSpectrogram(torch.nn.Module):
         if keyshift != 0:
             size = self.n_fft // 2 + 1
             resize = magnitude.size(1)
+
             if resize < size: magnitude = F.pad(magnitude, (0, 0, 0, size - resize))
             magnitude = magnitude[:, :size, :] * self.win_length / win_length_new
 
         mel_output = torch.matmul(self.mel_basis, magnitude)
+        if self.is_half: mel_output = mel_output.half()
+
         return torch.log(torch.clamp(mel_output, min=self.clamp))
 
 class RMVPE:
-    def __init__(self, model_path, device=None, providers=None, onnx=False):
+    def __init__(self, model_path, is_half, device=None, providers=None, onnx=False):
         self.resample_kernel = {}
         self.onnx = onnx
 
@@ -195,11 +197,13 @@ class RMVPE:
             ckpt = torch.load(model_path, map_location="cpu")
             model.load_state_dict(ckpt)
             model.eval()
+            if is_half: model = model.half()
             self.model = model.to(device)
 
         self.resample_kernel = {}
+        self.is_half = is_half
         self.device = device
-        self.mel_extractor = MelSpectrogram(N_MELS, 16000, 1024, 160, None, 30, 8000).to(device)
+        self.mel_extractor = MelSpectrogram(is_half, N_MELS, 16000, 1024, 160, None, 30, 8000).to(device)
         cents_mapping = 20 * np.arange(N_CLASS) + 1997.3794084376191
         self.cents_mapping = np.pad(cents_mapping, (4, 4))
 
@@ -207,7 +211,6 @@ class RMVPE:
         with torch.no_grad():
             n_frames = mel.shape[-1]
             mel = F.pad(mel, (0, 32 * ((n_frames - 1) // 32 + 1) - n_frames), mode="reflect")
-
             hidden = self.model.run([self.model.get_outputs()[0].name], input_feed={self.model.get_inputs()[0].name: mel.cpu().numpy()})[0] if self.onnx else self.model(mel.float())
             return hidden[:, :n_frames]
 
@@ -220,12 +223,12 @@ class RMVPE:
     def infer_from_audio(self, audio, thred=0.03):
         hidden = self.mel2hidden(self.mel_extractor(torch.from_numpy(audio).float().to(self.device).unsqueeze(0), center=True))
 
-        return self.decode(hidden.squeeze(0).cpu().numpy() if not self.onnx else hidden[0], thred=thred)
+        return self.decode((hidden.squeeze(0).cpu().numpy().astype(np.float32) if self.is_half else hidden.squeeze(0).cpu().numpy()) if not self.onnx else hidden[0], thred=thred)
     
     def infer_from_audio_with_pitch(self, audio, thred=0.03, f0_min=50, f0_max=1100):
         hidden = self.mel2hidden(self.mel_extractor(torch.from_numpy(audio).float().to(self.device).unsqueeze(0), center=True))
 
-        f0 = self.decode(hidden.squeeze(0).cpu().numpy() if not self.onnx else hidden[0], thred=thred)
+        f0 = self.decode((hidden.squeeze(0).cpu().numpy().astype(np.float32) if self.is_half else hidden.squeeze(0).cpu().numpy()) if not self.onnx else hidden[0], thred=thred)
         f0[(f0 < f0_min) | (f0 > f0_max)] = 0  
 
         return f0
@@ -233,10 +236,8 @@ class RMVPE:
     def to_local_average_cents(self, salience, thred=0.05):
         center = np.argmax(salience, axis=1)
         salience = np.pad(salience, ((0, 0), (4, 4)))
-
         center += 4
         todo_salience, todo_cents_mapping = [], []
-
         starts = center - 4
         ends = center + 5
 
@@ -245,7 +246,6 @@ class RMVPE:
             todo_cents_mapping.append(self.cents_mapping[starts[idx] : ends[idx]])
 
         todo_salience = np.array(todo_salience)
-        
         devided = np.sum(todo_salience * np.array(todo_cents_mapping), 1) / np.sum(todo_salience, 1)
         devided[np.max(salience, axis=1) <= thred] = 0
 

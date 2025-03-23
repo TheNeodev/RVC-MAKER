@@ -25,12 +25,14 @@ from main.configs.config import Config
 from main.library.utils import check_predictors, check_embedders, load_audio, load_embedders_model
 
 logger = logging.getLogger(__name__)
-translations = Config().translations
+config = Config()
+translations = config.translations
 logger.propagate = False
 
 warnings.filterwarnings("ignore")
 for l in ["torch", "faiss", "httpx", "fairseq", "httpcore", "faiss.loader", "numba.core", "urllib3"]:
     logging.getLogger(l).setLevel(logging.ERROR)
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -82,10 +84,12 @@ def setup_paths(exp_dir, version = None):
     if version:
         out_path = os.path.join(exp_dir, f"{version}_extracted")
         os.makedirs(out_path, exist_ok=True)
+
         return wav_path, out_path
     else:
         output_root1, output_root2 = os.path.join(exp_dir, "f0"), os.path.join(exp_dir, "f0_voiced")
         os.makedirs(output_root1, exist_ok=True); os.makedirs(output_root2, exist_ok=True)
+
         return wav_path, output_root1, output_root2
 
 def read_wave(wav_path, normalize = False):
@@ -119,7 +123,7 @@ def get_providers():
     return providers
 
 class FeatureInput:
-    def __init__(self, sample_rate=16000, hop_size=160, device="cpu"):
+    def __init__(self, sample_rate=16000, hop_size=160, is_half=False, device="cpu"):
         self.fs = sample_rate
         self.hop = hop_size
         self.f0_bin = 256
@@ -128,6 +132,7 @@ class FeatureInput:
         self.f0_mel_min = 1127 * np.log(1 + self.f0_min / 700)
         self.f0_mel_max = 1127 * np.log(1 + self.f0_max / 700)
         self.device = device
+        self.is_half = is_half
     
     def compute_f0_hybrid(self, methods_str, np_arr, hop_length, f0_onnx):
         methods_str = re.search("hybrid\[(.+)\]", methods_str)
@@ -138,7 +143,7 @@ class FeatureInput:
 
         for method in methods:
             f0 = None
-            f0_methods = {"pm": lambda: self.get_pm(np_arr), "diow": lambda: self.get_pyworld_wrapper(np_arr, "dio"), "dio": lambda: self.get_pyworld(np_arr, "dio"), "mangio-crepe-full": lambda: self.get_mangio_crepe(np_arr, int(hop_length), "full", onnx=f0_onnx), "mangio-crepe-large": lambda: self.get_mangio_crepe(np_arr, int(hop_length), "large", onnx=f0_onnx), "mangio-crepe-medium": lambda: self.get_mangio_crepe(np_arr, int(hop_length), "medium", onnx=f0_onnx), "mangio-crepe-small": lambda: self.get_mangio_crepe(np_arr, int(hop_length), "small", onnx=f0_onnx), "mangio-crepe-tiny": lambda: self.get_mangio_crepe(np_arr, int(hop_length), "tiny", onnx=f0_onnx), "crepe-full": lambda: self.get_crepe(np_arr, "full", onnx=f0_onnx), "crepe-large": lambda: self.get_crepe(np_arr, "large", onnx=f0_onnx), "crepe-medium": lambda: self.get_crepe(np_arr, "medium", onnx=f0_onnx), "crepe-small": lambda: self.get_crepe(np_arr, "small", onnx=f0_onnx), "crepe-tiny": lambda: self.get_crepe(np_arr, "tiny", onnx=f0_onnx), "fcpe": lambda: self.get_fcpe(np_arr, int(hop_length), onnx=f0_onnx), "fcpe-legacy": lambda: self.get_fcpe(np_arr, int(hop_length), legacy=True, onnx=f0_onnx), "rmvpe": lambda: self.get_rmvpe(np_arr, onnx=f0_onnx), "rmvpe-legacy": lambda: self.get_rmvpe(np_arr, legacy=True, onnx=f0_onnx), "harvestw": lambda: self.get_pyworld_wrapper(np_arr, "harvest"), "harvest": lambda: self.get_pyworld(np_arr, "harvest"), "swipe": lambda: self.get_swipe(np_arr), "yin": lambda: self.get_yin(np_arr, int(hop_length), mode="yin"), "pyin": lambda: self.get_yin(np_arr, int(hop_length), mode="pyin")}
+            f0_methods = {"pm": lambda: self.get_pm(np_arr), "dio": lambda: self.get_pyworld(np_arr, "dio"), "pt_dio": lambda: self.get_pt_world(np_arr, "dio"), "mangio-crepe-full": lambda: self.get_mangio_crepe(np_arr, int(hop_length), "full", onnx=f0_onnx), "mangio-crepe-large": lambda: self.get_mangio_crepe(np_arr, int(hop_length), "large", onnx=f0_onnx), "mangio-crepe-medium": lambda: self.get_mangio_crepe(np_arr, int(hop_length), "medium", onnx=f0_onnx), "mangio-crepe-small": lambda: self.get_mangio_crepe(np_arr, int(hop_length), "small", onnx=f0_onnx), "mangio-crepe-tiny": lambda: self.get_mangio_crepe(np_arr, int(hop_length), "tiny", onnx=f0_onnx), "crepe-full": lambda: self.get_crepe(np_arr, "full", onnx=f0_onnx), "crepe-large": lambda: self.get_crepe(np_arr, "large", onnx=f0_onnx), "crepe-medium": lambda: self.get_crepe(np_arr, "medium", onnx=f0_onnx), "crepe-small": lambda: self.get_crepe(np_arr, "small", onnx=f0_onnx), "crepe-tiny": lambda: self.get_crepe(np_arr, "tiny", onnx=f0_onnx), "fcpe": lambda: self.get_fcpe(np_arr, int(hop_length), onnx=f0_onnx), "fcpe-legacy": lambda: self.get_fcpe(np_arr, int(hop_length), legacy=True, onnx=f0_onnx), "rmvpe": lambda: self.get_rmvpe(np_arr, onnx=f0_onnx), "rmvpe-legacy": lambda: self.get_rmvpe(np_arr, legacy=True, onnx=f0_onnx), "harvest": lambda: self.get_pyworld(np_arr, "harvest"), "pt_harvest": lambda: self.get_pt_world(np_arr, "harvest"), "swipe": lambda: self.get_swipe(np_arr), "yin": lambda: self.get_yin(np_arr, int(hop_length), mode="yin"), "pyin": lambda: self.get_yin(np_arr, int(hop_length), mode="pyin")}
             f0 = f0_methods.get(method, lambda: ValueError(translations["method_not_valid"]))()
             f0_computation_stack.append(f0) 
 
@@ -148,7 +153,7 @@ class FeatureInput:
         return resampled_stack[0] if len(resampled_stack) == 1 else np.nanmedian(np.vstack(resampled_stack), axis=0)
 
     def compute_f0(self, np_arr, f0_method, hop_length, f0_onnx=False):
-        f0_methods = {"pm": lambda: self.get_pm(np_arr), "diow": lambda: self.get_pyworld_wrapper(np_arr, "dio"), "dio": lambda: self.get_pyworld(np_arr, "dio"), "mangio-crepe-full": lambda: self.get_mangio_crepe(np_arr, int(hop_length), "full", onnx=f0_onnx), "mangio-crepe-large": lambda: self.get_mangio_crepe(np_arr, int(hop_length), "large", onnx=f0_onnx), "mangio-crepe-medium": lambda: self.get_mangio_crepe(np_arr, int(hop_length), "medium", onnx=f0_onnx), "mangio-crepe-small": lambda: self.get_mangio_crepe(np_arr, int(hop_length), "small", onnx=f0_onnx), "mangio-crepe-tiny": lambda: self.get_mangio_crepe(np_arr, int(hop_length), "tiny", onnx=f0_onnx), "crepe-full": lambda: self.get_crepe(np_arr, "full", onnx=f0_onnx), "crepe-large": lambda: self.get_crepe(np_arr, "large", onnx=f0_onnx), "crepe-medium": lambda: self.get_crepe(np_arr, "medium", onnx=f0_onnx), "crepe-small": lambda: self.get_crepe(np_arr, "small", onnx=f0_onnx), "crepe-tiny": lambda: self.get_crepe(np_arr, "tiny", onnx=f0_onnx), "fcpe": lambda: self.get_fcpe(np_arr, int(hop_length), onnx=f0_onnx), "fcpe-legacy": lambda: self.get_fcpe(np_arr, int(hop_length), legacy=True, onnx=f0_onnx), "rmvpe": lambda: self.get_rmvpe(np_arr, onnx=f0_onnx), "rmvpe-legacy": lambda: self.get_rmvpe(np_arr, legacy=True, onnx=f0_onnx), "harvestw": lambda: self.get_pyworld_wrapper(np_arr, "harvest"), "harvest": lambda: self.get_pyworld(np_arr, "harvest"), "swipe": lambda: self.get_swipe(np_arr), "yin": lambda: self.get_yin(np_arr, int(hop_length), mode="yin"), "pyin": lambda: self.get_yin(np_arr, int(hop_length), mode="pyin")}
+        f0_methods = {"pm": lambda: self.get_pm(np_arr), "dio": lambda: self.get_pyworld(np_arr, "dio"), "pt_dio": lambda: self.get_pt_world(np_arr, "dio"), "mangio-crepe-full": lambda: self.get_mangio_crepe(np_arr, int(hop_length), "full", onnx=f0_onnx), "mangio-crepe-large": lambda: self.get_mangio_crepe(np_arr, int(hop_length), "large", onnx=f0_onnx), "mangio-crepe-medium": lambda: self.get_mangio_crepe(np_arr, int(hop_length), "medium", onnx=f0_onnx), "mangio-crepe-small": lambda: self.get_mangio_crepe(np_arr, int(hop_length), "small", onnx=f0_onnx), "mangio-crepe-tiny": lambda: self.get_mangio_crepe(np_arr, int(hop_length), "tiny", onnx=f0_onnx), "crepe-full": lambda: self.get_crepe(np_arr, "full", onnx=f0_onnx), "crepe-large": lambda: self.get_crepe(np_arr, "large", onnx=f0_onnx), "crepe-medium": lambda: self.get_crepe(np_arr, "medium", onnx=f0_onnx), "crepe-small": lambda: self.get_crepe(np_arr, "small", onnx=f0_onnx), "crepe-tiny": lambda: self.get_crepe(np_arr, "tiny", onnx=f0_onnx), "fcpe": lambda: self.get_fcpe(np_arr, int(hop_length), onnx=f0_onnx), "fcpe-legacy": lambda: self.get_fcpe(np_arr, int(hop_length), legacy=True, onnx=f0_onnx), "rmvpe": lambda: self.get_rmvpe(np_arr, onnx=f0_onnx), "rmvpe-legacy": lambda: self.get_rmvpe(np_arr, legacy=True, onnx=f0_onnx), "harvest": lambda: self.get_pyworld(np_arr, "harvest"), "pt_harvest": lambda: self.get_pt_world(np_arr, "harvest"), "swipe": lambda: self.get_swipe(np_arr), "yin": lambda: self.get_yin(np_arr, int(hop_length), mode="yin"), "pyin": lambda: self.get_yin(np_arr, int(hop_length), mode="pyin")}
         return self.compute_f0_hybrid(f0_method, np_arr, int(hop_length), f0_onnx) if "hybrid" in f0_method else f0_methods.get(f0_method, lambda: ValueError(translations["method_not_valid"]))()
 
     def get_pm(self, x):
@@ -193,31 +198,31 @@ class FeatureInput:
     def get_rmvpe(self, x, legacy=False, onnx=False):
         from main.library.predictors.RMVPE import RMVPE
 
-        rmvpe_model = RMVPE(os.path.join("assets", "models", "predictors", "rmvpe" + (".onnx" if onnx else ".pt")), device=self.device, onnx=onnx, providers=get_providers())
+        rmvpe_model = RMVPE(os.path.join("assets", "models", "predictors", "rmvpe" + (".onnx" if onnx else ".pt")), is_half=self.is_half, device=self.device, onnx=onnx, providers=get_providers())
         f0 = rmvpe_model.infer_from_audio_with_pitch(x, thred=0.03, f0_min=self.f0_min, f0_max=self.f0_max) if legacy else rmvpe_model.infer_from_audio(x, thred=0.03)
 
         del rmvpe_model
         return f0
     
-    def get_pyworld_wrapper(self, x, model="harvest"):
+    def get_pyworld(self, x, model="harvest"):
         from main.library.predictors.WORLD_WRAPPER import PYWORLD
 
         pw = PYWORLD()
         x = x.astype(np.double)
 
-        if model == "harvest":  f0, t = pw.harvest(x, fs=self.fs, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=1000 * self.hop / self.fs)
+        if model == "harvest": f0, t = pw.harvest(x, fs=self.fs, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=1000 * self.hop / self.fs)
         elif model == "dio": f0, t = pw.dio(x, fs=self.fs, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=1000 * self.hop / self.fs)
         else: raise ValueError(translations["method_not_valid"])
 
         return pw.stonemask(x, self.fs, t, f0)
     
-    def get_pyworld(self, x, model="harvest"):
+    def get_pt_world(self, x, model="harvest"):
         from main.library.predictors.pyworld import dio, harvest, stonemask
 
-        x = x.astype(np.double)
+        x = x.astype(np.float32)
 
-        if model == "harvest":  f0, t = harvest.harvest(x, fs=self.fs, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=1000 * self.hop / self.fs)
-        elif model == "dio": f0, t = dio.dio(x, fs=self.fs, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=1000 * self.hop / self.fs)
+        if model == "harvest": f0, t = harvest.harvest(x, fs=self.fs, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=1000 * self.hop / self.fs, device=self.device)
+        elif model == "dio": f0, t = dio.dio(x, fs=self.fs, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=1000 * self.hop / self.fs, device=self.device)
         else: raise ValueError(translations["method_not_valid"])
 
         return stonemask.stonemask(x, self.fs, t, f0)
@@ -225,7 +230,7 @@ class FeatureInput:
     def get_swipe(self, x):
         from main.library.predictors.SWIPE import swipe
 
-        f0, _ = swipe(x.astype(np.double), self.fs, f0_floor=self.f0_min, f0_ceil=self.f0_max, frame_period=1000 * self.hop / self.fs)
+        f0, _ = swipe(x.astype(np.float32), self.fs, f0_floor=self.f0_min, f0_ceil=self.f0_max, frame_period=1000 * self.hop / self.fs, device=self.device)
         return f0
     
     def get_yin(self, x, hop_length, mode="yin"):
@@ -263,7 +268,7 @@ class FeatureInput:
             self.process_file(file_info, f0_method, hop_length, f0_onnx)
             pbar.update()
 
-def run_pitch_extraction(exp_dir, f0_method, hop_length, num_processes, gpus, f0_onnx):
+def run_pitch_extraction(exp_dir, f0_method, hop_length, num_processes, gpus, f0_onnx, is_half):
     input_root, *output_roots = setup_paths(exp_dir)
     output_root1, output_root2 = output_roots if len(output_roots) == 2 else (output_roots[0], None)
 
@@ -276,7 +281,7 @@ def run_pitch_extraction(exp_dir, f0_method, hop_length, num_processes, gpus, f0
 
     pbar = tqdm.tqdm(total=len(paths), ncols=100, unit="p")
     for idx, gpu in enumerate(gpus):
-        feature_input = FeatureInput(device=get_device(gpu) if gpu != "" else "cpu")
+        feature_input = FeatureInput(device=get_device(gpu) if gpu != "" else "cpu", is_half=is_half)
         process_partials.append((feature_input, paths[idx::len(gpus)]))
 
     with ThreadPoolExecutor(max_workers=num_processes) as executor:
@@ -291,19 +296,19 @@ def run_pitch_extraction(exp_dir, f0_method, hop_length, num_processes, gpus, f0
 def extract_features(model, feats, version):
     return torch.as_tensor(model.run([model.get_outputs()[0].name, model.get_outputs()[1].name], {"feats": feats.detach().cpu().numpy()})[0 if version == "v1" else 1], dtype=torch.float32, device=feats.device)
 
-def process_file_embedding(file, wav_path, out_path, model, device, version, saved_cfg, embed_suffix):
+def process_file_embedding(file, wav_path, out_path, model, device, version, saved_cfg, embed_suffix, is_half):
     out_file_path = os.path.join(out_path, file.replace("wav", "npy"))
     if os.path.exists(out_file_path): return
     feats = read_wave(os.path.join(wav_path, file), normalize=saved_cfg.task.normalize if saved_cfg else False).to(device).float()
 
     with torch.no_grad():
         if embed_suffix == ".pt":
-            model = model.to(device).float().eval()
+            model = model.to(device).to(torch.float16 if is_half else torch.float32).eval()
             logits = model.extract_features(**{"source": feats, "padding_mask": torch.BoolTensor(feats.shape).fill_(False).to(device), "output_layer": 9 if version == "v1" else 12})
             feats = model.final_proj(logits[0]) if version == "v1" else logits[0]
         elif embed_suffix == ".onnx": feats = extract_features(model, feats, version).to(device)
-        elif embed_suffix == ".bin":
-            model = model.to(device).float().eval()
+        elif embed_suffix == ".safetensors":
+            model = model.to(device).to(torch.float16 if is_half else torch.float32).eval()
             logits = model(feats)["last_hidden_state"]
             feats = (model.final_proj(logits[0]).unsqueeze(0) if version == "v1" else logits)
         else: raise ValueError(translations["option_not_valid"])
@@ -312,12 +317,13 @@ def process_file_embedding(file, wav_path, out_path, model, device, version, sav
     if not np.isnan(feats).any(): np.save(out_file_path, feats, allow_pickle=False)
     else: logger.warning(f"{file} {translations['NaN']}")
 
-def run_embedding_extraction(exp_dir, version, gpus, embedder_model, embedders_mode):
+def run_embedding_extraction(exp_dir, version, gpus, embedder_model, embedders_mode, is_half):
     wav_path, out_path = setup_paths(exp_dir, version)
     logger.info(translations["start_extract_hubert"])
 
     start_time = time.time()
     models, saved_cfg, embed_suffix = load_embedders_model(embedder_model, embedders_mode, providers=get_providers())
+
     devices = [get_device(gpu) for gpu in (gpus.split("-") if gpus != "-" else ["cpu"])]
     paths = sorted([file for file in os.listdir(wav_path) if file.endswith(".wav")])
 
@@ -326,7 +332,7 @@ def run_embedding_extraction(exp_dir, version, gpus, embedder_model, embedders_m
         sys.exit(1)
 
     pbar = tqdm.tqdm(total=len(paths) * len(devices), ncols=100, unit="p")
-    for task in [(file, wav_path, out_path, models, device, version, saved_cfg, embed_suffix) for file in paths for device in devices]:
+    for task in [(file, wav_path, out_path, models, device, version, saved_cfg, embed_suffix, is_half) for file in paths for device in devices]:
         try:
             process_file_embedding(*task)
         except Exception as e:
@@ -338,10 +344,11 @@ def run_embedding_extraction(exp_dir, version, gpus, embedder_model, embedders_m
     pbar.close()
     logger.info(translations["extract_hubert_success"].format(elapsed_time=f"{(time.time() - start_time):.2f}"))
 
-if __name__ == "__main__":
+def main():
     args = parse_arguments()
     exp_dir = os.path.join("assets", "logs", args.model_name)
     f0_method, hop_length, num_processes, gpus, version, pitch_guidance, sample_rate, embedder_model, f0_onnx, embedders_mode = args.f0_method, args.hop_length, args.cpu_cores, args.gpu, args.rvc_version, args.pitch_guidance, args.sample_rate, args.embedder_model, args.f0_onnx, args.embedders_mode
+
     check_predictors(f0_method, f0_onnx); check_embedders(embedder_model, embedders_mode)
 
     if logger.hasHandlers(): logger.handlers.clear()
@@ -367,8 +374,9 @@ if __name__ == "__main__":
         pid_file.write(str(os.getpid()))
 
     try:
-        run_pitch_extraction(exp_dir, f0_method, hop_length, num_processes, gpus, f0_onnx)
-        run_embedding_extraction(exp_dir, version, gpus, embedder_model, embedders_mode)
+        run_pitch_extraction(exp_dir, f0_method, hop_length, num_processes, gpus, f0_onnx, config.is_half)
+        run_embedding_extraction(exp_dir, version, gpus, embedder_model, embedders_mode, config.is_half)
+
         generate_config(version, sample_rate, exp_dir)
         generate_filelist(pitch_guidance, exp_dir, version, sample_rate)
     except Exception as e:
@@ -378,3 +386,5 @@ if __name__ == "__main__":
 
     if os.path.exists(pid_path): os.remove(pid_path)
     logger.info(f"{translations['extract_success']} {args.model_name}.")
+
+if __name__ == "__main__": main()

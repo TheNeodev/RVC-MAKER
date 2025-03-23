@@ -50,6 +50,7 @@ else:
     logger.addHandler(file_handler)
     logger.setLevel(logging.DEBUG)
 
+
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("--pitch", type=int, default=0)
@@ -59,7 +60,7 @@ def parse_arguments():
     parser.add_argument("--protect", type=float, default=0.33)
     parser.add_argument("--hop_length", type=int, default=64)
     parser.add_argument("--f0_method", type=str, default="rmvpe")
-    parser.add_argument("--embedder_model", type=str, default="contentvec_base.pt")
+    parser.add_argument("--embedder_model", type=str, default="contentvec_base")
     parser.add_argument("--input_path", type=str, required=True)
     parser.add_argument("--output_path", type=str, default="./audios/output.wav")
     parser.add_argument("--export_format", type=str, default="wav")
@@ -263,6 +264,7 @@ class VC:
         self.f0_mel_min = 1127 * np.log(1 + self.f0_min / 700)
         self.f0_mel_max = 1127 * np.log(1 + self.f0_max / 700)
         self.device = config.device
+        self.is_half = config.is_half
         self.ref_freqs = [49.00, 51.91, 55.00, 58.27, 61.74, 65.41, 69.30, 73.42, 77.78, 82.41, 87.31, 92.50, 98.00, 103.83, 110.00, 116.54, 123.47, 130.81, 138.59, 146.83, 155.56, 164.81, 174.61, 185.00, 196.00,  207.65, 220.00, 233.08, 246.94, 261.63, 277.18, 293.66, 311.13, 329.63, 349.23, 369.99, 392.00, 415.30, 440.00, 466.16, 493.88, 523.25, 554.37, 587.33, 622.25, 659.25, 698.46, 739.99, 783.99, 830.61, 880.00, 932.33, 987.77, 1046.50]
         self.autotune = Autotune(self.ref_freqs)
         self.note_dict = self.autotune.note_dict
@@ -312,13 +314,13 @@ class VC:
     def get_f0_rmvpe(self, x, legacy=False, onnx=False):
         from main.library.predictors.RMVPE import RMVPE
 
-        rmvpe_model = RMVPE(os.path.join("assets", "models", "predictors", "rmvpe" + (".onnx" if onnx else ".pt")), device=self.device, onnx=onnx, providers=get_providers())
+        rmvpe_model = RMVPE(os.path.join("assets", "models", "predictors", "rmvpe" + (".onnx" if onnx else ".pt")), is_half=self.is_half, device=self.device, onnx=onnx, providers=get_providers())
         f0 = rmvpe_model.infer_from_audio_with_pitch(x, thred=0.03, f0_min=self.f0_min, f0_max=self.f0_max) if legacy else rmvpe_model.infer_from_audio(x, thred=0.03)
 
         del rmvpe_model
         return f0
 
-    def get_f0_pyworld_wrapper(self, x, filter_radius, model="harvest"):
+    def get_f0_pyworld(self, x, filter_radius, model="harvest"):
         from main.library.predictors.WORLD_WRAPPER import PYWORLD
 
         pw = PYWORLD()
@@ -330,27 +332,27 @@ class VC:
 
         f0 = pw.stonemask(x, self.sample_rate, t, f0)
 
-        if filter_radius > 2 or model == "dio": f0 = signal.medfilt(f0, 3)
+        if filter_radius > 2 or model == "dio": f0 = signal.medfilt(f0, filter_radius)
         return f0
     
-    def get_f0_pyworld(self, x, filter_radius, model="harvest"):
+    def get_f0_pt_world(self, x, filter_radius, model="harvest"):
         from main.library.predictors.pyworld import harvest, dio, stonemask
 
-        x = x.astype(np.double)
+        x = x.astype(np.float32)
 
-        if model == "harvest": f0, t = harvest.harvest(x, fs=self.sample_rate, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=10)
-        elif model == "dio": f0, t = dio.dio(x, fs=self.sample_rate, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=10)
+        if model == "harvest": f0, t = harvest.harvest(x, fs=self.sample_rate, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=10, device=self.device)
+        elif model == "dio": f0, t = dio.dio(x, fs=self.sample_rate, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=10, device=self.device)
         else: raise ValueError(translations["method_not_valid"])
 
         f0 = stonemask.stonemask(x, self.sample_rate, t, f0)
         
-        if filter_radius > 2 or model == "dio": f0 = signal.medfilt(f0, 3)
+        if filter_radius > 2 or model == "dio": f0 = signal.medfilt(f0, filter_radius)
         return f0
     
     def get_f0_swipe(self, x):
         from main.library.predictors.SWIPE import swipe
 
-        f0, _ = swipe(x.astype(np.double), self.sample_rate, f0_floor=self.f0_min, f0_ceil=self.f0_max, frame_period=10)
+        f0, _ = swipe(x.astype(np.float32), self.sample_rate, f0_floor=self.f0_min, f0_ceil=self.f0_max, frame_period=10, device=self.device)
         return f0
     
     def get_f0_yin(self, x, hop_length, p_len, mode="yin"):
@@ -374,7 +376,7 @@ class VC:
 
         for method in methods:
             f0 = None
-            f0_methods = {"pm": lambda: self.get_f0_pm(x, p_len), "diow": lambda: self.get_f0_pyworld_wrapper(x, filter_radius, "dio"), "dio": lambda: self.get_f0_pyworld(x, filter_radius, "dio"), "mangio-crepe-tiny": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "tiny", onnx=onnx_mode), "mangio-crepe-small": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "small", onnx=onnx_mode), "mangio-crepe-medium": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "medium", onnx=onnx_mode), "mangio-crepe-large": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "large", onnx=onnx_mode), "mangio-crepe-full": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "full", onnx=onnx_mode), "crepe-tiny": lambda: self.get_f0_crepe(x, "tiny", onnx=onnx_mode), "crepe-small": lambda: self.get_f0_crepe(x, "small", onnx=onnx_mode), "crepe-medium": lambda: self.get_f0_crepe(x, "medium", onnx=onnx_mode), "crepe-large": lambda: self.get_f0_crepe(x, "large", onnx=onnx_mode), "crepe-full": lambda: self.get_f0_crepe(x, "full", onnx=onnx_mode), "fcpe": lambda: self.get_f0_fcpe(x, p_len, int(hop_length), onnx=onnx_mode), "fcpe-legacy": lambda: self.get_f0_fcpe(x, p_len, int(hop_length), legacy=True, onnx=onnx_mode), "rmvpe": lambda: self.get_f0_rmvpe(x, onnx=onnx_mode), "rmvpe-legacy": lambda: self.get_f0_rmvpe(x, legacy=True, onnx=onnx_mode), "harvestw": lambda: self.get_f0_pyworld_wrapper(x, filter_radius, "harvest"), "harvest": lambda: self.get_f0_pyworld(x, filter_radius, "harvest"), "yin": lambda: self.get_f0_yin(x, int(hop_length), p_len, mode="yin"), "pyin": lambda: self.get_f0_yin(x, int(hop_length), p_len, mode="pyin"), "swipe": lambda: self.get_f0_swipe(x)}
+            f0_methods = {"pm": lambda: self.get_f0_pm(x, p_len), "dio": lambda: self.get_f0_pyworld(x, filter_radius, "dio"), "pt_dio": lambda: self.get_f0_pt_world(x, filter_radius, "dio"), "mangio-crepe-tiny": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "tiny", onnx=onnx_mode), "mangio-crepe-small": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "small", onnx=onnx_mode), "mangio-crepe-medium": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "medium", onnx=onnx_mode), "mangio-crepe-large": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "large", onnx=onnx_mode), "mangio-crepe-full": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "full", onnx=onnx_mode), "crepe-tiny": lambda: self.get_f0_crepe(x, "tiny", onnx=onnx_mode), "crepe-small": lambda: self.get_f0_crepe(x, "small", onnx=onnx_mode), "crepe-medium": lambda: self.get_f0_crepe(x, "medium", onnx=onnx_mode), "crepe-large": lambda: self.get_f0_crepe(x, "large", onnx=onnx_mode), "crepe-full": lambda: self.get_f0_crepe(x, "full", onnx=onnx_mode), "fcpe": lambda: self.get_f0_fcpe(x, p_len, int(hop_length), onnx=onnx_mode), "fcpe-legacy": lambda: self.get_f0_fcpe(x, p_len, int(hop_length), legacy=True, onnx=onnx_mode), "rmvpe": lambda: self.get_f0_rmvpe(x, onnx=onnx_mode), "rmvpe-legacy": lambda: self.get_f0_rmvpe(x, legacy=True, onnx=onnx_mode), "harvest": lambda: self.get_f0_pyworld(x, filter_radius, "harvest"), "pt_harvest": lambda: self.get_f0_pt_world(x, filter_radius, "harvest"), "yin": lambda: self.get_f0_yin(x, int(hop_length), p_len, mode="yin"), "pyin": lambda: self.get_f0_yin(x, int(hop_length), p_len, mode="pyin"), "swipe": lambda: self.get_f0_swipe(x)}
             f0 = f0_methods.get(method, lambda: ValueError(translations["method_not_valid"]))()
             f0_computation_stack.append(f0) 
 
@@ -384,7 +386,7 @@ class VC:
         return resampled_stack[0] if len(resampled_stack) == 1 else np.nanmedian(np.vstack(resampled_stack), axis=0)
 
     def get_f0(self, x, p_len, pitch, f0_method, filter_radius, hop_length, f0_autotune, f0_autotune_strength, inp_f0=None, onnx_mode=False):
-        f0_methods = {"pm": lambda: self.get_f0_pm(x, p_len), "diow": lambda: self.get_f0_pyworld_wrapper(x, filter_radius, "dio"), "dio": lambda: self.get_f0_pyworld(x, filter_radius, "dio"), "mangio-crepe-tiny": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "tiny", onnx=onnx_mode), "mangio-crepe-small": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "small", onnx=onnx_mode), "mangio-crepe-medium": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "medium", onnx=onnx_mode), "mangio-crepe-large": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "large", onnx=onnx_mode), "mangio-crepe-full": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "full", onnx=onnx_mode), "crepe-tiny": lambda: self.get_f0_crepe(x, "tiny", onnx=onnx_mode), "crepe-small": lambda: self.get_f0_crepe(x, "small", onnx=onnx_mode), "crepe-medium": lambda: self.get_f0_crepe(x, "medium", onnx=onnx_mode), "crepe-large": lambda: self.get_f0_crepe(x, "large", onnx=onnx_mode), "crepe-full": lambda: self.get_f0_crepe(x, "full", onnx=onnx_mode), "fcpe": lambda: self.get_f0_fcpe(x, p_len, int(hop_length), onnx=onnx_mode), "fcpe-legacy": lambda: self.get_f0_fcpe(x, p_len, int(hop_length), legacy=True, onnx=onnx_mode), "rmvpe": lambda: self.get_f0_rmvpe(x, onnx=onnx_mode), "rmvpe-legacy": lambda: self.get_f0_rmvpe(x, legacy=True, onnx=onnx_mode), "harvestw": lambda: self.get_f0_pyworld_wrapper(x, filter_radius, "harvest"), "harvest": lambda: self.get_f0_pyworld(x, filter_radius, "harvest"), "yin": lambda: self.get_f0_yin(x, int(hop_length), p_len, mode="yin"), "pyin": lambda: self.get_f0_yin(x, int(hop_length), p_len, mode="pyin"), "swipe": lambda: self.get_f0_swipe(x)}
+        f0_methods = {"pm": lambda: self.get_f0_pm(x, p_len), "dio": lambda: self.get_f0_pyworld(x, filter_radius, "dio"), "pt_dio": lambda: self.get_f0_pt_world(x, filter_radius, "dio"), "mangio-crepe-tiny": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "tiny", onnx=onnx_mode), "mangio-crepe-small": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "small", onnx=onnx_mode), "mangio-crepe-medium": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "medium", onnx=onnx_mode), "mangio-crepe-large": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "large", onnx=onnx_mode), "mangio-crepe-full": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "full", onnx=onnx_mode), "crepe-tiny": lambda: self.get_f0_crepe(x, "tiny", onnx=onnx_mode), "crepe-small": lambda: self.get_f0_crepe(x, "small", onnx=onnx_mode), "crepe-medium": lambda: self.get_f0_crepe(x, "medium", onnx=onnx_mode), "crepe-large": lambda: self.get_f0_crepe(x, "large", onnx=onnx_mode), "crepe-full": lambda: self.get_f0_crepe(x, "full", onnx=onnx_mode), "fcpe": lambda: self.get_f0_fcpe(x, p_len, int(hop_length), onnx=onnx_mode), "fcpe-legacy": lambda: self.get_f0_fcpe(x, p_len, int(hop_length), legacy=True, onnx=onnx_mode), "rmvpe": lambda: self.get_f0_rmvpe(x, onnx=onnx_mode), "rmvpe-legacy": lambda: self.get_f0_rmvpe(x, legacy=True, onnx=onnx_mode), "harvest": lambda: self.get_f0_pyworld(x, filter_radius, "harvest"), "pt_harvest": lambda: self.get_f0_pt_world(x, filter_radius, "harvest"), "yin": lambda: self.get_f0_yin(x, int(hop_length), p_len, mode="yin"), "pyin": lambda: self.get_f0_yin(x, int(hop_length), p_len, mode="pyin"), "swipe": lambda: self.get_f0_swipe(x)}
         f0 = self.get_f0_hybrid(f0_method, x, p_len, hop_length, filter_radius, onnx_mode) if "hybrid" in f0_method else f0_methods.get(f0_method, lambda: ValueError(translations["method_not_valid"]))()
 
         if f0_autotune: f0 = Autotune.autotune_f0(self, f0, f0_autotune_strength)
@@ -409,7 +411,7 @@ class VC:
 
     def voice_conversion(self, model, net_g, sid, audio0, pitch, pitchf, index, big_npy, index_rate, version, protect):
         pitch_guidance = pitch != None and pitchf != None
-        feats = torch.from_numpy(audio0).float()
+        feats = (torch.from_numpy(audio0).half() if self.is_half else torch.from_numpy(audio0).float())
 
         if feats.dim() == 2: feats = feats.mean(-1)
         assert feats.dim() == 1, feats.dim()
@@ -422,7 +424,7 @@ class VC:
                 logits = model.extract_features(**{"source": feats.to(self.device), "padding_mask": padding_mask, "output_layer": 9 if version == "v1" else 12})
                 feats = model.final_proj(logits[0]) if version == "v1" else logits[0]
             elif self.embed_suffix == ".onnx": feats = self.extract_features(model, feats, version).to(self.device)
-            elif self.embed_suffix == ".bin":
+            elif self.embed_suffix == ".safetensors":
                 logits = model(feats)["last_hidden_state"]
                 feats = (model.final_proj(logits[0]).unsqueeze(0) if version == "v1" else logits)
             else: raise ValueError(translations["option_not_valid"])
@@ -430,9 +432,16 @@ class VC:
             if protect < 0.5 and pitch_guidance: feats0 = feats.clone()
 
             if (not isinstance(index, type(None)) and not isinstance(big_npy, type(None)) and index_rate != 0):
-                score, ix = index.search(feats[0].cpu().numpy(), k=8)
+                npy = feats[0].cpu().numpy()
+                if self.is_half: npy = npy.astype(np.float32)
+
+                score, ix = index.search(npy, k=8)
                 weight = np.square(1 / score)
-                feats = (torch.from_numpy(np.sum(big_npy[ix] * np.expand_dims(weight / weight.sum(axis=1, keepdims=True), axis=2), axis=1)).unsqueeze(0).to(self.device) * index_rate + (1 - index_rate) * feats)
+
+                npy = np.sum(big_npy[ix] * np.expand_dims(weight / weight.sum(axis=1, keepdims=True), axis=2), axis=1)
+                if self.is_half: npy = npy.astype(np.float16)
+
+                feats = (torch.from_numpy(npy).unsqueeze(0).to(self.device) * index_rate + (1 - index_rate) * feats)
 
             feats = F.interpolate(feats.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)
             if protect < 0.5 and pitch_guidance: feats0 = F.interpolate(feats0.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)
@@ -454,7 +463,7 @@ class VC:
                 feats = (feats * pitchff + feats0 * (1 - pitchff)).to(feats0.dtype)
 
             p_len = torch.tensor([p_len], device=self.device).long()
-            audio1 = ((net_g.infer(feats.float(), p_len, pitch if pitch_guidance else None, pitchf.float() if pitch_guidance else None, sid)[0][0, 0]).data.cpu().float().numpy()) if self.suffix == ".pth" else (net_g.run([net_g.get_outputs()[0].name], ({net_g.get_inputs()[0].name: feats.cpu().numpy().astype(np.float32), net_g.get_inputs()[1].name: p_len.cpu().numpy(), net_g.get_inputs()[2].name: np.array([sid.cpu().item()], dtype=np.int64), net_g.get_inputs()[3].name: np.random.randn(1, 192, p_len).astype(np.float32), net_g.get_inputs()[4].name: pitch.cpu().numpy().astype(np.int64), net_g.get_inputs()[5].name: pitchf.cpu().numpy().astype(np.float32)} if pitch_guidance else {net_g.get_inputs()[0].name: feats.cpu().numpy().astype(np.float32), net_g.get_inputs()[1].name: p_len.cpu().numpy(), net_g.get_inputs()[2].name: np.array([sid.cpu().item()], dtype=np.int64), net_g.get_inputs()[3].name: np.random.randn(1, 192, p_len).astype(np.float32)}))[0][0, 0])
+            audio1 = ((net_g.infer(feats, p_len, pitch if pitch_guidance else None, pitchf if pitch_guidance else None, sid)[0][0, 0]).data.cpu().float().numpy()) if self.suffix == ".pth" else (net_g.run([net_g.get_outputs()[0].name], ({net_g.get_inputs()[0].name: feats.cpu().numpy().astype(np.float32), net_g.get_inputs()[1].name: p_len.cpu().numpy(), net_g.get_inputs()[2].name: np.array([sid.cpu().item()], dtype=np.int64), net_g.get_inputs()[3].name: np.random.randn(1, 192, p_len).astype(np.float32), net_g.get_inputs()[4].name: pitch.cpu().numpy().astype(np.int64), net_g.get_inputs()[5].name: pitchf.cpu().numpy().astype(np.float32)} if pitch_guidance else {net_g.get_inputs()[0].name: feats.cpu().numpy().astype(np.float32), net_g.get_inputs()[1].name: p_len.cpu().numpy(), net_g.get_inputs()[2].name: np.array([sid.cpu().item()], dtype=np.int64), net_g.get_inputs()[3].name: np.random.randn(1, 192, p_len).astype(np.float32)}))[0][0, 0])
 
         if self.embed_suffix == ".pt": del padding_mask
         del feats, p_len, net_g
@@ -561,6 +570,7 @@ class VoiceConverter:
     def convert_audio(self, audio_input_path, audio_output_path, model_path, index_path, embedder_model, pitch, f0_method, index_rate, volume_envelope, protect, hop_length, f0_autotune, f0_autotune_strength, filter_radius, clean_audio, clean_strength, export_format, resample_sr = 0, sid = 0, checkpointing = False, f0_file = None, f0_onnx = False, embedders_mode = "fairseq", formant_shifting = False, formant_qfrency=0.8, formant_timbre=0.8):
         try:
             self.get_vc(model_path, sid)
+
             audio = load_audio(logger, audio_input_path, 16000, formant_shifting=formant_shifting, formant_qfrency=formant_qfrency, formant_timbre=formant_timbre)
             self.checkpointing = checkpointing
 
@@ -569,7 +579,7 @@ class VoiceConverter:
 
             if not self.hubert_model:
                 models, _, embed_suffix = load_embedders_model(embedder_model, embedders_mode, providers=get_providers())
-                self.hubert_model = models.to(self.config.device).float().eval() if embed_suffix in [".pt", ".bin"] else models
+                self.hubert_model = (models.to(self.config.device).half() if self.config.is_half else models.to(self.config.device).float()).eval() if embed_suffix in [".pt", ".safetensors"] else models
                 self.embed_suffix = embed_suffix
 
             if self.tgt_sr != resample_sr >= 16000: self.tgt_sr = resample_sr
@@ -628,7 +638,6 @@ class VoiceConverter:
             if self.loaded_model.endswith(".pth"):
                 self.tgt_sr = self.cpt["config"][-1]
                 self.cpt["config"][-3] = self.cpt["weight"]["emb_g.weight"].shape[0]
-
                 self.use_f0 = self.cpt.get("f0", 1)
                 self.version = self.cpt.get("version", "v1")
                 self.vocoder = self.cpt.get("vocoder", "Default")
@@ -637,7 +646,8 @@ class VoiceConverter:
                 del self.net_g.enc_q
 
                 self.net_g.load_state_dict(self.cpt["weight"], strict=False)
-                self.net_g.eval().to(self.config.device).float()
+                self.net_g.eval().to(self.config.device)
+                self.net_g = (self.net_g.half() if self.config.is_half else self.net_g.float())
 
                 self.n_spk = self.cpt["config"][-3]
                 self.suffix = ".pth"

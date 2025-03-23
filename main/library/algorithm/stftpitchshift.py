@@ -150,12 +150,12 @@ def encode(frames, framesize, hopsize, samplerate):
 
     for m, frame in enumerate(frames):
         arg = np.angle(frame)
+        delta = arg - buffer
+        
         buffer = arg
 
         i = np.arange(N)
-        freq = (i + (wrap((arg - buffer) - i * phaseinc) / phaseinc)) * freqinc
-
-        data[m] = np.abs(frame) + 1j * freq
+        data[m] = np.abs(frame) + 1j * ((i + (wrap(delta - i * phaseinc) / phaseinc)) * freqinc)
 
     return data
 

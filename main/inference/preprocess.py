@@ -24,6 +24,7 @@ for l in ["numba.core.byteflow", "numba.core.ssa", "numba.core.interpreter"]:
     logging.getLogger(l).setLevel(logging.ERROR)
 
 OVERLAP, MAX_AMPLITUDE, ALPHA, HIGH_PASS_CUTOFF, SAMPLE_RATE_16K = 0.3, 0.9, 0.75, 48, 16000
+
 config = Config()
 translations = config.translations
 
@@ -221,17 +222,14 @@ def preprocess_training_set(input_root, sr, num_processes, exp_dir, per, cut_pre
     elapsed_time = time.time() - start_time
     logger.info(translations["preprocess_success"].format(elapsed_time=f"{elapsed_time:.2f}"))
 
-if __name__ == "__main__":
+def main():
     args = parse_arguments()
     experiment_directory = os.path.join("assets", "logs", args.model_name)
+
     num_processes = args.cpu_cores
     num_processes = 2 if num_processes is None else int(num_processes)
-    dataset = args.dataset_path
-    sample_rate = args.sample_rate
-    cut_preprocess = args.cut_preprocess
-    preprocess_effects = args.process_effects
-    clean_dataset = args.clean_dataset
-    clean_strength = args.clean_strength
+
+    dataset, sample_rate, cut_preprocess, preprocess_effects, clean_dataset, clean_strength = args.dataset_path, args.sample_rate, args.cut_preprocess, args.process_effects, args.clean_dataset, args.clean_strength
 
     os.makedirs(experiment_directory, exist_ok=True)
     
@@ -260,7 +258,7 @@ if __name__ == "__main__":
         pid_file.write(str(os.getpid()))
     
     try:
-        preprocess_training_set(dataset, sample_rate, num_processes, experiment_directory, 3.7, cut_preprocess, preprocess_effects, clean_dataset, clean_strength)
+        preprocess_training_set(dataset, sample_rate, num_processes, experiment_directory, config.per_preprocess, cut_preprocess, preprocess_effects, clean_dataset, clean_strength)
     except Exception as e:
         logger.error(f"{translations['process_audio_error']} {e}")
         import traceback
@@ -268,3 +266,5 @@ if __name__ == "__main__":
         
     if os.path.exists(pid_path): os.remove(pid_path)
     logger.info(f"{translations['preprocess_model_success']} {args.model_name}")
+
+if __name__ == "__main__": main()
