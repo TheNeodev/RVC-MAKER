@@ -14,7 +14,10 @@ from transformers import RobertaTokenizer, RobertaTokenizerFast, VitsTokenizer
 
 sys.path.append(os.getcwd())
 
+from main.configs.config import Config
 from main.library.utils import check_audioldm2
+
+config = Config()
 
 class Pipeline(torch.nn.Module):
     def __init__(self, model_id, device, double_precision = False, token = None, *args, **kwargs):
@@ -29,9 +32,6 @@ class Pipeline(torch.nn.Module):
 
     def get_melspectrogram(self):
         pass
-
-    def get_sr(self):
-        return 16000
 
     def vae_encode(self, x):
         pass
@@ -169,7 +169,7 @@ class MelSpectrogramProcessor(torch.nn.Module):
 class AudioLDM2(Pipeline):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.model = AudioLDM2Pipeline.from_pretrained(self.model_id, local_files_only=True, torch_dtype=torch.float32).to(self.device)
+        self.model = AudioLDM2Pipeline.from_pretrained(self.model_id, local_files_only=True, torch_dtype=torch.float16 if config.is_half else torch.float32).to(self.device)
 
     def load_scheduler(self):
         self.model.scheduler = DDIMScheduler.from_pretrained(self.model_id, subfolder="scheduler")
@@ -226,7 +226,7 @@ class AudioLDM2(Pipeline):
         alpha_prod_t_prev = self.get_alpha_prod_t_prev(prev_timestep)
         return ((1 - alpha_prod_t_prev) / (1 - alpha_prod_t)) * (1 - alpha_prod_t / alpha_prod_t_prev)
 
-    def get_alpha_prod_t_prev(self, prev_timestep: torch.Tensor) -> torch.Tensor:
+    def get_alpha_prod_t_prev(self, prev_timestep):
         return self.model.scheduler.alphas_cumprod[prev_timestep] if prev_timestep >= 0 else self.model.scheduler.final_alpha_cumprod
 
     def unet_forward(self, sample, timestep, encoder_hidden_states, timestep_cond = None, class_labels = None, attention_mask = None, encoder_attention_mask = None, return_dict = True, cross_attention_kwargs = None, mid_block_additional_residual = None, replace_h_space = None, replace_skip_conns = None, zero_out_resconns = None):
@@ -256,8 +256,8 @@ class AudioLDM2(Pipeline):
         if not torch.is_tensor(timesteps):
             is_mps = sample.device.type == "mps"
 
-            if isinstance(timestep, float): dtype = torch.float32 if is_mps else torch.float64
-            else: dtype = torch.int32 if is_mps else torch.int64
+            if isinstance(timestep, float): dtype = torch.float16 if is_mps else torch.float32
+            else: dtype = torch.int16 if is_mps else torch.int32
 
             timesteps = torch.tensor([timesteps], dtype=dtype, device=sample.device)
         elif len(timesteps.shape) == 0: timesteps = timesteps[None].to(sample.device)
