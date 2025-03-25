@@ -299,6 +299,7 @@ python main\\app\\parser.py --help
 - **[Whisper](https://github.com/openai/whisper)**
 - **[PyannoteAudio](https://github.com/pyannote/pyannote-audio)**
 - **[AudioEditingCode](https://github.com/HilaManor/AudioEditingCode)**
+- **[StftPitchShift](https://github.com/jurihock/stftPitchShift)**
 
 # Kho mô hình của công cụ tìm kiếm mô hình
 
