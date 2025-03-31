@@ -1123,12 +1123,12 @@ def convert_with_whisper(num_spk, model_size, cleaner, clean_strength, autotune,
 
         for segment in [seg for i, seg in enumerate(cut_files) if i % 2 == 1]:
             output_path = os.path.join(output_folder, "".join(["convert_", os.path.splitext(os.path.basename(segment))[0], ".wav"]))
-            convert(pitch_1, filter_radius, index_strength_1, volume_envelope, protect, hop_length, f0method, segment, output_path, model_pth_1, model_index_1, autotune, cleaner, clean_strength, export_format, embedder_model, resample_sr, False, f0_autotune_strength, checkpointing, onnx_f0_mode, embed_mode, formant_shifting, formant_qfrency_1, formant_timbre_1, None)
+            convert(pitch_1, filter_radius, index_strength_1, volume_envelope, protect, hop_length, f0method, segment, output_path, model_pth_1, model_index_1, autotune, cleaner, clean_strength, export_format, embedder_model, resample_sr, False, f0_autotune_strength, checkpointing, onnx_f0_mode, embed_mode, formant_shifting, formant_qfrency_1, formant_timbre_1, "")
             processed_segments.append(output_path)
 
         for segment in [seg for i, seg in enumerate(cut_files) if i % 2 == 0]:
             output_path = os.path.join(output_folder, "".join(["convert_", os.path.splitext(os.path.basename(segment))[0], ".wav"]))
-            convert(pitch_2, filter_radius, index_strength_2, volume_envelope, protect, hop_length, f0method, segment, output_path, model_pth_2, model_index_2, autotune, cleaner, clean_strength, export_format, embedder_model, resample_sr, False, f0_autotune_strength, checkpointing, onnx_f0_mode, embed_mode, formant_shifting, formant_qfrency_2, formant_timbre_2, None)
+            convert(pitch_2, filter_radius, index_strength_2, volume_envelope, protect, hop_length, f0method, segment, output_path, model_pth_2, model_index_2, autotune, cleaner, clean_strength, export_format, embedder_model, resample_sr, False, f0_autotune_strength, checkpointing, onnx_f0_mode, embed_mode, formant_shifting, formant_qfrency_2, formant_timbre_2, "")
             processed_segments.append(output_path)
 
         gr_info(translations["convert_success"])
@@ -1282,18 +1282,18 @@ def training(model_name, rvc_version, save_every_epoch, save_only_latest, save_e
             
             pg, pd = pretrain_g, pretrain_d
 
-        pretrained_G, pretrained_D = (os.path.join("assets", "models", f"pretrained_{rvc_version}", f"{vocoder if vocoder != 'Default' else ''}_{pg}"), os.path.join("assets", "models", f"pretrained_{rvc_version}", f"{vocoder if vocoder != 'Default' else ''}_{pd}")) if not custom_pretrained else (os.path.join("assets", "models", f"pretrained_custom", pg), os.path.join("assets", "models", f"pretrained_custom", pd))
+        pretrained_G, pretrained_D = (os.path.join("assets", "models", f"pretrained_{rvc_version}", f"{vocoder}_{pg}" if vocoder != 'Default' else pg), os.path.join("assets", "models", f"pretrained_{rvc_version}", f"{vocoder}_{pd}" if vocoder != 'Default' else pd)) if not custom_pretrained else (os.path.join("assets", "models", f"pretrained_custom", pg), os.path.join("assets", "models", f"pretrained_custom", pd))
         download_version = codecs.decode(f"uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/erfbyir/znva/cergenvarq_i{'2' if rvc_version == 'v2' else '1'}/", "rot13")
         
         if not custom_pretrained:
             try:
                 if not os.path.exists(pretrained_G):
                     gr_info(translations["download_pretrained"].format(dg="G", rvc_version=rvc_version))
-                    huggingface.HF_download_file("".join([download_version, vocoder if vocoder != 'Default' else '', "_", pg]), os.path.join("assets", "models", f"pretrained_{rvc_version}", f"{vocoder if vocoder != 'Default' else ''}_{pg}"))
+                    huggingface.HF_download_file("".join([download_version, vocoder, "_", pg]) if vocoder != 'Default' else (download_version + pg), os.path.join("assets", "models", f"pretrained_{rvc_version}", f"{vocoder}_{pg}" if vocoder != 'Default' else pg))
                         
                 if not os.path.exists(pretrained_D):
                     gr_info(translations["download_pretrained"].format(dg="D", rvc_version=rvc_version))
-                    huggingface.HF_download_file("".join([download_version, vocoder if vocoder != 'Default' else '', "_", pd]), os.path.join("assets", "models", f"pretrained_{rvc_version}", f"{vocoder if vocoder != 'Default' else ''}_{pd}"))
+                    huggingface.HF_download_file("".join([download_version, vocoder, "_", pd]) if vocoder != 'Default' else (download_version + pd), os.path.join("assets", "models", f"pretrained_{rvc_version}", f"{vocoder}_{pd}" if vocoder != 'Default' else pd))
             except:
                 gr_warning(translations["not_use_pretrain_error_download"])
                 pretrained_G, pretrained_D = None, None

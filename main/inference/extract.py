@@ -92,7 +92,7 @@ def setup_paths(exp_dir, version = None):
 
         return wav_path, output_root1, output_root2
 
-def read_wave(wav_path, normalize = False):
+def read_wave(wav_path, normalize = False, is_half = False):
     wav, sr = sf.read(wav_path)
     assert sr == 16000, translations["sr_not_16000"]
 
@@ -102,7 +102,7 @@ def read_wave(wav_path, normalize = False):
     feats = feats.view(1, -1)
 
     if normalize: feats = F.layer_norm(feats, feats.shape)
-    return feats
+    return feats.half() if is_half else feats.float()
 
 def get_device(gpu_index):
     try:
@@ -123,7 +123,7 @@ def get_providers():
     return providers
 
 class FeatureInput:
-    def __init__(self, sample_rate=16000, hop_size=160, is_half=False, device="cpu"):
+    def __init__(self, sample_rate=16000, hop_size=160, is_half=False, device=config.device):
         self.fs = sample_rate
         self.hop = hop_size
         self.f0_bin = 256
@@ -189,7 +189,7 @@ class FeatureInput:
     def get_fcpe(self, x, hop_length, legacy=False, onnx=False):
         from main.library.predictors.FCPE import FCPE
 
-        model_fcpe = FCPE(os.path.join("assets", "models", "predictors", ("fcpe_legacy" if legacy else"fcpe") + (".onnx" if onnx else ".pt")), hop_length=int(hop_length), f0_min=int(self.f0_min), f0_max=int(self.f0_max), dtype=torch.float32, device=self.device, sample_rate=self.fs, threshold=0.03, providers=get_providers(), onnx=onnx, legacy=legacy)
+        model_fcpe = FCPE(os.path.join("assets", "models", "predictors", ("fcpe_legacy" if legacy else"fcpe") + (".onnx" if onnx else ".pt")), hop_length=int(hop_length), f0_min=int(self.f0_min), f0_max=int(self.f0_max), dtype=torch.float32, device=self.device, sample_rate=self.fs, threshold=0.03, providers=get_providers(), onnx=onnx, legacy=legacy, is_half=self.is_half)
         f0 = model_fcpe.compute_f0(x, p_len=(x.size // self.hop))
 
         del model_fcpe
@@ -299,7 +299,7 @@ def extract_features(model, feats, version):
 def process_file_embedding(file, wav_path, out_path, model, device, version, saved_cfg, embed_suffix, is_half):
     out_file_path = os.path.join(out_path, file.replace("wav", "npy"))
     if os.path.exists(out_file_path): return
-    feats = read_wave(os.path.join(wav_path, file), normalize=saved_cfg.task.normalize if saved_cfg else False).to(device).float()
+    feats = read_wave(os.path.join(wav_path, file), normalize=saved_cfg.task.normalize if saved_cfg else False, is_half=is_half).to(device)
 
     with torch.no_grad():
         if embed_suffix == ".pt":

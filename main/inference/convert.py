@@ -50,7 +50,6 @@ else:
     logger.addHandler(file_handler)
     logger.setLevel(logging.DEBUG)
 
-
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("--pitch", type=int, default=0)
@@ -305,7 +304,7 @@ class VC:
     def get_f0_fcpe(self, x, p_len, hop_length, onnx=False, legacy=False):
         from main.library.predictors.FCPE import FCPE
 
-        model_fcpe = FCPE(os.path.join("assets", "models", "predictors", ("fcpe_legacy" if legacy else"fcpe") + (".onnx" if onnx else ".pt")), hop_length=int(hop_length), f0_min=int(self.f0_min), f0_max=int(self.f0_max), dtype=torch.float32, device=self.device, sample_rate=self.sample_rate, threshold=0.03, providers=get_providers(), onnx=onnx, legacy=legacy)
+        model_fcpe = FCPE(os.path.join("assets", "models", "predictors", ("fcpe_legacy" if legacy else"fcpe") + (".onnx" if onnx else ".pt")), hop_length=int(hop_length), f0_min=int(self.f0_min), f0_max=int(self.f0_max), dtype=torch.float32, device=self.device, sample_rate=self.sample_rate, threshold=0.03, providers=get_providers(), onnx=onnx, legacy=legacy, is_half=self.is_half)
         f0 = model_fcpe.compute_f0(x, p_len=p_len)
 
         del model_fcpe
@@ -463,7 +462,7 @@ class VC:
                 feats = (feats * pitchff + feats0 * (1 - pitchff)).to(feats0.dtype)
 
             p_len = torch.tensor([p_len], device=self.device).long()
-            audio1 = ((net_g.infer(feats, p_len, pitch if pitch_guidance else None, pitchf if pitch_guidance else None, sid)[0][0, 0]).data.cpu().float().numpy()) if self.suffix == ".pth" else (net_g.run([net_g.get_outputs()[0].name], ({net_g.get_inputs()[0].name: feats.cpu().numpy().astype(np.float32), net_g.get_inputs()[1].name: p_len.cpu().numpy(), net_g.get_inputs()[2].name: np.array([sid.cpu().item()], dtype=np.int64), net_g.get_inputs()[3].name: np.random.randn(1, 192, p_len).astype(np.float32), net_g.get_inputs()[4].name: pitch.cpu().numpy().astype(np.int64), net_g.get_inputs()[5].name: pitchf.cpu().numpy().astype(np.float32)} if pitch_guidance else {net_g.get_inputs()[0].name: feats.cpu().numpy().astype(np.float32), net_g.get_inputs()[1].name: p_len.cpu().numpy(), net_g.get_inputs()[2].name: np.array([sid.cpu().item()], dtype=np.int64), net_g.get_inputs()[3].name: np.random.randn(1, 192, p_len).astype(np.float32)}))[0][0, 0])
+            audio1 = ((net_g.infer(feats.half() if self.is_half else feats.float(), p_len, pitch if pitch_guidance else None, (pitchf.half() if self.is_half else pitchf.float()) if pitch_guidance else None, sid)[0][0, 0]).data.cpu().float().numpy()) if self.suffix == ".pth" else (net_g.run([net_g.get_outputs()[0].name], ({net_g.get_inputs()[0].name: feats.float().cpu().numpy().astype(np.float32), net_g.get_inputs()[1].name: p_len.cpu().numpy().astype(np.float32), net_g.get_inputs()[2].name: np.array([sid.cpu().item()], dtype=np.int64), net_g.get_inputs()[3].name: np.random.randn(1, 192, p_len).astype(np.float32), net_g.get_inputs()[4].name: pitch.cpu().numpy().astype(np.int64), net_g.get_inputs()[5].name: pitchf.cpu().numpy().astype(np.float32)} if pitch_guidance else {net_g.get_inputs()[0].name: feats.float().cpu().numpy().astype(np.float32), net_g.get_inputs()[1].name: p_len.cpu().numpy().astype(np.float32), net_g.get_inputs()[2].name: np.array([sid.cpu().item()], dtype=np.int64), net_g.get_inputs()[3].name: np.random.randn(1, 192, p_len).astype(np.float32)}))[0][0, 0])
 
         if self.embed_suffix == ".pt": del padding_mask
         del feats, p_len, net_g
@@ -555,6 +554,7 @@ class VC:
 class VoiceConverter:
     def __init__(self):
         self.config = config
+        self.device = config.device
         self.hubert_model = None
         self.tgt_sr = None 
         self.net_g = None 
@@ -579,7 +579,7 @@ class VoiceConverter:
 
             if not self.hubert_model:
                 models, _, embed_suffix = load_embedders_model(embedder_model, embedders_mode, providers=get_providers())
-                self.hubert_model = (models.to(self.config.device).half() if self.config.is_half else models.to(self.config.device).float()).eval() if embed_suffix in [".pt", ".safetensors"] else models
+                self.hubert_model = (models.to(self.device).half() if self.config.is_half else models.to(self.device).float()).eval() if embed_suffix in [".pt", ".safetensors"] else models
                 self.embed_suffix = embed_suffix
 
             if self.tgt_sr != resample_sr >= 16000: self.tgt_sr = resample_sr
@@ -589,7 +589,7 @@ class VoiceConverter:
             
             if clean_audio:
                 from main.tools.noisereduce import reduce_noise
-                audio_output = reduce_noise(y=audio_output, sr=target_sr, prop_decrease=clean_strength, device=config.device) 
+                audio_output = reduce_noise(y=audio_output, sr=target_sr, prop_decrease=clean_strength, device=self.device) 
 
             sf.write(audio_output_path, audio_output, target_sr, format=export_format)
         except Exception as e:
@@ -646,7 +646,7 @@ class VoiceConverter:
                 del self.net_g.enc_q
 
                 self.net_g.load_state_dict(self.cpt["weight"], strict=False)
-                self.net_g.eval().to(self.config.device)
+                self.net_g.eval().to(self.device)
                 self.net_g = (self.net_g.half() if self.config.is_half else self.net_g.float())
 
                 self.n_spk = self.cpt["config"][-3]

@@ -178,7 +178,7 @@ class AudioLDM2(Pipeline):
         return MelSpectrogramProcessor(fft_size=1024, hop_size=160, window_size=1024, num_mel_bins=64, sample_rate=16000, fmin=0, fmax=8000)
 
     def vae_encode(self, x):
-        if x.shape[2] % 4: x = torch.nn.functional.pad(x, (0, 0, 4 - (x.shape[2] % 4), 0))
+        if x.shape[2] % 4: x = F.pad(x, (0, 0, 4 - (x.shape[2] % 4), 0))
         return (self.model.vae.encode(x).latent_dist.mode() * self.model.vae.config.scaling_factor).float()
 
     def vae_decode(self, x):

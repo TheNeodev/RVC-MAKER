@@ -2,21 +2,22 @@ import os
 import json
 import torch
 
-version_config_paths = [os.path.join(version, size) for version in ["v1", "v2"] for size in ["32000.json", "40000.json", "44100.json", "48000.json"]]
 
+version_config_paths = [os.path.join(version, size) for version in ["v1", "v2"] for size in ["32000.json", "40000.json", "44100.json", "48000.json"]]
 
 def singleton(cls):
     instances = {}
+
     def get_instance(*args, **kwargs):
         if cls not in instances: instances[cls] = cls(*args, **kwargs)
         return instances[cls]
+
     return get_instance
 
 @singleton
 class Config:
     def __init__(self):
         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
-        self.gpu_name = (torch.cuda.get_device_name(int(self.device.split(":")[-1])) if self.device.startswith("cuda") else None)
         self.configs = json.load(open(os.path.join("main", "configs", "config.json"), "r"))
         self.translations = self.multi_language()
         self.json_config = self.load_config_json()
@@ -83,7 +84,6 @@ class Config:
 
     def set_cuda_config(self):
         i_device = int(self.device.split(":")[-1])
-        self.gpu_name = torch.cuda.get_device_name(i_device)
         self.gpu_mem = torch.cuda.get_device_properties(i_device).total_memory // (1024**3)
 
     def has_mps(self):

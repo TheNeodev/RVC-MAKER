@@ -148,7 +148,7 @@ class HiFiGANMRFGenerator(torch.nn.Module):
                 x = ups(x)
 
             h = noise_conv(har_source)
-            if self.upp == 441: h = torch.nn.functional.interpolate(h, size=x.shape[-1], mode="linear")
+            if self.upp == 441: h = F.interpolate(h, size=x.shape[-1], mode="linear")
             x += h
 
             def mrf_sum(x, layers):

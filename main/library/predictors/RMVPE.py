@@ -211,7 +211,7 @@ class RMVPE:
         with torch.no_grad():
             n_frames = mel.shape[-1]
             mel = F.pad(mel, (0, 32 * ((n_frames - 1) // 32 + 1) - n_frames), mode="reflect")
-            hidden = self.model.run([self.model.get_outputs()[0].name], input_feed={self.model.get_inputs()[0].name: mel.cpu().numpy()})[0] if self.onnx else self.model(mel)
+            hidden = self.model.run([self.model.get_outputs()[0].name], input_feed={self.model.get_inputs()[0].name: mel.cpu().numpy().astype(np.float32)})[0] if self.onnx else self.model(mel.half() if self.is_half else mel.float())
             return hidden[:, :n_frames]
 
     def decode(self, hidden, thred=0.03):

@@ -161,7 +161,7 @@ class GeneratorNSF(torch.nn.Module):
                 x = ups(x)
 
             h = noise_convs(har_source)
-            if self.upp == 441: h = torch.nn.functional.interpolate(h, size=x.shape[-1], mode="linear")
+            if self.upp == 441: h = F.interpolate(h, size=x.shape[-1], mode="linear")
             x += h
 
             def resblock_forward(x, blocks):

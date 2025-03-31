@@ -102,7 +102,7 @@ def orthogonal_matrix_chunk(cols, qr_uniform_q=False, device=None):
     return q.t()
 
 def linear_attention(q, k, v):
-    return torch.einsum("...ed,...nd->...ne", k, q) if v is None else torch.einsum("...de,...nd,...n->...ne", torch.einsum("...nd,...ne->...de", k, v), q, 1.0 / (torch.einsum("...nd,...d->...n", q, k.sum(dim=-2).type_as(q)) + 1e-8))
+    return einsum("...ed,...nd->...ne", k, q) if v is None else einsum("...de,...nd,...n->...ne", einsum("...nd,...ne->...de", k, v), q, 1.0 / (einsum("...nd,...d->...n", q, k.sum(dim=-2).type_as(q)) + 1e-8))
 
 def gaussian_orthogonal_random_matrix(nb_rows, nb_columns, scaling=0, qr_uniform_q=False, device=None):
     nb_full_blocks = int(nb_rows / nb_columns)
@@ -410,7 +410,7 @@ class STFT:
         pad_left = (win_size_new - hop_length_new) // 2
         pad_right = max((win_size_new - hop_length_new + 1) // 2, win_size_new - y.size(-1) - pad_left)
 
-        spec = torch.stft(torch.nn.functional.pad(y.unsqueeze(1), (pad_left, pad_right), mode="reflect" if pad_right < y.size(-1) else "constant").squeeze(1), int(np.round(n_fft * factor)), hop_length=hop_length_new, win_length=win_size_new, window=hann_window[keyshift_key], center=center, pad_mode="reflect", normalized=False, onesided=True, return_complex=True)
+        spec = torch.stft(F.pad(y.unsqueeze(1), (pad_left, pad_right), mode="reflect" if pad_right < y.size(-1) else "constant").squeeze(1), int(np.round(n_fft * factor)), hop_length=hop_length_new, win_length=win_size_new, window=hann_window[keyshift_key], center=center, pad_mode="reflect", normalized=False, onesided=True, return_complex=True)
         spec = torch.sqrt(spec.real.pow(2) + spec.imag.pow(2) + (1e-9))
 
         if keyshift != 0:
@@ -778,7 +778,6 @@ class FCPE_LEGACY(nn.Module):
         if mask:
             confident_mask = torch.ones_like(confident)
             confident_mask[confident <= self.threshold] = float("-INF")
-
             rtn = rtn * confident_mask
 
         return (rtn, confident) if self.confidence else rtn
@@ -810,7 +809,7 @@ class InferCFNaiveMelPE(torch.nn.Module):
 
         return f0s 
 
-    def infer(self, wav, sr, decoder_mode = "local_argmax", threshold = 0.006, f0_min = None, f0_max = None, interp_uv = False, output_interp_target_length = None, return_uv = False, test_time_augmentation = False, tta_uv_penalty = 12.0, tta_key_shifts = [0, -12, 12], tta_use_origin_uv=False):
+    def infer(self, wav, sr, decoder_mode = "local_argmax", threshold = 0.006, f0_min = None, f0_max = None, interp_uv = False, output_interp_target_length = None, return_uv = False, test_time_augmentation = False, tta_uv_penalty = 12.0, tta_key_shifts = [0, -12, 12], tta_use_origin_uv=False, is_half=False):
         if test_time_augmentation:
             assert len(tta_key_shifts) > 0
             flag = 0
@@ -836,18 +835,17 @@ class InferCFNaiveMelPE(torch.nn.Module):
 
         if interp_uv: f0 = batch_interp_with_replacement_detach(uv.squeeze(-1).bool(), f0.squeeze(-1)).unsqueeze(-1)
         if f0_max is not None: f0[f0 > f0_max] = f0_max
-        if output_interp_target_length is not None: f0 = torch.nn.functional.interpolate(f0.transpose(1, 2), size=int(output_interp_target_length), mode="nearest").transpose(1, 2)
+        if output_interp_target_length is not None: f0 = F.interpolate(f0.transpose(1, 2).half() if is_half else f0.transpose(1, 2).float(), size=int(output_interp_target_length), mode="nearest").transpose(1, 2)
 
-        if return_uv: return f0, torch.nn.functional.interpolate(uv.transpose(1, 2), size=int(output_interp_target_length), mode="nearest").transpose(1, 2)
+        if return_uv: return f0, F.interpolate(uv.transpose(1, 2).half() if is_half else uv.transpose(1, 2).float(), size=int(output_interp_target_length), mode="nearest").transpose(1, 2)
         else: return f0
 
 class FCPEInfer_LEGACY:
-    def __init__(self, model_path, device=None, dtype=torch.float32, providers=None, onnx=False):
+    def __init__(self, model_path, device=None, providers=None, onnx=False, is_half=False):
         if device is None: device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.wav2mel = Wav2Mel(device=device, dtype=dtype)
         self.device = device
-        self.dtype = dtype
         self.onnx = onnx
+        self.is_half = is_half
 
         if self.onnx:
             sess_options = ort.SessionOptions()
@@ -859,24 +857,25 @@ class FCPEInfer_LEGACY:
             self.args = DotDict(ckpt["config"])
 
             model = FCPE_LEGACY(input_channel=self.args.model.input_channel, out_dims=self.args.model.out_dims, n_layers=self.args.model.n_layers, n_chans=self.args.model.n_chans, use_siren=self.args.model.use_siren, use_full=self.args.model.use_full, loss_mse_scale=self.args.loss.loss_mse_scale, loss_l2_regularization=self.args.loss.loss_l2_regularization, loss_l2_regularization_scale=self.args.loss.loss_l2_regularization_scale, loss_grad1_mse=self.args.loss.loss_grad1_mse, loss_grad1_mse_scale=self.args.loss.loss_grad1_mse_scale, f0_max=self.args.model.f0_max, f0_min=self.args.model.f0_min, confidence=self.args.model.confidence)
-            model.to(self.device).to(self.dtype)
+            model.to(self.device)
             model.load_state_dict(ckpt["model"])
-
+            model = model.half() if is_half else model.float()
             model.eval()
             self.model = model
 
     @torch.no_grad()
     def __call__(self, audio, sr, threshold=0.05):
         if not self.onnx: self.model.threshold = threshold
-        else: self.wav2mel = Wav2Mel(device=self.device, dtype=self.dtype)
-        return (torch.as_tensor(self.model.run([self.model.get_outputs()[0].name], {self.model.get_inputs()[0].name: self.wav2mel(audio=audio[None, :], sample_rate=sr).to(self.dtype).detach().cpu().numpy(), self.model.get_inputs()[1].name: np.array(threshold, dtype=np.float32)})[0], dtype=self.dtype, device=self.device) if self.onnx else self.model(mel=self.wav2mel(audio=audio[None, :], sample_rate=sr).to(self.dtype), infer=True, return_hz_f0=True))
+        self.wav2mel = Wav2Mel(device=self.device, dtype=torch.float16 if self.is_half else torch.float32) 
+
+        return (torch.as_tensor(self.model.run([self.model.get_outputs()[0].name], {self.model.get_inputs()[0].name: self.wav2mel(audio=audio[None, :], sample_rate=sr).to(torch.float32).detach().cpu().numpy().astype(np.float32), self.model.get_inputs()[1].name: np.array(threshold, dtype=np.float32)})[0], dtype=torch.float16 if self.is_half else torch.float32, device=self.device) if self.onnx else self.model(mel=self.wav2mel(audio=audio[None, :], sample_rate=sr).to(torch.float16 if self.is_half else torch.float32), infer=True, return_hz_f0=True))
 
 class FCPEInfer:
-    def __init__(self, model_path, device=None, dtype=torch.float32, providers=None, onnx=False):
+    def __init__(self, model_path, device=None, providers=None, onnx=False, is_half=False):
         if device is None: device = "cuda" if torch.cuda.is_available() else "cpu"
         self.device = device
-        self.dtype = dtype
         self.onnx = onnx
+        self.is_half = is_half
 
         if self.onnx:
             sess_options = ort.SessionOptions()
@@ -890,14 +889,14 @@ class FCPEInfer:
             
             model = InferCFNaiveMelPE(self.args, ckpt["model"])
             model = model.to(device)
-
+            model = model.half() if is_half else model.float()
             model.eval()
             self.model = model
 
     @torch.no_grad()
     def __call__(self, audio, sr, threshold=0.05, f0_min=50, f0_max=1100, p_len=None):
-        if self.onnx: self.wav2mel = Wav2Mel(device=self.device, dtype=self.dtype)
-        return (torch.as_tensor(self.model.run([self.model.get_outputs()[0].name], {self.model.get_inputs()[0].name: self.wav2mel(audio=audio[None, :], sample_rate=sr).to(self.dtype).detach().cpu().numpy(), self.model.get_inputs()[1].name: np.array(threshold, dtype=np.float32)})[0], dtype=self.dtype, device=self.device) if self.onnx else self.model.infer(audio[None, :], sr, threshold=threshold, f0_min=f0_min, f0_max=f0_max, output_interp_target_length=p_len))
+        if self.onnx: self.wav2mel = Wav2Mel(device=self.device, dtype=torch.float16 if self.is_half else torch.float32) 
+        return (torch.as_tensor(self.model.run([self.model.get_outputs()[0].name], {self.model.get_inputs()[0].name: self.wav2mel(audio=audio[None, :], sample_rate=sr).to(torch.float32).detach().cpu().numpy().astype(np.float32), self.model.get_inputs()[1].name: np.array(threshold, dtype=np.float32)})[0], dtype=torch.float16 if self.is_half else torch.float32, device=self.device) if self.onnx else self.model.infer(audio[None, :], sr, threshold=threshold, f0_min=f0_min, f0_max=f0_max, output_interp_target_length=p_len, is_half=self.is_half))
 
 class MelModule(torch.nn.Module):
     def __init__(self, sr, n_mels, n_fft, win_size, hop_length, fmin = None, fmax = None, clip_val = 1e-5, out_stft = False):
@@ -950,7 +949,7 @@ class MelModule(torch.nn.Module):
 
         mode = 'reflect' if pad_right < y.size(-1) else 'constant'
 
-        spec = torch.stft(torch.nn.functional.pad(y.unsqueeze(1), (pad_left, pad_right), mode=mode).squeeze(1), n_fft_new, hop_length=hop_length_new, win_length=win_size_new, window=hann_window_tensor, center=center, pad_mode='reflect', normalized=False, onesided=True, return_complex=True)
+        spec = torch.stft(F.pad(y.unsqueeze(1), (pad_left, pad_right), mode=mode).squeeze(1), n_fft_new, hop_length=hop_length_new, win_length=win_size_new, window=hann_window_tensor, center=center, pad_mode='reflect', normalized=False, onesided=True, return_complex=True)
         spec = torch.sqrt(spec.real.pow(2) + spec.imag.pow(2) + 1e-9)
 
         if key_shift != 0:
@@ -1027,7 +1026,6 @@ class Wav2Mel:
         if sample_rate == self.sample_rate: audio_res = audio
         else:
             key_str = str(sample_rate)
-
             if key_str not in self.resample_kernel: self.resample_kernel[key_str] = Resample(sample_rate, self.sample_rate, lowpass_filter_width=128)
 
             self.resample_kernel[key_str] = (self.resample_kernel[key_str].to(self.dtype).to(self.device))
@@ -1051,8 +1049,8 @@ class DotDict(dict):
     __delattr__ = dict.__delitem__
 
 class FCPE:
-    def __init__(self, model_path, hop_length=512, f0_min=50, f0_max=1100, dtype=torch.float32, device=None, sample_rate=44100, threshold=0.05, providers=None, onnx=False, legacy=False):
-        self.fcpe = FCPEInfer_LEGACY(model_path, device=device, dtype=dtype, providers=providers, onnx=onnx) if legacy else FCPEInfer(model_path, device=device, dtype=dtype, providers=providers, onnx=onnx)
+    def __init__(self, model_path, hop_length=512, f0_min=50, f0_max=1100, dtype=torch.float32, device=None, sample_rate=44100, threshold=0.05, providers=None, onnx=False, legacy=False, is_half=False):
+        self.fcpe = FCPEInfer_LEGACY(model_path, device=device, providers=providers, onnx=onnx) if legacy else FCPEInfer(model_path, device=device, providers=providers, onnx=onnx, is_half=is_half)
         self.hop_length = hop_length
         self.f0_min = f0_min
         self.f0_max = f0_max
@@ -1070,7 +1068,7 @@ class FCPE:
         assert content.ndim == 3
         is_np = isinstance(content, np.ndarray)
 
-        results = torch.nn.functional.interpolate(torch.from_numpy(content) if is_np else content, size=target_len, mode=mode)
+        results = F.interpolate(torch.from_numpy(content) if is_np else content, size=target_len, mode=mode)
         results = results.numpy() if is_np else results
         return results[0, 0] if ndim == 1 else results[0] if ndim == 2 else results
 
