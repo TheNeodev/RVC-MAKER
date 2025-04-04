@@ -52,7 +52,7 @@ Dự án này là một công cụ chuyển đổi giọng nói đơn giản, d�
 
 - Nhiều tùy chọn mô hình:
 
-F0: `pm, dio, pt_dio, mangio-crepe-tiny, mangio-crepe-small, mangio-crepe-medium, mangio-crepe-large, mangio-crepe-full, crepe-tiny, crepe-small, crepe-medium, crepe-large, crepe-full, fcpe, fcpe-legacy, rmvpe, rmvpe-legacy, harvest, pt_harvest, yin, pyin, swipe`
+F0: `pm, dio, mangio-crepe-tiny, mangio-crepe-small, mangio-crepe-medium, mangio-crepe-large, mangio-crepe-full, crepe-tiny, crepe-small, crepe-medium, crepe-large, crepe-full, fcpe, fcpe-legacy, rmvpe, rmvpe-legacy, harvest, yin, pyin, swipe`
 
 F0_ONNX: Một số mô hình được chuyển đổi sang ONNX để hỗ trợ tăng tốc trích xuất
 
@@ -192,12 +192,6 @@ python main\\app\\parser.py --help
 
 `main\\library\\audioldm2\\utils.py`: **Tệp tin chứa một số hàm cần thiết cho Wrapper Audioldm2**
 
-`main\\library\\predictors\\pyworld\\dio.py`: **Tệp tin thuật toán trích xuất cao độ DIO được triển khai bằng PyTorch**
-
-`main\\library\\predictors\\pyworld\\harvest.py`: **Tệp tin thuật toán trích xuất cao độ HARVEST được triển khai bằng PyTorch**
-
-`main\\library\\predictors\\pyworld\\stonemask.py`: **Tệp tin bộ cải thiện độ chính xác F0 dành cho thuật toán trích xuất F0 HARVEST và DIO**
-
 `main\\library\\predictors\\CREPE.py`: **Tệp tin bộ trích xuất cao độ F0 CREPE**
 
 `main\\library\\predictors\\FCPE.py`: **Tệp tin bộ trích xuất cao độ F0 FCPE**
@@ -313,9 +307,7 @@ Tài liệu này trình bày chi tiết các phương pháp trích xuất cao đ
 |--------------------|----------------|---------------------------|------------------------------|--------------------|--------------------|
 | pm                 | Praat          | Nhanh                     | Kém chính xác                | Thấp               | Thấp               |
 | dio                | PYWORLD        | Thích hợp với Rap         | Kém chính xác với tần số cao | Trung bình         | Trung bình         |
-| pt_dio             | PyTorch        | Tối ưu hóa PyTorch        | Có độ trễ                    | Trung bình         | Trung bình         |
 | harvest            | PYWORLD        | Chính xác hơn DIO         | Xử lý chậm hơn               | Cao                | Rất cao            |
-| pt_harvest         | PyTorch        | Tối ưu hóa PyTorch        | Độ trễ cao hơn               | Cao                | Cao                |
 | crepe              | Deep Learning  | Chính xác cao             | Yêu cầu GPU                  | Rất cao            | Rất cao            |
 | mangio-crepe       | crepe finetune | Tối ưu hóa cho RVC        | Đôi khi kém crepe gốc        | Trung bình đến cao | Trung bình đến cao |
 | fcpe               | Deep Learning  | Chính xác, thời gian thực | Cần GPU mạnh                 | Khá                | Trung bình         |

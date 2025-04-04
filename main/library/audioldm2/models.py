@@ -179,13 +179,14 @@ class AudioLDM2(Pipeline):
 
     def vae_encode(self, x):
         if x.shape[2] % 4: x = F.pad(x, (0, 0, 4 - (x.shape[2] % 4), 0))
-        return (self.model.vae.encode(x).latent_dist.mode() * self.model.vae.config.scaling_factor).float()
+        output = (self.model.vae.encode(x.half() if config.is_half else x.float()).latent_dist.mode() * self.model.vae.config.scaling_factor)
+        return output.half() if config.is_half else output.float()
 
     def vae_decode(self, x):
         return self.model.vae.decode(1 / self.model.vae.config.scaling_factor * x).sample
 
     def decode_to_mel(self, x):
-        tmp = self.model.mel_spectrogram_to_waveform(x[:, 0].detach().float()).detach()
+        tmp = self.model.mel_spectrogram_to_waveform(x[:, 0].detach().to(torch.float16 if config.is_half else torch.float32)).detach()
 
         if len(tmp.shape) == 1: tmp = tmp.unsqueeze(0)
         return tmp
@@ -256,8 +257,7 @@ class AudioLDM2(Pipeline):
         if not torch.is_tensor(timesteps):
             is_mps = sample.device.type == "mps"
 
-            if isinstance(timestep, float): dtype = torch.float16 if is_mps else torch.float32
-            else: dtype = torch.int16 if is_mps else torch.int32
+            dtype = (torch.float16 if is_mps else torch.float32) if isinstance(timestep, float) else (torch.int16 if is_mps else torch.int32)
 
             timesteps = torch.tensor([timesteps], dtype=dtype, device=sample.device)
         elif len(timesteps.shape) == 0: timesteps = timesteps[None].to(sample.device)

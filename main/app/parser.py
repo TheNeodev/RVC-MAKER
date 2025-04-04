@@ -131,7 +131,7 @@ elif argv_is_allows[11] in argv:
             - `--hop_length` (mặc định: `64`): Bước nhảy khi xử lý âm thanh.
 
         3. Cấu hình F0:
-            - `--f0_method` (mặc định: `rmvpe`): Phương pháp dự đoán F0 (`pm`, `dio`, `pt_dio`, `mangio-crepe-tiny`, `mangio-crepe-small`, `mangio-crepe-medium`, `mangio-crepe-large`, `mangio-crepe-full`, `crepe-tiny`, `crepe-small`, `crepe-medium`, `crepe-large`, `crepe-full`, `fcpe`, `fcpe-legacy`, `rmvpe`, `rmvpe-legacy`, `harvest`, `pt_harvest`, `yin`, `pyin`, `swipe`).
+            - `--f0_method` (mặc định: `rmvpe`): Phương pháp dự đoán F0 (`pm`, `dio`, `mangio-crepe-tiny`, `mangio-crepe-small`, `mangio-crepe-medium`, `mangio-crepe-large`, `mangio-crepe-full`, `crepe-tiny`, `crepe-small`, `crepe-medium`, `crepe-large`, `crepe-full`, `fcpe`, `fcpe-legacy`, `rmvpe`, `rmvpe-legacy`, `harvest`, `yin`, `pyin`, `swipe`).
             - `--f0_autotune` (mặc định: `False`): Có tự động điều chỉnh F0 hay không.
             - `--f0_autotune_strength` (mặc định: `1`): Cường độ hiệu chỉnh tự động F0.
             - `--f0_file` (mặc định: ``): Đường dẫn tệp F0 có sẵn.
@@ -210,7 +210,7 @@ elif argv_is_allows[14] in argv:
             - `--rvc_version` (mặc định: `v2`): Phiên bản RVC (`v1`, `v2`).
 
         2. Cấu hình F0:
-            - `--f0_method` (mặc định: `rmvpe`): Phương pháp dự đoán F0 (`pm`, `dio`, `pt_dio`, `mangio-crepe-tiny`, `mangio-crepe-small`, `mangio-crepe-medium`, `mangio-crepe-large`, `mangio-crepe-full`, `crepe-tiny`, `crepe-small`, `crepe-medium`, `crepe-large`, `crepe-full`, `fcpe`, `fcpe-legacy`, `rmvpe`, `rmvpe-legacy`, `harvest`, `pt_harvest`, `yin`, `pyin`, `swipe`).
+            - `--f0_method` (mặc định: `rmvpe`): Phương pháp dự đoán F0 (`pm`, `dio`, `mangio-crepe-tiny`, `mangio-crepe-small`, `mangio-crepe-medium`, `mangio-crepe-large`, `mangio-crepe-full`, `crepe-tiny`, `crepe-small`, `crepe-medium`, `crepe-large`, `crepe-full`, `fcpe`, `fcpe-legacy`, `rmvpe`, `rmvpe-legacy`, `harvest`, `yin`, `pyin`, `swipe`).
             - `--pitch_guidance` (mặc định: `True`): Có sử dụng hướng dẫn cao độ hay không.
 
         3. Cấu hình xử lý:

@@ -1,35 +1,27 @@
 import math
 import torch
-import logging
 
 import numpy as np
 import torch.nn.functional as F
 
-logging.getLogger("matplotlib").setLevel(logging.ERROR)
-
-
-def swipe(x, fs, f0_floor=50, f0_ceil=1100, frame_period=10, sTHR=0.3, device='cuda'):
-    x_torch = torch.tensor(x, dtype=torch.float32, device=device)
+def swipe(x, fs, f0_floor=50, f0_ceil=1100, frame_period=10, sTHR=0.3, device='cpu'):
     t = torch.arange(0, int(1000 * len(x) / fs / frame_period + 1), device=device, dtype=torch.float32) * (frame_period / 1000)
-
     plim = torch.tensor([f0_floor, f0_ceil], dtype=torch.float32, device=device)
     log2pc = torch.arange(torch.log2(plim[0]) * 96, torch.log2(plim[1]) * 96, device=device) / 96.0
-
     pc = torch.pow(2, log2pc)
     S = torch.zeros((len(pc), len(t)), device=device, dtype=torch.float32)
     
     logWs = [int(round(math.log2(4 * 2 * fs / float(val)))) for val in plim.cpu().numpy()]
     ws_vals = 2 ** np.arange(logWs[0], logWs[1] - 1, -1)
     p0 = 4 * 2 * fs / torch.tensor(ws_vals, dtype=torch.float32, device=device)
-    
     d = 1 + log2pc - math.log2(4 * 2 * fs / ws_vals[0])
-    fERBs = erbs2hz_torch(torch.arange(hz2erbs_torch(pc[0]/4), hz2erbs_torch(torch.tensor(fs/2, device=device)), 0.1, device=device))
+    fERBs = erbs2hz_torch(torch.arange(hz2erbs_torch(pc[0] / 4), hz2erbs_torch(torch.tensor(fs / 2, device=device)), 0.1, device=device))
     
     for i, ws in enumerate(ws_vals):
         ws = int(ws)
         dn = int(round(4 * fs / p0[i].item()))
 
-        X_abs = torch.abs(torch.stft(torch.cat([torch.zeros(ws // 2, device=device), x_torch, torch.zeros(dn + ws // 2, device=device)]), n_fft=ws, hop_length=dn, window=torch.hann_window(ws, device=device), return_complex=True))
+        X_abs = torch.abs(torch.stft(torch.cat([torch.zeros(ws // 2, device=device), torch.tensor(x, dtype=torch.float32, device=device), torch.zeros(dn + ws // 2, device=device)]), n_fft=ws, hop_length=dn, window=torch.hann_window(ws, device=device), return_complex=True))
         f = torch.linspace(0, fs/2, steps=X_abs.shape[0], device=device, dtype=torch.float32)
         
         if i == len(ws_vals) - 1:
@@ -70,7 +62,6 @@ def swipe(x, fs, f0_floor=50, f0_ceil=1100, frame_period=10, sTHR=0.3, device='c
             p[j] = 2 ** (torch.log2(pc[I[0]]) + (torch.argmax(pval).item()) / (12 * 64))
     
     p[torch.isnan(p)] = 0
-
     return p.cpu().numpy(), t.cpu().numpy()
 
 def hz2erbs_torch(hz):
@@ -108,7 +99,6 @@ def sieve(n):
 
         while i <= n:
             i += num
-
             if i in primes: primes.remove(i)
                 
         for j in primes:

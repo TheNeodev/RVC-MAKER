@@ -155,11 +155,14 @@ def pydub_convert(audio):
     return AudioSegment(samples.tobytes(), frame_rate=audio.frame_rate, sample_width=samples.dtype.itemsize, channels=audio.channels)
 
 def pydub_load(input_path):
-    if input_path.endswith(".wav"): audio = AudioSegment.from_wav(input_path)
-    elif input_path.endswith(".mp3"): audio = AudioSegment.from_mp3(input_path)
-    elif input_path.endswith(".ogg"): audio = AudioSegment.from_ogg(input_path)
-    else: audio = AudioSegment.from_file(input_path)
-    
+    try:
+        if input_path.endswith(".wav"): audio = AudioSegment.from_wav(input_path)
+        elif input_path.endswith(".mp3"): audio = AudioSegment.from_mp3(input_path)
+        elif input_path.endswith(".ogg"): audio = AudioSegment.from_ogg(input_path)
+        else: audio = AudioSegment.from_file(input_path)
+    except:
+        audio = AudioSegment.from_file(input_path)
+        
     return audio
 
 def load_embedders_model(embedder_model, embedders_mode="fairseq", providers=None):

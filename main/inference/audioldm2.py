@@ -98,14 +98,14 @@ def sample(output_audio, sr, ldm_stable, zs, wts, extra_info, prompt_tar, tstart
     w0, _ = inversion_reverse_process(ldm_stable, xT=wts, tstart=tstart, etas=1., prompts=[prompt_tar], neg_prompts=[""], cfg_scales=[cfg_scale_tar], zs=zs[:int(tstart)], duration=duration, extra_info=extra_info, save_compute=save_compute)
 
     with inference_mode():
-        x0_dec = ldm_stable.vae_decode(w0)
+        x0_dec = ldm_stable.vae_decode(w0.to(torch.float16 if config.is_half else torch.float32))
 
     if x0_dec.dim() < 4: x0_dec = x0_dec[None, :, :, :]
 
     with torch.no_grad():
-        audio = ldm_stable.decode_to_mel(x0_dec)
+        audio = ldm_stable.decode_to_mel(x0_dec.to(torch.float16 if config.is_half else torch.float32))
 
-    audio = audio.squeeze().cpu().numpy()
+    audio = audio.float().squeeze().cpu().numpy()
     orig_sr = 16000
 
     if sr != 16000 and sr > 0: 
@@ -150,7 +150,7 @@ def inversion_forward_process(model, x0, etas = None, prompts = [""], cfg_scales
     for t in tqdm.tqdm(timesteps, desc=translations["inverting"], ncols=100, unit="a"):
         idx = num_inference_steps - t_to_idx[int(t) if timesteps[0].dtype == torch.int64 else float(t)] - 1
         xt = xts[idx + 1][None]
-        xt_inp = model.model.scheduler.scale_model_input(xt, t)
+        xt_inp = model.model.scheduler.scale_model_input(xt, t).to(torch.float16 if config.is_half else torch.float32)
 
         with torch.no_grad():
             if save_compute and prompts[0] != "":
@@ -191,7 +191,7 @@ def inversion_reverse_process(model, xT, tstart, etas = 0, prompts = [""], neg_p
 
     for t in tqdm.tqdm(timesteps[-zs.shape[0]:], desc=translations["editing"], ncols=100, unit="a"):
         idx = model.model.scheduler.num_inference_steps - t_to_idx[int(t) if timesteps[0].dtype == torch.int64 else float(t)] - (model.model.scheduler.num_inference_steps - zs.shape[0] + 1)
-        xt_inp = model.model.scheduler.scale_model_input(xt, t)
+        xt_inp = model.model.scheduler.scale_model_input(xt, t).to(torch.float16 if config.is_half else torch.float32)
 
         with torch.no_grad():
             if save_compute:

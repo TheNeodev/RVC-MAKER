@@ -62,7 +62,7 @@ if config.device in ["cpu", "mps"]  and configs.get("fp16", False):
         json.dump(configs, f, indent=4)
 
 models, model_options = {}, {}
-method_f0 = ["pm", "dio", "pt_dio", "mangio-crepe-tiny", "mangio-crepe-small", "mangio-crepe-medium", "mangio-crepe-large", "mangio-crepe-full", "crepe-tiny", "crepe-small", "crepe-medium", "crepe-large", "crepe-full", "fcpe", "fcpe-legacy", "rmvpe", "rmvpe-legacy", "harvest", "pt_harvest", "yin", "pyin", "swipe"]
+method_f0 = ["pm", "dio", "mangio-crepe-tiny", "mangio-crepe-small", "mangio-crepe-medium", "mangio-crepe-large", "mangio-crepe-full", "crepe-tiny", "crepe-small", "crepe-medium", "crepe-large", "crepe-full", "fcpe", "fcpe-legacy", "rmvpe", "rmvpe-legacy", "harvest", "yin", "pyin", "swipe"]
 embedders_model = ["contentvec_base", "hubert_base", "japanese_hubert_base", "korean_hubert_base", "chinese_hubert_base", "portuguese_hubert_base", "custom"]
 
 paths_for_files = sorted([os.path.abspath(os.path.join(root, f)) for root, _, files in os.walk("audios") for f in files if os.path.splitext(f)[1].lower() in (".wav", ".mp3", ".flac", ".ogg", ".opus", ".m4a", ".mp4", ".aac", ".alac", ".wma", ".aiff", ".webm", ".ac3")])
@@ -1048,7 +1048,7 @@ def convert_with_whisper(num_spk, model_size, cleaner, clean_strength, autotune,
         audio = Audio()
 
         embedding_model = SpeechBrainPretrainedSpeakerEmbedding(device=config.device)
-        segments = load_model(model_size, device=config.device).transcribe(input_audio, fp16=configs.get("fp16", False))["segments"]
+        segments = load_model(model_size, device=config.device).transcribe(input_audio, fp16=configs.get("fp16", False), word_timestamps=True)["segments"]
 
         y, sr = librosa.load(input_audio, sr=None)  
         duration = len(y) / sr
@@ -1104,32 +1104,28 @@ def convert_with_whisper(num_spk, model_size, cleaner, clean_strength, autotune,
         output_folder = "audios_temp"
 
         if os.path.exists(output_folder): shutil.rmtree(output_folder, ignore_errors=True)
-        os.makedirs(output_folder, exist_ok=True)
+        for f in [output_folder, os.path.join(output_folder, "1"), os.path.join(output_folder, "2")]:
+            os.makedirs(f, exist_ok=True)
 
-        cut_files, time_stamps, processed_segments = [], [], []
+        time_stamps, processed_segments = [], []
         for i, segment in enumerate(merged_segments):
             start_ms = int(segment["start"] * 1000) 
             end_ms = int(segment["end"] * 1000)
 
-            segment_filename = os.path.join(output_folder, f"segment_{i + 1}.wav")
+            index = i + 1
+
+            segment_filename = os.path.join(output_folder, "1" if i % 2 == 1 else "2", f"segment_{index}.wav")
             audio[start_ms:end_ms].export(segment_filename, format="wav")
 
-            cut_files.append(segment_filename)
+            processed_segments.append(os.path.join(output_folder, "1" if i % 2 == 1 else "2", f"segment_{index}_output.wav"))
             time_stamps.append((start_ms, end_ms))
 
         f0method, embedder_model = (method if method != "hybrid" else hybrid_method), (embedders if embedders != "custom" else custom_embedders)
 
         gr_info(translations["process_done_start_convert"])
 
-        for segment in [seg for i, seg in enumerate(cut_files) if i % 2 == 1]:
-            output_path = os.path.join(output_folder, "".join(["convert_", os.path.splitext(os.path.basename(segment))[0], ".wav"]))
-            convert(pitch_1, filter_radius, index_strength_1, volume_envelope, protect, hop_length, f0method, segment, output_path, model_pth_1, model_index_1, autotune, cleaner, clean_strength, export_format, embedder_model, resample_sr, False, f0_autotune_strength, checkpointing, onnx_f0_mode, embed_mode, formant_shifting, formant_qfrency_1, formant_timbre_1, "")
-            processed_segments.append(output_path)
-
-        for segment in [seg for i, seg in enumerate(cut_files) if i % 2 == 0]:
-            output_path = os.path.join(output_folder, "".join(["convert_", os.path.splitext(os.path.basename(segment))[0], ".wav"]))
-            convert(pitch_2, filter_radius, index_strength_2, volume_envelope, protect, hop_length, f0method, segment, output_path, model_pth_2, model_index_2, autotune, cleaner, clean_strength, export_format, embedder_model, resample_sr, False, f0_autotune_strength, checkpointing, onnx_f0_mode, embed_mode, formant_shifting, formant_qfrency_2, formant_timbre_2, "")
-            processed_segments.append(output_path)
+        convert(pitch_1, filter_radius, index_strength_1, volume_envelope, protect, hop_length, f0method, os.path.join(output_folder, "1"), output_folder, model_pth_1, model_index_1, autotune, cleaner, clean_strength, "wav", embedder_model, resample_sr, False, f0_autotune_strength, checkpointing, onnx_f0_mode, embed_mode, formant_shifting, formant_qfrency_1, formant_timbre_1, "")
+        convert(pitch_2, filter_radius, index_strength_2, volume_envelope, protect, hop_length, f0method, os.path.join(output_folder, "2"), output_folder, model_pth_2, model_index_2, autotune, cleaner, clean_strength, "wav", embedder_model, resample_sr, False, f0_autotune_strength, checkpointing, onnx_f0_mode, embed_mode, formant_shifting, formant_qfrency_2, formant_timbre_2, "")
 
         gr_info(translations["convert_success"])
         return merge_audio(processed_segments, time_stamps, input_audio, output_audio.replace("wav", export_format), export_format)

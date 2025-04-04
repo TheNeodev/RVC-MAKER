@@ -30,6 +30,7 @@ from main.library.utils import check_predictors, check_embedders, load_audio, pr
 bh, ah = signal.butter(N=5, Wn=48, btype="high", fs=16000)
 config = Config()
 translations = config.translations
+
 logger = logging.getLogger(__name__)
 logger.propagate = False
 
@@ -103,12 +104,12 @@ def main():
     run_convert_script(pitch=pitch, filter_radius=filter_radius, index_rate=index_rate, volume_envelope=volume_envelope, protect=protect, hop_length=hop_length, f0_method=f0_method, input_path=input_path, output_path=output_path, pth_path=pth_path, index_path=index_path, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, clean_audio=clean_audio, clean_strength=clean_strength, export_format=export_format, embedder_model=embedder_model, resample_sr=resample_sr, split_audio=split_audio, checkpointing=checkpointing, f0_file=f0_file, f0_onnx=f0_onnx, embedders_mode=embedders_mode, formant_shifting=formant_shifting, formant_qfrency=formant_qfrency, formant_timbre=formant_timbre)
 
 def run_batch_convert(params):
-    path, audio_temp, export_format, cut_files, pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0_method, pth_path, index_path, f0_autotune, f0_autotune_strength, clean_audio, clean_strength, embedder_model, resample_sr, checkpointing, f0_file, f0_onnx, embedders_mode, formant_shifting, formant_qfrency, formant_timbre = params["path"], params["audio_temp"], params["export_format"], params["cut_files"], params["pitch"], params["filter_radius"], params["index_rate"], params["volume_envelope"], params["protect"], params["hop_length"], params["f0_method"], params["pth_path"], params["index_path"], params["f0_autotune"], params["f0_autotune_strength"], params["clean_audio"], params["clean_strength"], params["embedder_model"], params["resample_sr"], params["checkpointing"], params["f0_file"], params["f0_onnx"], params["embedders_mode"], params["formant_shifting"], params["formant_qfrency"], params["formant_timbre"]
+    path, audio_temp, export_format, cut_files, pitch, filter_radius, index_rate, volume_envelope, protect, hop_length, f0_method, pth_path, index_path, f0_autotune, f0_autotune_strength, clean_audio, clean_strength, embedder_model, resample_sr, checkpointing, f0_file, f0_onnx, embedders_mode, formant_shifting, formant_qfrency, formant_timbre, pbar = params["path"], params["audio_temp"], params["export_format"], params["cut_files"], params["pitch"], params["filter_radius"], params["index_rate"], params["volume_envelope"], params["protect"], params["hop_length"], params["f0_method"], params["pth_path"], params["index_path"], params["f0_autotune"], params["f0_autotune_strength"], params["clean_audio"], params["clean_strength"], params["embedder_model"], params["resample_sr"], params["checkpointing"], params["f0_file"], params["f0_onnx"], params["embedders_mode"], params["formant_shifting"], params["formant_qfrency"], params["formant_timbre"], params["pbar"]
 
     segment_output_path = os.path.join(audio_temp, f"output_{cut_files.index(path)}.{export_format}")
     if os.path.exists(segment_output_path): os.remove(segment_output_path)
     
-    VoiceConverter().convert_audio(pitch=pitch, filter_radius=filter_radius, index_rate=index_rate, volume_envelope=volume_envelope, protect=protect, hop_length=hop_length, f0_method=f0_method, audio_input_path=path, audio_output_path=segment_output_path, model_path=pth_path, index_path=index_path, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, clean_audio=clean_audio, clean_strength=clean_strength, export_format=export_format, embedder_model=embedder_model, resample_sr=resample_sr, checkpointing=checkpointing, f0_file=f0_file, f0_onnx=f0_onnx, embedders_mode=embedders_mode, formant_shifting=formant_shifting, formant_qfrency=formant_qfrency, formant_timbre=formant_timbre)
+    VoiceConverter().convert_audio(pitch=pitch, filter_radius=filter_radius, index_rate=index_rate, volume_envelope=volume_envelope, protect=protect, hop_length=hop_length, f0_method=f0_method, audio_input_path=path, audio_output_path=segment_output_path, model_path=pth_path, index_path=index_path, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, clean_audio=clean_audio, clean_strength=clean_strength, export_format=export_format, embedder_model=embedder_model, resample_sr=resample_sr, checkpointing=checkpointing, f0_file=f0_file, f0_onnx=f0_onnx, embedders_mode=embedders_mode, formant_shifting=formant_shifting, formant_qfrency=formant_qfrency, formant_timbre=formant_timbre, pbar=pbar)
     os.remove(path)
 
     if os.path.exists(segment_output_path): return segment_output_path
@@ -155,10 +156,11 @@ def run_convert_script(pitch=0, filter_radius=3, index_rate=0.5, volume_envelope
                         cut_files, time_stamps = process_audio(logger, audio_path, audio_temp)
                         params_list = [{"path": path, "audio_temp": audio_temp, "export_format": export_format, "cut_files": cut_files, "pitch": pitch, "filter_radius": filter_radius, "index_rate": index_rate, "volume_envelope": volume_envelope, "protect": protect, "hop_length": hop_length, "f0_method": f0_method, "pth_path": pth_path, "index_path": index_path, "f0_autotune": f0_autotune, "f0_autotune_strength": f0_autotune_strength, "clean_audio": clean_audio, "clean_strength": clean_strength, "embedder_model": embedder_model, "resample_sr": resample_sr, "checkpointing": checkpointing, "f0_file": f0_file, "f0_onnx": f0_onnx, "embedders_mode": embedders_mode, "formant_shifting": formant_shifting, "formant_qfrency": formant_qfrency, "formant_timbre": formant_timbre} for path in cut_files]
                         
-                        with tqdm(total=len(params_list), desc=translations["convert_audio"], ncols=100, unit="a") as pbar:
+                        with tqdm(total=len(params_list)*6, desc=translations["convert_audio"], ncols=100, unit="a") as pbar:
                             for params in params_list:
+                                params["pbar"] = pbar
+
                                 processed_segments.append(run_batch_convert(params))
-                                pbar.update(1)
                                 logger.debug(pbar.format_meter(pbar.n, pbar.total, pbar.format_dict["elapsed"]))
 
                         merge_audio(processed_segments, time_stamps, audio_path, output_audio, export_format)
@@ -171,9 +173,8 @@ def run_convert_script(pitch=0, filter_radius=3, index_rate=0.5, volume_envelope
                         logger.info(f"{translations['convert_audio']} '{audio_path}'...")
                         if os.path.exists(output_audio): os.remove(output_audio)
 
-                        with tqdm(total=1, desc=translations["convert_audio"], ncols=100, unit="a") as pbar:
-                            cvt.convert_audio(pitch=pitch, filter_radius=filter_radius, index_rate=index_rate, volume_envelope=volume_envelope, protect=protect, hop_length=hop_length, f0_method=f0_method, audio_input_path=audio_path, audio_output_path=output_audio, model_path=pth_path, index_path=index_path, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, clean_audio=clean_audio, clean_strength=clean_strength, export_format=export_format, embedder_model=embedder_model, resample_sr=resample_sr, checkpointing=checkpointing, f0_file=f0_file, f0_onnx=f0_onnx, embedders_mode=embedders_mode, formant_shifting=formant_shifting, formant_qfrency=formant_qfrency, formant_timbre=formant_timbre)
-                            pbar.update(1)
+                        with tqdm(total=6, desc=translations["convert_audio"], ncols=100, unit="a") as pbar:
+                            cvt.convert_audio(pitch=pitch, filter_radius=filter_radius, index_rate=index_rate, volume_envelope=volume_envelope, protect=protect, hop_length=hop_length, f0_method=f0_method, audio_input_path=audio_path, audio_output_path=output_audio, model_path=pth_path, index_path=index_path, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, clean_audio=clean_audio, clean_strength=clean_strength, export_format=export_format, embedder_model=embedder_model, resample_sr=resample_sr, checkpointing=checkpointing, f0_file=f0_file, f0_onnx=f0_onnx, embedders_mode=embedders_mode, formant_shifting=formant_shifting, formant_qfrency=formant_qfrency, formant_timbre=formant_timbre, pbar=pbar)
                             logger.debug(pbar.format_meter(pbar.n, pbar.total, pbar.format_dict["elapsed"]))
                     except Exception as e:
                         logger.error(translations["error_convert"].format(e=e))
@@ -194,10 +195,11 @@ def run_convert_script(pitch=0, filter_radius=3, index_rate=0.5, volume_envelope
                 cut_files, time_stamps = process_audio(logger, input_path, audio_temp)
                 params_list = [{"path": path, "audio_temp": audio_temp, "export_format": export_format, "cut_files": cut_files, "pitch": pitch, "filter_radius": filter_radius, "index_rate": index_rate, "volume_envelope": volume_envelope, "protect": protect, "hop_length": hop_length, "f0_method": f0_method, "pth_path": pth_path, "index_path": index_path, "f0_autotune": f0_autotune, "f0_autotune_strength": f0_autotune_strength, "clean_audio": clean_audio, "clean_strength": clean_strength, "embedder_model": embedder_model, "resample_sr": resample_sr, "checkpointing": checkpointing, "f0_file": f0_file, "f0_onnx": f0_onnx, "embedders_mode": embedders_mode, "formant_shifting": formant_shifting, "formant_qfrency": formant_qfrency, "formant_timbre": formant_timbre} for path in cut_files]
                 
-                with tqdm(total=len(params_list), desc=translations["convert_audio"], ncols=100, unit="a") as pbar:
+                with tqdm(total=len(params_list)*6, desc=translations["convert_audio"], ncols=100, unit="a") as pbar:
                     for params in params_list:
+                        params["pbar"] = pbar
+
                         processed_segments.append(run_batch_convert(params))
-                        pbar.update(1)
                         logger.debug(pbar.format_meter(pbar.n, pbar.total, pbar.format_dict["elapsed"]))
 
                 merge_audio(processed_segments, time_stamps, input_path, output_path.replace("wav", export_format), export_format)
@@ -207,9 +209,8 @@ def run_convert_script(pitch=0, filter_radius=3, index_rate=0.5, volume_envelope
                 if os.path.exists(audio_temp): shutil.rmtree(audio_temp, ignore_errors=True)
         else:
             try:
-                with tqdm(total=1, desc=translations["convert_audio"], ncols=100, unit="a") as pbar:
-                    cvt.convert_audio(pitch=pitch, filter_radius=filter_radius, index_rate=index_rate, volume_envelope=volume_envelope, protect=protect, hop_length=hop_length, f0_method=f0_method, audio_input_path=input_path, audio_output_path=output_path, model_path=pth_path, index_path=index_path, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, clean_audio=clean_audio, clean_strength=clean_strength, export_format=export_format, embedder_model=embedder_model, resample_sr=resample_sr, checkpointing=checkpointing, f0_file=f0_file, f0_onnx=f0_onnx, embedders_mode=embedders_mode, formant_shifting=formant_shifting, formant_qfrency=formant_qfrency, formant_timbre=formant_timbre)
-                    pbar.update(1)
+                with tqdm(total=6, desc=translations["convert_audio"], ncols=100, unit="a") as pbar:
+                    cvt.convert_audio(pitch=pitch, filter_radius=filter_radius, index_rate=index_rate, volume_envelope=volume_envelope, protect=protect, hop_length=hop_length, f0_method=f0_method, audio_input_path=input_path, audio_output_path=output_path, model_path=pth_path, index_path=index_path, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, clean_audio=clean_audio, clean_strength=clean_strength, export_format=export_format, embedder_model=embedder_model, resample_sr=resample_sr, checkpointing=checkpointing, f0_file=f0_file, f0_onnx=f0_onnx, embedders_mode=embedders_mode, formant_shifting=formant_shifting, formant_qfrency=formant_qfrency, formant_timbre=formant_timbre, pbar=pbar)
                     logger.debug(pbar.format_meter(pbar.n, pbar.total, pbar.format_dict["elapsed"]))
             except Exception as e:
                 logger.error(translations["error_convert"].format(e=e))
@@ -334,20 +335,6 @@ class VC:
         if filter_radius > 2 or model == "dio": f0 = signal.medfilt(f0, filter_radius)
         return f0
     
-    def get_f0_pt_world(self, x, filter_radius, model="harvest"):
-        from main.library.predictors.pyworld import harvest, dio, stonemask
-
-        x = x.astype(np.float32)
-
-        if model == "harvest": f0, t = harvest.harvest(x, fs=self.sample_rate, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=10, device=self.device)
-        elif model == "dio": f0, t = dio.dio(x, fs=self.sample_rate, f0_ceil=self.f0_max, f0_floor=self.f0_min, frame_period=10, device=self.device)
-        else: raise ValueError(translations["method_not_valid"])
-
-        f0 = stonemask.stonemask(x, self.sample_rate, t, f0)
-        
-        if filter_radius > 2 or model == "dio": f0 = signal.medfilt(f0, filter_radius)
-        return f0
-    
     def get_f0_swipe(self, x):
         from main.library.predictors.SWIPE import swipe
 
@@ -375,7 +362,7 @@ class VC:
 
         for method in methods:
             f0 = None
-            f0_methods = {"pm": lambda: self.get_f0_pm(x, p_len), "dio": lambda: self.get_f0_pyworld(x, filter_radius, "dio"), "pt_dio": lambda: self.get_f0_pt_world(x, filter_radius, "dio"), "mangio-crepe-tiny": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "tiny", onnx=onnx_mode), "mangio-crepe-small": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "small", onnx=onnx_mode), "mangio-crepe-medium": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "medium", onnx=onnx_mode), "mangio-crepe-large": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "large", onnx=onnx_mode), "mangio-crepe-full": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "full", onnx=onnx_mode), "crepe-tiny": lambda: self.get_f0_crepe(x, "tiny", onnx=onnx_mode), "crepe-small": lambda: self.get_f0_crepe(x, "small", onnx=onnx_mode), "crepe-medium": lambda: self.get_f0_crepe(x, "medium", onnx=onnx_mode), "crepe-large": lambda: self.get_f0_crepe(x, "large", onnx=onnx_mode), "crepe-full": lambda: self.get_f0_crepe(x, "full", onnx=onnx_mode), "fcpe": lambda: self.get_f0_fcpe(x, p_len, int(hop_length), onnx=onnx_mode), "fcpe-legacy": lambda: self.get_f0_fcpe(x, p_len, int(hop_length), legacy=True, onnx=onnx_mode), "rmvpe": lambda: self.get_f0_rmvpe(x, onnx=onnx_mode), "rmvpe-legacy": lambda: self.get_f0_rmvpe(x, legacy=True, onnx=onnx_mode), "harvest": lambda: self.get_f0_pyworld(x, filter_radius, "harvest"), "pt_harvest": lambda: self.get_f0_pt_world(x, filter_radius, "harvest"), "yin": lambda: self.get_f0_yin(x, int(hop_length), p_len, mode="yin"), "pyin": lambda: self.get_f0_yin(x, int(hop_length), p_len, mode="pyin"), "swipe": lambda: self.get_f0_swipe(x)}
+            f0_methods = {"pm": lambda: self.get_f0_pm(x, p_len), "dio": lambda: self.get_f0_pyworld(x, filter_radius, "dio"), "mangio-crepe-tiny": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "tiny", onnx=onnx_mode), "mangio-crepe-small": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "small", onnx=onnx_mode), "mangio-crepe-medium": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "medium", onnx=onnx_mode), "mangio-crepe-large": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "large", onnx=onnx_mode), "mangio-crepe-full": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "full", onnx=onnx_mode), "crepe-tiny": lambda: self.get_f0_crepe(x, "tiny", onnx=onnx_mode), "crepe-small": lambda: self.get_f0_crepe(x, "small", onnx=onnx_mode), "crepe-medium": lambda: self.get_f0_crepe(x, "medium", onnx=onnx_mode), "crepe-large": lambda: self.get_f0_crepe(x, "large", onnx=onnx_mode), "crepe-full": lambda: self.get_f0_crepe(x, "full", onnx=onnx_mode), "fcpe": lambda: self.get_f0_fcpe(x, p_len, int(hop_length), onnx=onnx_mode), "fcpe-legacy": lambda: self.get_f0_fcpe(x, p_len, int(hop_length), legacy=True, onnx=onnx_mode), "rmvpe": lambda: self.get_f0_rmvpe(x, onnx=onnx_mode), "rmvpe-legacy": lambda: self.get_f0_rmvpe(x, legacy=True, onnx=onnx_mode), "harvest": lambda: self.get_f0_pyworld(x, filter_radius, "harvest"), "yin": lambda: self.get_f0_yin(x, int(hop_length), p_len, mode="yin"), "pyin": lambda: self.get_f0_yin(x, int(hop_length), p_len, mode="pyin"), "swipe": lambda: self.get_f0_swipe(x)}
             f0 = f0_methods.get(method, lambda: ValueError(translations["method_not_valid"]))()
             f0_computation_stack.append(f0) 
 
@@ -385,7 +372,7 @@ class VC:
         return resampled_stack[0] if len(resampled_stack) == 1 else np.nanmedian(np.vstack(resampled_stack), axis=0)
 
     def get_f0(self, x, p_len, pitch, f0_method, filter_radius, hop_length, f0_autotune, f0_autotune_strength, inp_f0=None, onnx_mode=False):
-        f0_methods = {"pm": lambda: self.get_f0_pm(x, p_len), "dio": lambda: self.get_f0_pyworld(x, filter_radius, "dio"), "pt_dio": lambda: self.get_f0_pt_world(x, filter_radius, "dio"), "mangio-crepe-tiny": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "tiny", onnx=onnx_mode), "mangio-crepe-small": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "small", onnx=onnx_mode), "mangio-crepe-medium": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "medium", onnx=onnx_mode), "mangio-crepe-large": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "large", onnx=onnx_mode), "mangio-crepe-full": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "full", onnx=onnx_mode), "crepe-tiny": lambda: self.get_f0_crepe(x, "tiny", onnx=onnx_mode), "crepe-small": lambda: self.get_f0_crepe(x, "small", onnx=onnx_mode), "crepe-medium": lambda: self.get_f0_crepe(x, "medium", onnx=onnx_mode), "crepe-large": lambda: self.get_f0_crepe(x, "large", onnx=onnx_mode), "crepe-full": lambda: self.get_f0_crepe(x, "full", onnx=onnx_mode), "fcpe": lambda: self.get_f0_fcpe(x, p_len, int(hop_length), onnx=onnx_mode), "fcpe-legacy": lambda: self.get_f0_fcpe(x, p_len, int(hop_length), legacy=True, onnx=onnx_mode), "rmvpe": lambda: self.get_f0_rmvpe(x, onnx=onnx_mode), "rmvpe-legacy": lambda: self.get_f0_rmvpe(x, legacy=True, onnx=onnx_mode), "harvest": lambda: self.get_f0_pyworld(x, filter_radius, "harvest"), "pt_harvest": lambda: self.get_f0_pt_world(x, filter_radius, "harvest"), "yin": lambda: self.get_f0_yin(x, int(hop_length), p_len, mode="yin"), "pyin": lambda: self.get_f0_yin(x, int(hop_length), p_len, mode="pyin"), "swipe": lambda: self.get_f0_swipe(x)}
+        f0_methods = {"pm": lambda: self.get_f0_pm(x, p_len), "dio": lambda: self.get_f0_pyworld(x, filter_radius, "dio"), "mangio-crepe-tiny": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "tiny", onnx=onnx_mode), "mangio-crepe-small": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "small", onnx=onnx_mode), "mangio-crepe-medium": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "medium", onnx=onnx_mode), "mangio-crepe-large": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "large", onnx=onnx_mode), "mangio-crepe-full": lambda: self.get_f0_mangio_crepe(x, p_len, int(hop_length), "full", onnx=onnx_mode), "crepe-tiny": lambda: self.get_f0_crepe(x, "tiny", onnx=onnx_mode), "crepe-small": lambda: self.get_f0_crepe(x, "small", onnx=onnx_mode), "crepe-medium": lambda: self.get_f0_crepe(x, "medium", onnx=onnx_mode), "crepe-large": lambda: self.get_f0_crepe(x, "large", onnx=onnx_mode), "crepe-full": lambda: self.get_f0_crepe(x, "full", onnx=onnx_mode), "fcpe": lambda: self.get_f0_fcpe(x, p_len, int(hop_length), onnx=onnx_mode), "fcpe-legacy": lambda: self.get_f0_fcpe(x, p_len, int(hop_length), legacy=True, onnx=onnx_mode), "rmvpe": lambda: self.get_f0_rmvpe(x, onnx=onnx_mode), "rmvpe-legacy": lambda: self.get_f0_rmvpe(x, legacy=True, onnx=onnx_mode), "harvest": lambda: self.get_f0_pyworld(x, filter_radius, "harvest"), "yin": lambda: self.get_f0_yin(x, int(hop_length), p_len, mode="yin"), "pyin": lambda: self.get_f0_yin(x, int(hop_length), p_len, mode="pyin"), "swipe": lambda: self.get_f0_swipe(x)}
         f0 = self.get_f0_hybrid(f0_method, x, p_len, hop_length, filter_radius, onnx_mode) if "hybrid" in f0_method else f0_methods.get(f0_method, lambda: ValueError(translations["method_not_valid"]))()
 
         if f0_autotune: f0 = Autotune.autotune_f0(self, f0, f0_autotune_strength)
@@ -422,9 +409,9 @@ class VC:
                 padding_mask = torch.BoolTensor(feats.shape).to(self.device).fill_(False)
                 logits = model.extract_features(**{"source": feats.to(self.device), "padding_mask": padding_mask, "output_layer": 9 if version == "v1" else 12})
                 feats = model.final_proj(logits[0]) if version == "v1" else logits[0]
-            elif self.embed_suffix == ".onnx": feats = self.extract_features(model, feats, version).to(self.device)
+            elif self.embed_suffix == ".onnx": feats = self.extract_features(model, feats.to(self.device), version).to(self.device)
             elif self.embed_suffix == ".safetensors":
-                logits = model(feats)["last_hidden_state"]
+                logits = model(feats.to(self.device))["last_hidden_state"]
                 feats = (model.final_proj(logits[0]).unsqueeze(0) if version == "v1" else logits)
             else: raise ValueError(translations["option_not_valid"])
 
@@ -462,7 +449,7 @@ class VC:
                 feats = (feats * pitchff + feats0 * (1 - pitchff)).to(feats0.dtype)
 
             p_len = torch.tensor([p_len], device=self.device).long()
-            audio1 = ((net_g.infer(feats.half() if self.is_half else feats.float(), p_len, pitch if pitch_guidance else None, (pitchf.half() if self.is_half else pitchf.float()) if pitch_guidance else None, sid)[0][0, 0]).data.cpu().float().numpy()) if self.suffix == ".pth" else (net_g.run([net_g.get_outputs()[0].name], ({net_g.get_inputs()[0].name: feats.float().cpu().numpy().astype(np.float32), net_g.get_inputs()[1].name: p_len.cpu().numpy().astype(np.float32), net_g.get_inputs()[2].name: np.array([sid.cpu().item()], dtype=np.int64), net_g.get_inputs()[3].name: np.random.randn(1, 192, p_len).astype(np.float32), net_g.get_inputs()[4].name: pitch.cpu().numpy().astype(np.int64), net_g.get_inputs()[5].name: pitchf.cpu().numpy().astype(np.float32)} if pitch_guidance else {net_g.get_inputs()[0].name: feats.float().cpu().numpy().astype(np.float32), net_g.get_inputs()[1].name: p_len.cpu().numpy().astype(np.float32), net_g.get_inputs()[2].name: np.array([sid.cpu().item()], dtype=np.int64), net_g.get_inputs()[3].name: np.random.randn(1, 192, p_len).astype(np.float32)}))[0][0, 0])
+            audio1 = ((net_g.infer(feats.half() if self.is_half else feats.float(), p_len, pitch if pitch_guidance else None, (pitchf.half() if self.is_half else pitchf.float()) if pitch_guidance else None, sid)[0][0, 0]).data.cpu().float().numpy()) if self.suffix == ".pth" else (net_g.run([net_g.get_outputs()[0].name], ({net_g.get_inputs()[0].name: feats.cpu().numpy().astype(np.float32), net_g.get_inputs()[1].name: p_len.cpu().numpy(), net_g.get_inputs()[2].name: np.array([sid.cpu().item()], dtype=np.int64), net_g.get_inputs()[3].name: np.random.randn(1, 192, p_len).astype(np.float32), net_g.get_inputs()[4].name: pitch.cpu().numpy().astype(np.int64), net_g.get_inputs()[5].name: pitchf.cpu().numpy().astype(np.float32)} if pitch_guidance else {net_g.get_inputs()[0].name: feats.cpu().numpy().astype(np.float32), net_g.get_inputs()[1].name: p_len.cpu().numpy(), net_g.get_inputs()[2].name: np.array([sid.cpu().item()], dtype=np.int64), net_g.get_inputs()[3].name: np.random.randn(1, 192, p_len).astype(np.float32)}))[0][0, 0])
 
         if self.embed_suffix == ".pt": del padding_mask
         del feats, p_len, net_g
@@ -472,7 +459,7 @@ class VC:
 
         return audio1
     
-    def pipeline(self, model, net_g, sid, audio, pitch, f0_method, file_index, index_rate, pitch_guidance, filter_radius, tgt_sr, resample_sr, volume_envelope, version, protect, hop_length, f0_autotune, f0_autotune_strength, suffix, embed_suffix, f0_file=None, f0_onnx=False):
+    def pipeline(self, model, net_g, sid, audio, pitch, f0_method, file_index, index_rate, pitch_guidance, filter_radius, tgt_sr, resample_sr, volume_envelope, version, protect, hop_length, f0_autotune, f0_autotune_strength, suffix, embed_suffix, f0_file=None, f0_onnx=False, pbar=None):
         self.suffix = suffix
         self.embed_suffix = embed_suffix
 
@@ -484,6 +471,8 @@ class VC:
                 logger.error(translations["read_faiss_index_error"].format(e=e))
                 index = big_npy = None
         else: index = big_npy = None
+
+        pbar.update(1)
 
         opt_ts, audio_opt = [], []
         audio = signal.filtfilt(bh, ah, audio)
@@ -520,6 +509,8 @@ class VC:
             except:
                 logger.error(translations["error_readfile"])
                 inp_f0 = None
+        
+        pbar.update(1)
 
         if pitch_guidance:
             pitch, pitchf = self.get_f0(audio_pad, p_len, pitch, f0_method, filter_radius, hop_length, f0_autotune, f0_autotune_strength, inp_f0, onnx_mode=f0_onnx)
@@ -528,6 +519,8 @@ class VC:
             if self.device == "mps": pitchf = pitchf.astype(np.float32)
 
             pitch, pitchf = torch.tensor(pitch, device=self.device).unsqueeze(0).long(), torch.tensor(pitchf, device=self.device).unsqueeze(0).float()
+        
+        pbar.update(1)
 
         for t in opt_ts:
             t = t // self.window * self.window
@@ -545,6 +538,8 @@ class VC:
 
         if pitch_guidance: del pitch, pitchf
         del sid
+
+        pbar.update(1)
 
         if torch.cuda.is_available(): torch.cuda.empty_cache()
         elif torch.backends.mps.is_available(): torch.mps.empty_cache()
@@ -567,7 +562,7 @@ class VoiceConverter:
         self.vocoder = "Default"
         self.checkpointing = False
 
-    def convert_audio(self, audio_input_path, audio_output_path, model_path, index_path, embedder_model, pitch, f0_method, index_rate, volume_envelope, protect, hop_length, f0_autotune, f0_autotune_strength, filter_radius, clean_audio, clean_strength, export_format, resample_sr = 0, sid = 0, checkpointing = False, f0_file = None, f0_onnx = False, embedders_mode = "fairseq", formant_shifting = False, formant_qfrency=0.8, formant_timbre=0.8):
+    def convert_audio(self, audio_input_path, audio_output_path, model_path, index_path, embedder_model, pitch, f0_method, index_rate, volume_envelope, protect, hop_length, f0_autotune, f0_autotune_strength, filter_radius, clean_audio, clean_strength, export_format, resample_sr = 0, sid = 0, checkpointing = False, f0_file = None, f0_onnx = False, embedders_mode = "fairseq", formant_shifting = False, formant_qfrency = 0.8, formant_timbre = 0.8, pbar = None):
         try:
             self.get_vc(model_path, sid)
 
@@ -577,6 +572,8 @@ class VoiceConverter:
             audio_max = np.abs(audio).max() / 0.95
             if audio_max > 1: audio /= audio_max
 
+            pbar.update(1)
+
             if not self.hubert_model:
                 models, _, embed_suffix = load_embedders_model(embedder_model, embedders_mode, providers=get_providers())
                 self.hubert_model = (models.to(self.device).half() if self.config.is_half else models.to(self.device).float()).eval() if embed_suffix in [".pt", ".safetensors"] else models
@@ -585,13 +582,14 @@ class VoiceConverter:
             if self.tgt_sr != resample_sr >= 16000: self.tgt_sr = resample_sr
 
             target_sr = min([8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 96000], key=lambda x: abs(x - self.tgt_sr))
-            audio_output = self.vc.pipeline(model=self.hubert_model, net_g=self.net_g, sid=sid, audio=audio, pitch=pitch, f0_method=f0_method, file_index=(index_path.strip().strip('"').strip("\n").strip('"').strip().replace("trained", "added")), index_rate=index_rate, pitch_guidance=self.use_f0, filter_radius=filter_radius, tgt_sr=self.tgt_sr, resample_sr=target_sr, volume_envelope=volume_envelope, version=self.version, protect=protect, hop_length=hop_length, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, suffix=self.suffix, embed_suffix=self.embed_suffix, f0_file=f0_file, f0_onnx=f0_onnx)
+            audio_output = self.vc.pipeline(model=self.hubert_model, net_g=self.net_g, sid=sid, audio=audio, pitch=pitch, f0_method=f0_method, file_index=(index_path.strip().strip('"').strip("\n").strip('"').strip().replace("trained", "added")), index_rate=index_rate, pitch_guidance=self.use_f0, filter_radius=filter_radius, tgt_sr=self.tgt_sr, resample_sr=target_sr, volume_envelope=volume_envelope, version=self.version, protect=protect, hop_length=hop_length, f0_autotune=f0_autotune, f0_autotune_strength=f0_autotune_strength, suffix=self.suffix, embed_suffix=self.embed_suffix, f0_file=f0_file, f0_onnx=f0_onnx, pbar=pbar)
             
             if clean_audio:
                 from main.tools.noisereduce import reduce_noise
                 audio_output = reduce_noise(y=audio_output, sr=target_sr, prop_decrease=clean_strength, device=self.device) 
 
             sf.write(audio_output_path, audio_output, target_sr, format=export_format)
+            pbar.update(1)
         except Exception as e:
             logger.error(translations["error_convert"].format(e=e))
             import traceback
@@ -663,6 +661,8 @@ class VoiceConverter:
 
                 self.net_g = self.cpt
                 self.tgt_sr = metadata_dict.get("sr", 32000)
+                self.use_f0 = metadata_dict.get("f0", 1)
+                self.version = metadata_dict.get("version", "v1")
                 self.suffix = ".onnx"
 
             self.vc = VC(self.tgt_sr, self.config)
