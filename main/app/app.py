@@ -1139,7 +1139,7 @@ def convert_with_whisper(num_spk, model_size, cleaner, clean_strength, autotune,
         logger.debug(traceback.format_exc())
         return None
     finally:
-        if os.path.exists(output_folder): shutil.rmtree(output_folder, ignore_errors=True)
+        if os.path.exists("audios_temp"): shutil.rmtree("audios_temp", ignore_errors=True)
 
 def convert_tts(clean, autotune, pitch, clean_strength, model, index, index_rate, input, output, format, method, hybrid_method, hop_length, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, split_audio, f0_autotune_strength, checkpointing, onnx_f0_mode, formant_shifting, formant_qfrency, formant_timbre, f0_file, embedders_mode):
     model_path = os.path.join("assets", "weights", model)
