@@ -33,7 +33,6 @@ warnings.filterwarnings("ignore")
 for l in ["torch", "faiss", "httpx", "fairseq", "httpcore", "faiss.loader", "numba.core", "urllib3"]:
     logging.getLogger(l).setLevel(logging.ERROR)
 
-
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name", type=str, required=True)
@@ -70,7 +69,6 @@ def generate_filelist(pitch_guidance, model_path, rvc_version, sample_rate):
         options.append(f"{gt_wavs_dir}/{name}.wav|{feature_dir}/{name}.npy|{f0_dir}/{name}.wav.npy|{f0nsf_dir}/{name}.wav.npy|0" if pitch_guidance else f"{gt_wavs_dir}/{name}.wav|{feature_dir}/{name}.npy|0")
 
     mute_audio_path, mute_feature_path = os.path.join(mute_base_path, "sliced_audios", f"mute{sample_rate}.wav"), os.path.join(mute_base_path, f"{rvc_version}_extracted", "mute.npy")
-
     for _ in range(2):
         options.append(f"{mute_audio_path}|{mute_feature_path}|{os.path.join(mute_base_path, 'f0', 'mute.wav.npy')}|{os.path.join(mute_base_path, 'f0_voiced', 'mute.wav.npy')}|0" if pitch_guidance else f"{mute_audio_path}|{mute_feature_path}|0")
 
@@ -84,20 +82,17 @@ def setup_paths(exp_dir, version = None):
     if version:
         out_path = os.path.join(exp_dir, f"{version}_extracted")
         os.makedirs(out_path, exist_ok=True)
-
         return wav_path, out_path
     else:
         output_root1, output_root2 = os.path.join(exp_dir, "f0"), os.path.join(exp_dir, "f0_voiced")
         os.makedirs(output_root1, exist_ok=True); os.makedirs(output_root2, exist_ok=True)
-
         return wav_path, output_root1, output_root2
 
 def read_wave(wav_path, normalize = False, is_half = False):
-    wav, sr = sf.read(wav_path)
+    wav, sr = sf.read(wav_path, dtype=np.float32)
     assert sr == 16000, translations["sr_not_16000"]
 
     feats = torch.from_numpy(wav).float()
-
     if feats.dim() == 2: feats = feats.mean(-1)
     feats = feats.view(1, -1)
 
@@ -137,7 +132,6 @@ class FeatureInput:
     def compute_f0_hybrid(self, methods_str, np_arr, hop_length, f0_onnx):
         methods_str = re.search("hybrid\[(.+)\]", methods_str)
         if methods_str: methods = [method.strip() for method in methods_str.group(1).split("+")]
-
         f0_computation_stack, resampled_stack = [], []
         logger.debug(translations["hybrid_methods"].format(methods=methods))
 
@@ -189,7 +183,7 @@ class FeatureInput:
     def get_fcpe(self, x, hop_length, legacy=False, onnx=False):
         from main.library.predictors.FCPE import FCPE
 
-        model_fcpe = FCPE(os.path.join("assets", "models", "predictors", ("fcpe_legacy" if legacy else"fcpe") + (".onnx" if onnx else ".pt")), hop_length=int(hop_length), f0_min=int(self.f0_min), f0_max=int(self.f0_max), dtype=torch.float32, device=self.device, sample_rate=self.fs, threshold=0.03, providers=get_providers(), onnx=onnx, legacy=legacy, is_half=self.is_half)
+        model_fcpe = FCPE(os.path.join("assets", "models", "predictors", ("fcpe_legacy" if legacy else"fcpe") + (".onnx" if onnx else ".pt")), hop_length=int(hop_length), f0_min=int(self.f0_min), f0_max=int(self.f0_max), dtype=torch.float32, device=self.device, sample_rate=self.fs, threshold=0.03 if legacy else 0.006, providers=get_providers(), onnx=onnx, legacy=legacy, is_half=self.is_half)
         f0 = model_fcpe.compute_f0(x, p_len=(x.size // self.hop))
 
         del model_fcpe
@@ -312,7 +306,6 @@ def run_embedding_extraction(exp_dir, version, gpus, embedder_model, embedders_m
 
     start_time = time.time()
     models, saved_cfg, embed_suffix = load_embedders_model(embedder_model, embedders_mode, providers=get_providers())
-
     devices = [get_device(gpu) for gpu in (gpus.split("-") if gpus != "-" else ["cpu"])]
     paths = sorted([file for file in os.listdir(wav_path) if file.endswith(".wav")])
 
@@ -339,7 +332,6 @@ def main():
     f0_method, hop_length, num_processes, gpus, version, pitch_guidance, sample_rate, embedder_model, f0_onnx, embedders_mode = args.f0_method, args.hop_length, args.cpu_cores, args.gpu, args.rvc_version, args.pitch_guidance, args.sample_rate, args.embedder_model, args.f0_onnx, args.embedders_mode
 
     check_predictors(f0_method, f0_onnx); check_embedders(embedder_model, embedders_mode)
-
     if logger.hasHandlers(): logger.handlers.clear()
     else:
         console_handler = logging.StreamHandler()
@@ -365,7 +357,6 @@ def main():
     try:
         run_pitch_extraction(exp_dir, f0_method, hop_length, num_processes, gpus, f0_onnx, config.is_half)
         run_embedding_extraction(exp_dir, version, gpus, embedder_model, embedders_mode, config.is_half)
-
         generate_config(version, sample_rate, exp_dir)
         generate_filelist(pitch_guidance, exp_dir, version, sample_rate)
     except Exception as e:

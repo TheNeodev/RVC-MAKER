@@ -127,7 +127,7 @@ def process_audio(input_path, output_path, resample, resample_sr, chorus_depth, 
         input_path = input_path.strip(" ").strip('"').strip("\n").strip('"').strip(" ")
         
         try:
-            audio, sample_rate = sf.read(input_path)
+            audio, sample_rate = sf.read(input_path, dtype=np.float32)
         except:
             audio, sample_rate = librosa.load(input_path, sr=None)
     except Exception as e:

@@ -16,7 +16,6 @@ sys.path.append(os.getcwd())
 
 from main.configs.config import Config
 from main.library.algorithm.separator import Separator
-from main.library.utils import process_audio, merge_audio
 
 config = Config()
 translations = config.translations
@@ -88,8 +87,7 @@ def main():
             paths.append(path)
 
         if skip:
-            skip_start_audios = skip_start_audios.replace(", ", ",").split(",")
-            skip_end_audios = skip_end_audios.replace(", ", ",").split(",")
+            skip_start_audios, skip_end_audios = skip_start_audios.replace(", ", ",").split(","), skip_end_audios.replace(", ", ",").split(",")
 
             if len(skip_start_audios) < len(paths) or len(skip_end_audios) < len(paths): 
                 logger.warning(translations["skip<audio"])
@@ -110,13 +108,6 @@ def main():
             separator_paths.append(vocals)
         
         paths = separator_paths
-        processed_paths = []
-
-        for audio in paths:
-            cut_files, time_stamps = process_audio(logger, audio, os.path.dirname(audio))
-            processed_paths.append(merge_audio(cut_files, time_stamps, audio, os.path.splitext(audio)[0] + "_processed" + ".wav", "wav"))
-
-        paths = processed_paths
 
         for audio_path in paths:
             data, sample_rate = read(audio_path)
@@ -129,7 +120,6 @@ def main():
             write(audio_path, data, sample_rate)
     except Exception as e:
         logger.error(f"{translations['create_dataset_error']}: {e}")
-
         import traceback
         logger.error(traceback.format_exc())
     finally:

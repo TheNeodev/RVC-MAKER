@@ -5,6 +5,8 @@ import logging
 import argparse
 import logging.handlers
 
+import numpy as np
+
 from distutils.util import strtobool
 
 sys.path.append(os.getcwd())
@@ -103,12 +105,10 @@ def main():
 
     except Exception as e:
         logger.error(f"{translations['separator_error']}: {e}")
-
         import traceback
         logger.debug(traceback.format_exc())
     
     if os.path.exists(pid_path): os.remove(pid_path)
-
     elapsed_time = time.time() - start_time
     logger.info(translations["separator_success"].format(elapsed_time=f"{elapsed_time:.2f}"))
 
@@ -131,14 +131,14 @@ def separation(input_path, output_path, export_format, shifts, overlap, segments
         import soundfile as sf
         
         logger.info(f"{translations['clear_audio']}...")
-        vocal_data, vocal_sr = sf.read(vocals_no_reverb if reverb else vocals)
+        vocal_data, vocal_sr = sf.read(vocals_no_reverb if reverb else vocals, dtype=np.float32)
 
         from main.tools.noisereduce import reduce_noise
         sf.write(original_output, reduce_noise(y=vocal_data, sr=vocal_sr, prop_decrease=clean_strength), vocal_sr, format=export_format, device=config.device)
 
         if backing:
-            main_data, main_sr = sf.read(main_vocals_no_reverb if reverb and backing else main_vocals)
-            backing_data, backing_sr = sf.read(backing_vocals_no_reverb if reverb and backing_reverb else backing_vocals)
+            main_data, main_sr = sf.read(main_vocals_no_reverb if reverb and backing else main_vocals, dtype=np.float32)
+            backing_data, backing_sr = sf.read(backing_vocals_no_reverb if reverb and backing_reverb else backing_vocals, dtype=np.float32)
 
             sf.write(main_output, reduce_noise(y=main_data, sr=main_sr, prop_decrease=clean_strength), main_sr, format=export_format, device=config.device)
             sf.write(backing_output, reduce_noise(y=backing_data, sr=backing_sr, prop_decrease=clean_strength), backing_sr, format=export_format, device=config.device)  

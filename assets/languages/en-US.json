@@ -383,8 +383,6 @@
     "found_audio": "Found {audio_files} audio files for conversion.",
     "not_found_audio": "No audio files found!",
     "error_convert": "An error occurred during audio conversion: {e}",
-    "error_convert_batch": "An error occurred during the conversion of audio segments: {e}",
-    "error_convert_batch_2": "An error occurred during batch audio conversion: {e}",
     "convert_batch_success": "Batch conversion completed successfully in {elapsed_time} seconds. {output_path}",
     "convert_audio_success": "File {input_path} converted successfully in {elapsed_time} seconds. {output_path}",
     "hybrid_methods": "Estimating f0 pitch using methods {methods}",
@@ -803,5 +801,7 @@
     "benchmark_info": "When enabled, it will test and select the most optimized algorithm for the specific hardware and size. This can help speed up training.\n\nWhen disabled, it will not perform this algorithm optimization, which can reduce speed but ensures that each run uses the same algorithm, which is useful if you want to reproduce exactly.",
     "font": "Font",
     "font_info": "Interface font\n\nVisit [Google Font](https://fonts.google.com) to choose your favorite font.",
-    "change_font": "Change Font"
+    "change_font": "Change Font",
+    "f0_unlock": "Unlock all",
+    "f0_unlock_info": "Unlock all pitch extraction methods"
 }

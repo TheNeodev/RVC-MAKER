@@ -8,7 +8,7 @@ import logging
 import numpy as np
 import soundfile as sf
 
-from pydub import AudioSegment, silence
+from pydub import AudioSegment
 
 sys.path.append(os.getcwd())
 
@@ -19,6 +19,7 @@ for l in ["httpx", "httpcore"]:
     logging.getLogger(l).setLevel(logging.ERROR)
 
 translations = Config().translations
+
 
 def check_predictors(method, f0_onnx=False):
     if f0_onnx and method not in ["harvestw", "diow"]: method += "-onnx"
@@ -86,7 +87,7 @@ def load_audio(logger, file, sample_rate=16000, formant_shifting=False, formant_
 
         try:
             logger.debug(translations['read_sf'])
-            audio, sr = sf.read(file)
+            audio, sr = sf.read(file, dtype=np.float32)
         except:
             logger.debug(translations['read_librosa'])
             audio, sr = librosa.load(file, sr=None)
@@ -103,51 +104,6 @@ def load_audio(logger, file, sample_rate=16000, formant_shifting=False, formant_
         raise RuntimeError(f"{translations['errors_loading_audio']}: {e}")
     
     return audio.flatten()
-
-def process_audio(logger, file_path, output_path):
-    try:
-        song = pydub_convert(pydub_load(file_path))
-        cut_files, time_stamps = [], []
-
-        for i, (start_i, end_i) in enumerate(silence.detect_nonsilent(song, min_silence_len=250, silence_thresh=-60)):
-            chunk = song[start_i:end_i]
-
-            chunk_file_path = os.path.join(output_path, f"chunk{i}.wav")
-            logger.debug(f"{chunk_file_path}: {len(chunk)}")
-
-            if os.path.exists(chunk_file_path): os.remove(chunk_file_path)
-            chunk.export(chunk_file_path, format="wav")
-
-            cut_files.append(chunk_file_path)
-            time_stamps.append((start_i, end_i))
-        
-        logger.info(f"{translations['split_total']}: {len(cut_files)}")
-        return cut_files, time_stamps
-    except Exception as e:
-        raise RuntimeError(f"{translations['process_audio_error']}: {e}")
-
-def merge_audio(files_list, time_stamps, original_file_path, output_path, format):
-    try:
-        def extract_number(filename):
-            match = re.search(r'_(\d+)', filename)
-            return int(match.group(1)) if match else 0
-
-        total_duration = len(pydub_load(original_file_path))
-        combined = AudioSegment.empty() 
-        current_position = 0 
-
-        for file, (start_i, end_i) in zip(sorted(files_list, key=extract_number), time_stamps):
-            if start_i > current_position: combined += AudioSegment.silent(duration=start_i - current_position)  
-            
-            combined += pydub_load(file)  
-            current_position = end_i
-
-        if current_position < total_duration: combined += AudioSegment.silent(duration=total_duration - current_position)
-        combined.export(output_path, format=format)
-
-        return output_path
-    except Exception as e:
-        raise RuntimeError(f"{translations['merge_error']}: {e}")
 
 def pydub_convert(audio):
     samples = np.frombuffer(audio.raw_data, dtype=np.int16)
@@ -200,4 +156,85 @@ def load_embedders_model(embedder_model, embedders_mode="fairseq", providers=Non
         else: raise ValueError(translations["option_not_valid"])
     except Exception as e:
         raise RuntimeError(translations["read_model_error"].format(e=e))
+
     return hubert_model, saved_cfg, embed_suffix
+
+def cut(audio, sr, db_thresh=-60, min_interval=250):
+    from main.inference.preprocess import Slicer, get_rms
+
+    class Slicer2(Slicer):
+        def slice2(self, waveform):
+            samples = waveform.mean(axis=0) if len(waveform.shape) > 1 else waveform
+
+            if samples.shape[0] <= self.min_length: return [(waveform, 0, samples.shape[0])]
+            rms_list = get_rms(y=samples, frame_length=self.win_size, hop_length=self.hop_size).squeeze(0)
+
+            sil_tags = []
+            silence_start, clip_start = None, 0
+
+            for i, rms in enumerate(rms_list):
+                if rms < self.threshold:
+                    if silence_start is None: silence_start = i
+                    continue
+
+                if silence_start is None: continue
+
+                is_leading_silence = silence_start == 0 and i > self.max_sil_kept
+                need_slice_middle = (i - silence_start >= self.min_interval and i - clip_start >= self.min_length)
+
+                if not is_leading_silence and not need_slice_middle:
+                    silence_start = None
+                    continue
+
+                if i - silence_start <= self.max_sil_kept:
+                    pos = rms_list[silence_start : i + 1].argmin() + silence_start
+                    sil_tags.append((0, pos) if silence_start == 0 else (pos, pos))   
+                    clip_start = pos
+                elif i - silence_start <= self.max_sil_kept * 2:
+                    pos = rms_list[i - self.max_sil_kept : silence_start + self.max_sil_kept + 1].argmin()
+                    pos += i - self.max_sil_kept
+
+                    pos_r = (rms_list[i - self.max_sil_kept : i + 1].argmin() + i - self.max_sil_kept)
+
+                    if silence_start == 0:
+                        sil_tags.append((0, pos_r))
+                        clip_start = pos_r
+                    else:
+                        sil_tags.append((min((rms_list[silence_start : silence_start + self.max_sil_kept + 1].argmin() + silence_start), pos), max(pos_r, pos)))
+                        clip_start = max(pos_r, pos)
+                else:
+                    pos_r = (rms_list[i - self.max_sil_kept : i + 1].argmin() + i - self.max_sil_kept)
+                    sil_tags.append((0, pos_r) if silence_start == 0 else ((rms_list[silence_start : silence_start + self.max_sil_kept + 1].argmin() + silence_start), pos_r))
+                    clip_start = pos_r
+
+                silence_start = None
+
+            total_frames = rms_list.shape[0]
+            if (silence_start is not None and total_frames - silence_start >= self.min_interval): sil_tags.append((rms_list[silence_start : min(total_frames, silence_start + self.max_sil_kept) + 1].argmin() + silence_start, total_frames + 1))
+
+            if not sil_tags: return [(waveform, 0, samples.shape[-1])]
+            else:
+                chunks = []
+                if sil_tags[0][0] > 0: chunks.append((self._apply_slice(waveform, 0, sil_tags[0][0]), 0, sil_tags[0][0] * self.hop_size))
+
+                for i in range(len(sil_tags) - 1):
+                    chunks.append((self._apply_slice(waveform, sil_tags[i][1], sil_tags[i + 1][0]), sil_tags[i][1] * self.hop_size, sil_tags[i + 1][0] * self.hop_size))
+
+                if sil_tags[-1][1] < total_frames: chunks.append((self._apply_slice(waveform, sil_tags[-1][1], total_frames), sil_tags[-1][1] * self.hop_size, samples.shape[-1]))
+                return chunks
+
+    slicer = Slicer2(sr=sr, threshold=db_thresh, min_interval=min_interval)
+    return slicer.slice2(audio)
+
+def restore(segments, total_len, dtype=np.float32):
+    out = []
+    last_end = 0
+
+    for start, end, processed_seg in segments:
+        if start > last_end: out.append(np.zeros(start - last_end, dtype=dtype))
+
+        out.append(processed_seg)
+        last_end = end
+
+    if last_end < total_len: out.append(np.zeros(total_len - last_end, dtype=dtype))
+    return np.concatenate(out, axis=-1)

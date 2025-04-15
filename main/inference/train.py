@@ -276,7 +276,7 @@ def latest_checkpoint_path(dir_path, regex="G_*.pth"):
     return checkpoints[-1] if checkpoints else None
 
 def load_wav_to_torch(full_path):
-    data, sample_rate = sf.read(full_path, dtype='float32')
+    data, sample_rate = sf.read(full_path, dtype=np.float32)
     return torch.FloatTensor(data.astype(np.float32)), sample_rate
 
 def load_filepaths_and_text(filename, split="|"):
@@ -750,9 +750,9 @@ def run(rank, n_gpus, experiment_dir, pretrainG, pretrainD, pitch_guidance, cust
     else: writer_eval = None
 
     try:
-        dist.init_process_group(backend=("gloo" if os.name == "nt" or not torch.cuda.is_available() else "nccl"), init_method="env://", world_size=n_gpus, rank=rank)
+        dist.init_process_group(backend=("gloo" if sys.platform == "win32" or device.type != "cuda" else "nccl"), init_method="env://", world_size=n_gpus, rank=rank)
     except:
-        dist.init_process_group(backend=("gloo" if os.name == "nt" or not torch.cuda.is_available() else "nccl"), init_method="env://?use_libuv=False", world_size=n_gpus, rank=rank)
+        dist.init_process_group(backend=("gloo" if sys.platform == "win32" or device.type != "cuda" else "nccl"), init_method="env://?use_libuv=False", world_size=n_gpus, rank=rank)
 
     torch.manual_seed(config.train.seed)
     if torch.cuda.is_available(): torch.cuda.set_device(device_id)

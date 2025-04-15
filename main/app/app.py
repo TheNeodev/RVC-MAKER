@@ -56,13 +56,14 @@ configs = json.load(open(configs_json, "r"))
 
 if config.device in ["cpu", "mps"]  and configs.get("fp16", False):
     logger.warning(translations["fp16_not_support"])
-    configs["fp16"] = False
+    configs["fp16"] = config.is_half = False
 
     with open(configs_json, "w") as f:
         json.dump(configs, f, indent=4)
 
 models, model_options = {}, {}
-method_f0 = ["pm", "dio", "mangio-crepe-tiny", "mangio-crepe-small", "mangio-crepe-medium", "mangio-crepe-large", "mangio-crepe-full", "crepe-tiny", "crepe-small", "crepe-medium", "crepe-large", "crepe-full", "fcpe", "fcpe-legacy", "rmvpe", "rmvpe-legacy", "harvest", "yin", "pyin", "swipe"]
+method_f0 = ["mangio-crepe-full", "crepe-full", "fcpe", "rmvpe", "harvest", "pyin"]
+method_f0_full = ["pm", "dio", "mangio-crepe-tiny", "mangio-crepe-small", "mangio-crepe-medium", "mangio-crepe-large", "mangio-crepe-full", "crepe-tiny", "crepe-small", "crepe-medium", "crepe-large", "crepe-full", "fcpe", "fcpe-legacy", "rmvpe", "rmvpe-legacy", "harvest", "yin", "pyin", "swipe"]
 embedders_model = ["contentvec_base", "hubert_base", "japanese_hubert_base", "korean_hubert_base", "chinese_hubert_base", "portuguese_hubert_base", "custom"]
 
 paths_for_files = sorted([os.path.abspath(os.path.join(root, f)) for root, _, files in os.walk("audios") for f in files if os.path.splitext(f)[1].lower() in (".wav", ".mp3", ".flac", ".ogg", ".opus", ".m4a", ".mp4", ".aac", ".alac", ".wma", ".aiff", ".webm", ".ac3")])
@@ -104,6 +105,7 @@ for _, row in cached_data.iterrows():
             break
 
     if url: models[filename] = url
+
 
 
 def gr_info(message):
@@ -699,7 +701,7 @@ def onnx_export(model_path):
     
     try:
         gr_info(translations["start_onnx_export"])
-        output = onnx_exporter(model_path, model_path.replace(".pth", ".onnx"), is_half=configs.get("fp16", False), device=config.device)
+        output = onnx_exporter(model_path, model_path.replace(".pth", ".onnx"), is_half=config.is_half, device=config.device)
 
         gr_info(translations["success"])
         return [output, translations["success"]]
@@ -1018,13 +1020,14 @@ def convert_with_whisper(num_spk, model_size, cleaner, clean_strength, autotune,
     import librosa
 
     import numpy as np
-
+    
+    from pydub import AudioSegment
     from sklearn.cluster import AgglomerativeClustering
     
     from main.library.speaker_diarization.audio import Audio
     from main.library.speaker_diarization.segment import Segment
     from main.library.speaker_diarization.whisper import load_model
-    from main.library.utils import merge_audio, check_spk_diarization, pydub_convert, pydub_load
+    from main.library.utils import check_spk_diarization, pydub_convert, pydub_load
     from main.library.speaker_diarization.embedding import SpeechBrainPretrainedSpeakerEmbedding
     
     check_spk_diarization(model_size)
@@ -1063,6 +1066,26 @@ def convert_with_whisper(num_spk, model_size, cleaner, clean_strength, autotune,
         
         def time(secs):
             return datetime.timedelta(seconds=round(secs))
+        
+        def merge_audio(files_list, time_stamps, original_file_path, output_path, format):
+            def extract_number(filename):
+                match = re.search(r'_(\d+)', filename)
+                return int(match.group(1)) if match else 0
+
+            total_duration = len(pydub_load(original_file_path))
+            combined = AudioSegment.empty() 
+            current_position = 0 
+
+            for file, (start_i, end_i) in zip(sorted(files_list, key=extract_number), time_stamps):
+                if start_i > current_position: combined += AudioSegment.silent(duration=start_i - current_position)  
+                
+                combined += pydub_load(file)  
+                current_position = end_i
+
+            if current_position < total_duration: combined += AudioSegment.silent(duration=total_duration - current_position)
+            combined.export(output_path, format=format)
+
+            return output_path
 
         embeddings = np.zeros(shape=(len(segments), 192))
         for i, segment in enumerate(segments):
@@ -1437,7 +1460,7 @@ def f0_extract(audio, f0_method, f0_onnx):
 
     y, sr = librosa.load(audio, sr=None)
 
-    feats = FeatureInput(sample_rate=sr, is_half=configs.get("fp16", False), device=config.device)
+    feats = FeatureInput(sample_rate=sr, is_half=config.is_half, device=config.device)
     feats.f0_max = 1600.0
 
     F_temp = np.array(feats.compute_f0(y.flatten(), f0_method, 160, f0_onnx), dtype=np.float32)
@@ -1496,13 +1519,18 @@ def change_fp(fp):
         gr_info(translations["start_update_precision"])
 
         configs = json.load(open(configs_json, "r"))
-        configs["fp16"] = fp16
+        configs["fp16"] = config.is_half = fp16
 
         with open(configs_json, "w") as f:
             json.dump(configs, f, indent=4)
 
         gr_info(translations["success"])
         return "fp16" if fp16 else "fp32"
+
+def unlock_f0(value):
+    return {"choices": method_f0_full if value else method_f0, "__type__": "update"} 
+
+
 
 with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style> @import url('{fonts}'); * {{font-family: 'Courgette', cursive !important;}} body, html {{font-family: 'Courgette', cursive !important;}} h1, h2, h3, h4, h5, h6, p, button, input, textarea, label, span, div, select {{font-family: 'Courgette', cursive !important;}} </style>".format(fonts=font or "https://fonts.googleapis.com/css2?family=Courgette&display=swap")) as app:
     gr.HTML("<h1 style='text-align: center;'>🎵VIETNAMESE RVC BY ANH🎵</h1>")
@@ -1657,7 +1685,9 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                     with gr.Accordion(translations["setting"], open=False):
                         with gr.Accordion(translations["f0_method"], open=False):
                             with gr.Group():
-                                onnx_f0_mode = gr.Checkbox(label=translations["f0_onnx_mode"], info=translations["f0_onnx_mode_info"], value=False, interactive=True)
+                                with gr.Row():
+                                    onnx_f0_mode = gr.Checkbox(label=translations["f0_onnx_mode"], info=translations["f0_onnx_mode_info"], value=False, interactive=True)
+                                    unlock_full_method = gr.Checkbox(label=translations["f0_unlock"], info=translations["f0_unlock_info"], value=False, interactive=True)
                                 method = gr.Radio(label=translations["f0_method"], info=translations["f0_method_info"], choices=method_f0+["hybrid"], value="rmvpe", interactive=True)
                                 hybrid_method = gr.Dropdown(label=translations["f0_method_hybrid"], info=translations["f0_method_hybrid_info"], choices=["hybrid[pm+dio]", "hybrid[pm+crepe-tiny]", "hybrid[pm+crepe]", "hybrid[pm+fcpe]", "hybrid[pm+rmvpe]", "hybrid[pm+harvest]", "hybrid[pm+yin]", "hybrid[dio+crepe-tiny]", "hybrid[dio+crepe]", "hybrid[dio+fcpe]", "hybrid[dio+rmvpe]", "hybrid[dio+harvest]", "hybrid[dio+yin]", "hybrid[crepe-tiny+crepe]", "hybrid[crepe-tiny+fcpe]", "hybrid[crepe-tiny+rmvpe]", "hybrid[crepe-tiny+harvest]", "hybrid[crepe+fcpe]", "hybrid[crepe+rmvpe]", "hybrid[crepe+harvest]", "hybrid[crepe+yin]", "hybrid[fcpe+rmvpe]", "hybrid[fcpe+harvest]", "hybrid[fcpe+yin]", "hybrid[rmvpe+harvest]", "hybrid[rmvpe+yin]", "hybrid[harvest+yin]"], value="hybrid[pm+dio]", interactive=True, allow_custom_value=True, visible=method.value == "hybrid")
                             hop_length = gr.Slider(label="Hop length", info=translations["hop_length_info"], minimum=1, maximum=512, value=128, step=1, interactive=True, visible=False)
@@ -1667,7 +1697,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                             refesh_f0_file = gr.Button(translations["refesh"])
                         with gr.Accordion(translations["hubert_model"], open=False):
                             embed_mode = gr.Radio(label=translations["embed_mode"], info=translations["embed_mode_info"], value="fairseq", choices=["fairseq", "onnx", "transformers"], interactive=True, visible=True)
-                            embedders = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=embedders_model, value="contentvec_base", interactive=True)
+                            embedders = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=embedders_model, value="hubert_base", interactive=True)
                             custom_embedders = gr.Textbox(label=translations["modelname"], info=translations["modelname_info"], value="", placeholder="hubert_base", interactive=True, visible=embedders.value == "custom")
                         with gr.Accordion(translations["use_presets"], open=False):
                             with gr.Row():
@@ -1720,6 +1750,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
             with gr.Row():
                 upload_f0_file.upload(fn=lambda inp: shutil.move(inp.name, os.path.join("assets", "f0")), inputs=[upload_f0_file], outputs=[f0_file_dropdown])
                 refesh_f0_file.click(fn=change_f0_choices, inputs=[], outputs=[f0_file_dropdown])
+                unlock_full_method.change(fn=unlock_f0, inputs=[unlock_full_method], outputs=[method])
             with gr.Row():
                 load_click.click(
                     fn=load_presets, 
@@ -1948,16 +1979,18 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                             index_strength3 = gr.Slider(label=translations["index_strength"], info=translations["index_strength_info"], minimum=0, maximum=1, value=0.5, step=0.01, interactive=True, visible=model_index3.value != "")
                     with gr.Accordion(translations["setting"], open=False):
                         with gr.Row():
-                            model_size = gr.Radio(label=translations["model_size"], info=translations["model_size_info"], choices=["tiny", "base", "small", "medium", "large-v1", "large-v2", "large-v3", "large-v3-turbo"], value="medium", interactive=True)
+                            model_size = gr.Radio(label=translations["model_size"], info=translations["model_size_info"], choices=["tiny", "tiny.en", "base", "base.en", "small", "small.en", "medium", "medium.en", "large-v1", "large-v2", "large-v3", "large-v3-turbo"], value="medium", interactive=True)
                         with gr.Accordion(translations["f0_method"], open=False):
                             with gr.Group():
-                                onnx_f0_mode4 = gr.Checkbox(label=translations["f0_onnx_mode"], info=translations["f0_onnx_mode_info"], value=False, interactive=True)
+                                with gr.Row():
+                                    onnx_f0_mode4 = gr.Checkbox(label=translations["f0_onnx_mode"], info=translations["f0_onnx_mode_info"], value=False, interactive=True)
+                                    unlock_full_method2 = gr.Checkbox(label=translations["f0_unlock"], info=translations["f0_unlock_info"], value=False, interactive=True)
                                 method3 = gr.Radio(label=translations["f0_method"], info=translations["f0_method_info"], choices=method_f0+["hybrid"], value="rmvpe", interactive=True)
                                 hybrid_method3 = gr.Dropdown(label=translations["f0_method_hybrid"], info=translations["f0_method_hybrid_info"], choices=["hybrid[pm+dio]", "hybrid[pm+crepe-tiny]", "hybrid[pm+crepe]", "hybrid[pm+fcpe]", "hybrid[pm+rmvpe]", "hybrid[pm+harvest]", "hybrid[pm+yin]", "hybrid[dio+crepe-tiny]", "hybrid[dio+crepe]", "hybrid[dio+fcpe]", "hybrid[dio+rmvpe]", "hybrid[dio+harvest]", "hybrid[dio+yin]", "hybrid[crepe-tiny+crepe]", "hybrid[crepe-tiny+fcpe]", "hybrid[crepe-tiny+rmvpe]", "hybrid[crepe-tiny+harvest]", "hybrid[crepe+fcpe]", "hybrid[crepe+rmvpe]", "hybrid[crepe+harvest]", "hybrid[crepe+yin]", "hybrid[fcpe+rmvpe]", "hybrid[fcpe+harvest]", "hybrid[fcpe+yin]", "hybrid[rmvpe+harvest]", "hybrid[rmvpe+yin]", "hybrid[harvest+yin]"], value="hybrid[pm+dio]", interactive=True, allow_custom_value=True, visible=method3.value == "hybrid")
                             hop_length3 = gr.Slider(label="Hop length", info=translations["hop_length_info"], minimum=1, maximum=512, value=128, step=1, interactive=True, visible=False)
                         with gr.Accordion(translations["hubert_model"], open=False):
                             embed_mode3 = gr.Radio(label=translations["embed_mode"], info=translations["embed_mode_info"], value="fairseq", choices=["fairseq", "onnx", "transformers"], interactive=True, visible=True)
-                            embedders3 = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=embedders_model, value="contentvec_base", interactive=True)
+                            embedders3 = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=embedders_model, value="hubert_base", interactive=True)
                             custom_embedders3 = gr.Textbox(label=translations["modelname"], info=translations["modelname_info"], value="", placeholder="hubert_base", interactive=True, visible=embedders3.value == "custom")
                         with gr.Column():      
                             clean_strength3 = gr.Slider(label=translations["clean_strength"], info=translations["clean_strength_info"], minimum=0, maximum=1, value=0.5, step=0.1, interactive=True, visible=cleaner2.value)
@@ -1998,6 +2031,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                 model_index2.change(fn=index_strength_show, inputs=[model_index2], outputs=[index_strength2])
                 model_index3.change(fn=index_strength_show, inputs=[model_index3], outputs=[index_strength3])
             with gr.Row():
+                unlock_full_method2.change(fn=unlock_f0, inputs=[unlock_full_method2], outputs=[method3])
                 convert_button3.click(
                     fn=convert_with_whisper,
                     inputs=[
@@ -2078,7 +2112,9 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                     with gr.Accordion(translations["setting"], open=False):
                         with gr.Accordion(translations["f0_method"], open=False):
                             with gr.Group():
-                                onnx_f0_mode1 = gr.Checkbox(label=translations["f0_onnx_mode"], info=translations["f0_onnx_mode_info"], value=False, interactive=True)
+                                with gr.Row():
+                                    onnx_f0_mode1 = gr.Checkbox(label=translations["f0_onnx_mode"], info=translations["f0_onnx_mode_info"], value=False, interactive=True)
+                                    unlock_full_method3 = gr.Checkbox(label=translations["f0_unlock"], info=translations["f0_unlock_info"], value=False, interactive=True)
                                 method0 = gr.Radio(label=translations["f0_method"], info=translations["f0_method_info"], choices=method_f0+["hybrid"], value="rmvpe", interactive=True)
                                 hybrid_method0 = gr.Dropdown(label=translations["f0_method_hybrid"], info=translations["f0_method_hybrid_info"], choices=["hybrid[pm+dio]", "hybrid[pm+crepe-tiny]", "hybrid[pm+crepe]", "hybrid[pm+fcpe]", "hybrid[pm+rmvpe]", "hybrid[pm+harvest]", "hybrid[pm+yin]", "hybrid[dio+crepe-tiny]", "hybrid[dio+crepe]", "hybrid[dio+fcpe]", "hybrid[dio+rmvpe]", "hybrid[dio+harvest]", "hybrid[dio+yin]", "hybrid[crepe-tiny+crepe]", "hybrid[crepe-tiny+fcpe]", "hybrid[crepe-tiny+rmvpe]", "hybrid[crepe-tiny+harvest]", "hybrid[crepe+fcpe]", "hybrid[crepe+rmvpe]", "hybrid[crepe+harvest]", "hybrid[crepe+yin]", "hybrid[fcpe+rmvpe]", "hybrid[fcpe+harvest]", "hybrid[fcpe+yin]", "hybrid[rmvpe+harvest]", "hybrid[rmvpe+yin]", "hybrid[harvest+yin]"], value="hybrid[pm+dio]", interactive=True, allow_custom_value=True, visible=method0.value == "hybrid")
                             hop_length0 = gr.Slider(label="Hop length", info=translations["hop_length_info"], minimum=1, maximum=512, value=128, step=1, interactive=True, visible=False)
@@ -2088,7 +2124,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                             refesh_f0_file0 = gr.Button(translations["refesh"])
                         with gr.Accordion(translations["hubert_model"], open=False):
                             embed_mode1 = gr.Radio(label=translations["embed_mode"], info=translations["embed_mode_info"], value="fairseq", choices=["fairseq", "onnx", "transformers"], interactive=True, visible=True)
-                            embedders0 = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=embedders_model, value="contentvec_base", interactive=True)
+                            embedders0 = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=embedders_model, value="hubert_base", interactive=True)
                             custom_embedders0 = gr.Textbox(label=translations["modelname"], info=translations["modelname_info"], value="", placeholder="hubert_base", interactive=True, visible=embedders0.value == "custom")
                         with gr.Group():
                             with gr.Row():
@@ -2113,6 +2149,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                 tts_voice_audio = gr.Audio(show_download_button=True, interactive=False, label=translations["output_text_to_speech"])
                 tts_voice_convert = gr.Audio(show_download_button=True, interactive=False, label=translations["output_file_tts_convert"])
             with gr.Row():
+                unlock_full_method3.change(fn=unlock_f0, inputs=[unlock_full_method3], outputs=[method0])
                 upload_f0_file0.upload(fn=lambda inp: shutil.move(inp.name, os.path.join("assets", "f0")), inputs=[upload_f0_file0], outputs=[f0_file_dropdown0])
                 refesh_f0_file0.click(fn=change_f0_choices, inputs=[], outputs=[f0_file_dropdown0])
             with gr.Row():
@@ -2531,13 +2568,15 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                         with gr.Column():
                             with gr.Accordion(label=translations["f0_method"], open=False):
                                 with gr.Group():
-                                    onnx_f0_mode2 = gr.Checkbox(label=translations["f0_onnx_mode"], info=translations["f0_onnx_mode_info"], value=False, interactive=True)
+                                    with gr.Row():
+                                        onnx_f0_mode2 = gr.Checkbox(label=translations["f0_onnx_mode"], info=translations["f0_onnx_mode_info"], value=False, interactive=True)
+                                        unlock_full_method4 = gr.Checkbox(label=translations["f0_unlock"], info=translations["f0_unlock_info"], value=False, interactive=True)
                                     extract_method = gr.Radio(label=translations["f0_method"], info=translations["f0_method_info"], choices=method_f0, value="rmvpe", interactive=True)
                                 extract_hop_length = gr.Slider(label="Hop length", info=translations["hop_length_info"], minimum=1, maximum=512, value=128, step=1, interactive=True, visible=False)
                             with gr.Accordion(label=translations["hubert_model"], open=False):
                                 with gr.Group():
                                     embed_mode2 = gr.Radio(label=translations["embed_mode"], info=translations["embed_mode_info"], value="fairseq", choices=["fairseq", "onnx", "transformers"], interactive=True, visible=True)
-                                    extract_embedders = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=embedders_model, value="contentvec_base", interactive=True)
+                                    extract_embedders = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=embedders_model, value="hubert_base", interactive=True)
                                 with gr.Row():
                                     extract_embedders_custom = gr.Textbox(label=translations["modelname"], info=translations["modelname_info"], value="", placeholder="hubert_base", interactive=True, visible=extract_embedders.value == "custom")
                         with gr.Column():
@@ -2604,6 +2643,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
             with gr.Row():
                 vocoders.change(fn=pitch_guidance_lock, inputs=[vocoders], outputs=[training_f0])
                 training_f0.change(fn=vocoders_lock, inputs=[training_f0, vocoders], outputs=[vocoders])
+                unlock_full_method4.change(fn=unlock_f0, inputs=[unlock_full_method4], outputs=[extract_method])
             with gr.Row():
                 refesh_file.click(fn=change_models_choices, inputs=[], outputs=[model_file, index_file]) 
                 zip_model.click(fn=zip_file, inputs=[training_name, model_file, index_file], outputs=[zip_output])                
