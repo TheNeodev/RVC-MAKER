@@ -511,7 +511,7 @@ class VoiceConverter:
                 
                 pbar.update(1)
                 audio_output = restore(converted_chunks, total_len=len(audio), dtype=converted_chunks[0][2].dtype) if split_audio else converted_chunks[0][2]
-                if target_sr >= 16000 and self.tgt_sr != target_sr: audio_opt = librosa.resample(audio_opt, orig_sr=self.tgt_sr, target_sr=target_sr, res_type="soxr_vhq")
+                if target_sr >= 16000 and self.tgt_sr != target_sr: audio_output = librosa.resample(audio_output, orig_sr=self.tgt_sr, target_sr=target_sr, res_type="soxr_vhq")
 
                 pbar.update(1)
                 if clean_audio:

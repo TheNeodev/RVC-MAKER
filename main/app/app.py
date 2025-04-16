@@ -617,76 +617,12 @@ def fushion_model_pth(name, pth_1, pth_2, ratio):
         logger.debug(e)
         return [e, None]
 
-def extract_metadata(model):
-    return {prop.key: prop.value for prop in model.metadata_props}
-
-def fushion_model_onnx(name, onnx_path1, onnx_path2, ratio=0.5):
-    import onnx
-
-    if not name.endswith(".onnx"): name = name + ".onnx"
-
-    if not onnx_path1 or not os.path.exists(onnx_path1) or not onnx_path1.endswith(".onnx"):
-        gr_warning(translations["provide_file"].format(filename=translations["model"] + " 1"))
-        return [translations["provide_file"].format(filename=translations["model"] + " 1"), None]
-    
-    if not onnx_path2 or not os.path.exists(onnx_path2) or not onnx_path2.endswith(".onnx"):
-        gr_warning(translations["provide_file"].format(filename=translations["model"] + " 2"))
-        return [translations["provide_file"].format(filename=translations["model"] + " 2"), None]
-    
-    try:
-        model1 = onnx.load(onnx_path1)
-        model2 = onnx.load(onnx_path2)
-
-        metadata1 = extract_metadata(model1)
-        metadata2 = extract_metadata(model2)
-
-        if metadata1.get("sr") != metadata2.get("sr"):
-            gr_warning(translations["sr_not_same"])
-            return [translations["sr_not_same"], None]
-
-        gr_info(translations["start"].format(start=translations["fushion_model"]))
-
-        for init1, init2 in zip(model1.graph.initializer, model2.graph.initializer):
-            tensor1 = onnx.numpy_helper.to_array(init1)
-            tensor2 = onnx.numpy_helper.to_array(init2)
-
-            if tensor1.shape != tensor2.shape:
-                gr_warning(translations["architectures_not_same"])
-                return [translations["architectures_not_same"], None]
-
-            fused_tensor = ratio * tensor1 + (1 - ratio) * tensor2
-            init1.CopyFrom(onnx.numpy_helper.from_array(fused_tensor, name=init1.name))
-
-        new_metadata = metadata1.copy() 
-        new_metadata["fusion_ratio"] = str(ratio)
-        new_metadata["creation_date"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        del model1.metadata_props[:]
-
-        for key, value in new_metadata.items():
-            entry = model1.metadata_props.add()
-            entry.key = key
-            entry.value = value
-
-        output_model = os.path.join("assets", "weights")
-        if not os.path.exists(output_model): os.makedirs(output_model, exist_ok=True)
-
-        onnx.save(model1, os.path.join(output_model, name))
-
-        gr_info(translations["success"])
-        return [translations["success"], os.path.join(output_model, name)]
-    except Exception as e:
-        gr_error(message=translations["error_occurred"].format(e=e))
-        logger.debug(e)
-        return [e, None]
-
 def fushion_model(name, path_1, path_2, ratio):
     if not name:
         gr_warning(translations["provide_name_is_save"]) 
         return [translations["provide_name_is_save"], None]
-    
-    if path_1.endswith(".onnx") and path_2.endswith(".onnx"): return fushion_model_onnx(name.replace(".pth", ".onnx"), path_1, path_2, ratio)
-    elif path_1.endswith(".pth") and path_2.endswith(".pth"): return fushion_model_pth(name.replace(".onnx", ".pth"), path_1, path_2, ratio)
+
+    if path_1.endswith(".pth") and path_2.endswith(".pth"): return fushion_model_pth(name.replace(".onnx", ".pth"), path_1, path_2, ratio)
     else:
         gr_warning(translations["format_not_valid"])
         return [None, None]
