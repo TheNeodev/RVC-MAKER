@@ -57,7 +57,6 @@ configs = json.load(open(configs_json, "r"))
 if config.device in ["cpu", "mps"]  and configs.get("fp16", False):
     logger.warning(translations["fp16_not_support"])
     configs["fp16"] = config.is_half = False
-
     with open(configs_json, "w") as f:
         json.dump(configs, f, indent=4)
 
@@ -82,7 +81,6 @@ app_mode = "--app" in sys.argv
 
 if "--allow_all_disk" in sys.argv:
     import win32api
-
     allow_disk = win32api.GetLogicalDriveStrings().split('\x00')[:-1]
 else: allow_disk = []
 
@@ -106,8 +104,6 @@ for _, row in cached_data.iterrows():
 
     if url: models[filename] = url
 
-
-
 def gr_info(message):
     gr.Info(message, duration=2)
     logger.info(message)
@@ -123,23 +119,22 @@ def gr_error(message):
 def get_gpu_info():
     ngpu = torch.cuda.device_count()
     gpu_infos = [f"{i}: {torch.cuda.get_device_name(i)} ({int(torch.cuda.get_device_properties(i).total_memory / 1024 / 1024 / 1024 + 0.4)} GB)" for i in range(ngpu) if torch.cuda.is_available() or ngpu != 0]
-
     return "\n".join(gpu_infos) if len(gpu_infos) > 0 else translations["no_support_gpu"]
 
 def change_f0_choices(): 
     f0_file = sorted([os.path.abspath(os.path.join(root, f)) for root, _, files in os.walk(os.path.join("assets", "f0")) for f in files if f.endswith(".txt")])
     return {"value": f0_file[0] if len(f0_file) >= 1 else "", "choices": f0_file, "__type__": "update"}
 
-def change_audios_choices(): 
+def change_audios_choices(input_audio): 
     audios = sorted([os.path.abspath(os.path.join(root, f)) for root, _, files in os.walk("audios") for f in files if os.path.splitext(f)[1].lower() in (".wav", ".mp3", ".flac", ".ogg", ".opus", ".m4a", ".mp4", ".aac", ".alac", ".wma", ".aiff", ".webm", ".ac3")])
-    return {"value": audios[0] if len(audios) >= 1 else "", "choices": audios, "__type__": "update"}
+    return {"value": input_audio if input_audio != "" else (audios[0] if len(audios) >= 1 else ""), "choices": audios, "__type__": "update"}
 
 def change_separate_choices():
     return [{"choices": sorted([os.path.join("assets", "models", "uvr5", models) for models in os.listdir(os.path.join("assets", "models", "uvr5")) if model.endswith((".th", ".yaml", ".onnx"))]), "__type__": "update"}]
 
-def change_models_choices():
+def change_models_choices(model_pth, model_index):
     model, index = sorted(list(model for model in os.listdir(os.path.join("assets", "weights")) if model.endswith((".pth", ".onnx")) and not model.startswith("G_") and not model.startswith("D_"))), sorted([os.path.join(root, name) for root, _, files in os.walk(os.path.join("assets", "logs"), topdown=False) for name in files if name.endswith(".index")])
-    return [{"value": model[0] if len(model) >= 1 else "", "choices": model, "__type__": "update"}, {"value": index[0] if len(index) >= 1 else "", "choices": index, "__type__": "update"}]
+    return [{"value": model_pth if model_pth != "" else (model[0] if len(model) >= 1 else ""), "choices": model, "__type__": "update"}, {"value": model_index if model_index != "" else (index[0] if len(index) >= 1 else ""), "choices": index, "__type__": "update"}]
 
 def change_allpretrained_choices():
     return [{"choices": sorted([os.path.join("assets", "models", path, model) for path in ["pretrained_v1", "pretrained_v2", "pretrained_custom"] for model in os.listdir(os.path.join("assets", "models", path)) if model.endswith(".pth") and ("D" in model or "G" in model)]), "__type__": "update"}]
@@ -1228,11 +1223,13 @@ def training(model_name, rvc_version, save_every_epoch, save_only_latest, save_e
     if not model_name: return gr_warning(translations["provide_name"])
 
     model_dir = os.path.join("assets", "logs", model_name)
+    if os.path.exists(os.path.join(model_dir, "train_pid.txt")): os.remove(os.path.join(model_dir, "train_pid.txt"))
+
     if not any(os.path.isfile(os.path.join(model_dir, f"{rvc_version}_extracted", f)) for f in os.listdir(os.path.join(model_dir, f"{rvc_version}_extracted"))): return gr_warning(translations["not_found_data_extract"])
 
     if not not_pretrain:
         if not custom_pretrained: 
-            pretrained_selector = {True: {32000: ("f0G32k.pth", "f0D32k.pth"), 40000: ("f0G40k.pth", "f0D40k.pth"), 44100: ("f0G44k.pth", "f0D44k.pth"), 48000: ("f0G48k.pth", "f0D48k.pth")}, False: {32000: ("G32k.pth", "D32k.pth"), 40000: ("G40k.pth", "D40k.pth"), 44100: ("G44k.pth", "D44k.pth"), 48000: ("G48k.pth", "D48k.pth")}}
+            pretrained_selector = {True: {32000: ("f0G32k.pth", "f0D32k.pth"), 40000: ("f0G40k.pth", "f0D40k.pth"), 48000: ("f0G48k.pth", "f0D48k.pth")}, False: {32000: ("G32k.pth", "D32k.pth"), 40000: ("G40k.pth", "D40k.pth"), 48000: ("G48k.pth", "D48k.pth")}}
 
             pg, pd = pretrained_selector[pitch_guidance][sr]
         else:
@@ -1266,14 +1263,16 @@ def training(model_name, rvc_version, save_every_epoch, save_only_latest, save_e
     p = subprocess.Popen(f'{python} main/inference/train.py --model_name "{model_name}" --rvc_version {rvc_version} --save_every_epoch {save_every_epoch} --save_only_latest {save_only_latest} --save_every_weights {save_every_weights} --total_epoch {total_epoch} --sample_rate {sr} --batch_size {batch_size} --gpu {gpu} --pitch_guidance {pitch_guidance} --overtraining_detector {detector} --overtraining_threshold {threshold} --cleanup {clean_up} --cache_data_in_gpu {cache} --g_pretrained_path "{pretrained_G}" --d_pretrained_path "{pretrained_D}" --model_author "{model_author}" --vocoder "{vocoder}" --checkpointing {checkpointing} --deterministic {deterministic} --benchmark {benchmark}', shell=True)
     done = [False]
 
+    with open(os.path.join(model_dir, "train_pid.txt"), "w") as pid_file:
+        pid_file.write(str(p.pid))
+
     threading.Thread(target=if_done, args=(done, p)).start()
-    if not os.path.exists(model_dir): os.makedirs(model_dir, exist_ok=True)
 
     for log in log_read(os.path.join(model_dir, "train.log"), done):
         if len(log.split("\n")) > 100: log = log[-100:]
         yield log
 
-def stop_pid(pid_file, model_name=None):
+def stop_pid(pid_file, model_name=None, train=False):
     try:
         pid_file_path = os.path.join("assets", f"{pid_file}.txt") if model_name is None else os.path.join("assets", "logs", model_name, f"{pid_file}.txt")
 
@@ -1285,17 +1284,11 @@ def stop_pid(pid_file, model_name=None):
             for pid in pids:
                 os.kill(pid, 9)
 
-            gr_info(translations["end_pid"])
             if os.path.exists(pid_file_path): os.remove(pid_file_path)
-    except:
-        pass
 
-def stop_train(model_name):
-    try:
         pid_file_path = os.path.join("assets", "logs", model_name, "config.json")
 
-        if not os.path.exists(pid_file_path): return gr_warning(translations["not_found_pid"])
-        else:
+        if train and os.path.exists(pid_file_path):
             with open(pid_file_path, "r") as pid_file:
                 pid_data = json.load(pid_file)
                 pids = pid_data.get("process_pids", [])
@@ -1308,7 +1301,7 @@ def stop_train(model_name):
             for pid in pids:
                 os.kill(pid, 9)
 
-            gr_info(translations["end_pid"])     
+            gr_info(translations["end_pid"])
     except:
         pass
 
@@ -1466,8 +1459,6 @@ def change_fp(fp):
 def unlock_f0(value):
     return {"choices": method_f0_full if value else method_f0, "__type__": "update"} 
 
-
-
 with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style> @import url('{fonts}'); * {{font-family: 'Courgette', cursive !important;}} body, html {{font-family: 'Courgette', cursive !important;}} h1, h2, h3, h4, h5, h6, p, button, input, textarea, label, span, div, select {{font-family: 'Courgette', cursive !important;}} </style>".format(fonts=font or "https://fonts.googleapis.com/css2?family=Courgette&display=swap")) as app:
     gr.HTML("<h1 style='text-align: center;'>🎵VIETNAMESE RVC BY ANH🎵</h1>")
     gr.HTML(f"<h3 style='text-align: center;'>{translations['title']}</h3>")
@@ -1538,7 +1529,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                 cleaner.change(fn=visible, inputs=[cleaner], outputs=[clean_strength])
             with gr.Row():
                 input.upload(fn=lambda audio_in: shutil.move(audio_in.name, os.path.join("audios")), inputs=[input], outputs=[input_audio])
-                refesh_separator.click(fn=change_audios_choices, inputs=[], outputs=[input_audio])
+                refesh_separator.click(fn=change_audios_choices, inputs=[input_audio], outputs=[input_audio])
             with gr.Row():
                 download_button.click(
                     fn=download_url, 
@@ -1769,7 +1760,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                 method.change(fn=lambda method, hybrid: [visible(method == "hybrid"), hoplength_show(method, hybrid)], inputs=[method, hybrid_method], outputs=[hybrid_method, hop_length])
             with gr.Row():
                 hybrid_method.change(fn=hoplength_show, inputs=[method, hybrid_method], outputs=[hop_length])
-                refesh.click(fn=change_models_choices, inputs=[], outputs=[model_pth, model_index])
+                refesh.click(fn=change_models_choices, inputs=[model_pth, model_index], outputs=[model_pth, model_index])
                 model_pth.change(fn=get_index, inputs=[model_pth], outputs=[model_index])
             with gr.Row():
                 input0.upload(fn=lambda audio_in: shutil.move(audio_in.name, os.path.join("audios")), inputs=[input0], outputs=[input_audio0])
@@ -1777,7 +1768,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                 formant_shifting.change(fn=lambda a: [visible(a)]*2, inputs=[formant_shifting], outputs=[formant_qfrency, formant_timbre])
             with gr.Row():
                 embedders.change(fn=lambda embedders: visible(embedders == "custom"), inputs=[embedders], outputs=[custom_embedders])
-                refesh0.click(fn=change_audios_choices, inputs=[], outputs=[input_audio0])
+                refesh0.click(fn=change_audios_choices, inputs=[input_audio0], outputs=[input_audio0])
                 model_index.change(fn=index_strength_show, inputs=[model_index], outputs=[index_strength])
             with gr.Row():
                 audio_select.change(fn=lambda: visible(True), inputs=[], outputs=[convert_button_2])
@@ -1952,10 +1943,10 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                 method3.change(fn=lambda method, hybrid: [visible(method == "hybrid"), hoplength_show(method, hybrid)], inputs=[method3, hybrid_method3], outputs=[hybrid_method3, hop_length3])
             with gr.Row():
                 hybrid_method3.change(fn=hoplength_show, inputs=[method3, hybrid_method3], outputs=[hop_length3])
-                refesh2.click(fn=change_models_choices, inputs=[], outputs=[model_pth2, model_index2])
+                refesh2.click(fn=change_models_choices, inputs=[model_pth2, model_index2], outputs=[model_pth2, model_index2])
                 model_pth2.change(fn=get_index, inputs=[model_pth2], outputs=[model_index2])
             with gr.Row():
-                refesh3.click(fn=change_models_choices, inputs=[], outputs=[model_pth3, model_index3])
+                refesh3.click(fn=change_models_choices, inputs=[model_pth3, model_index3], outputs=[model_pth3, model_index3])
                 model_pth3.change(fn=get_index, inputs=[model_pth3], outputs=[model_index3])
                 input2.upload(fn=lambda audio_in: shutil.move(audio_in.name, os.path.join("audios")), inputs=[input2], outputs=[input_audio1])
             with gr.Row():
@@ -1963,7 +1954,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                 formant_shifting2.change(fn=lambda a: [visible(a)]*4, inputs=[formant_shifting2], outputs=[formant_qfrency3, formant_timbre3, formant_qfrency4, formant_timbre4])
                 embedders3.change(fn=lambda embedders: visible(embedders == "custom"), inputs=[embedders3], outputs=[custom_embedders3])
             with gr.Row():
-                refesh4.click(fn=change_audios_choices, inputs=[], outputs=[input_audio1])
+                refesh4.click(fn=change_audios_choices, inputs=[input_audio1], outputs=[input_audio1])
                 model_index2.change(fn=index_strength_show, inputs=[model_index2], outputs=[index_strength2])
                 model_index3.change(fn=index_strength_show, inputs=[model_index3], outputs=[index_strength3])
             with gr.Row():
@@ -2096,7 +2087,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                 method0.change(fn=lambda method, hybrid: [visible(method == "hybrid"), hoplength_show(method, hybrid)], inputs=[method0, hybrid_method0], outputs=[hybrid_method0, hop_length0])
                 hybrid_method0.change(fn=hoplength_show, inputs=[method0, hybrid_method0], outputs=[hop_length0])
             with gr.Row():
-                refesh1.click(fn=change_models_choices, inputs=[], outputs=[model_pth0, model_index0])
+                refesh1.click(fn=change_models_choices, inputs=[model_pth0, model_index0], outputs=[model_pth0, model_index0])
                 embedders0.change(fn=lambda embedders: visible(embedders == "custom"), inputs=[embedders0], outputs=[custom_embedders0])
                 formant_shifting1.change(fn=lambda a: [visible(a)]*2, inputs=[formant_shifting1], outputs=[formant_qfrency1, formant_timbre1])
             with gr.Row():
@@ -2195,7 +2186,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
             with gr.Row():
                 output_audioldm2 = gr.Audio(show_download_button=True, interactive=False, label=translations["output_audio"])
             with gr.Row():
-                refesh_audio.click(fn=change_audios_choices, inputs=[], outputs=[input_audiopath])
+                refesh_audio.click(fn=change_audios_choices, inputs=[input_audiopath], outputs=[input_audiopath])
                 drop_audio_file.upload(fn=lambda audio_in: shutil.move(audio_in.name, os.path.join("audios")), inputs=[drop_audio_file], outputs=[input_audiopath])
                 input_audiopath.change(fn=lambda audio: audio if os.path.isfile(audio) else None, inputs=[input_audiopath], outputs=[display_audio])
             with gr.Row():
@@ -2345,7 +2336,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
             with gr.Row():
                 upload_audio.upload(fn=lambda audio_in: shutil.move(audio_in.name, os.path.join("audios")), inputs=[upload_audio], outputs=[audio_in_path])
                 audio_in_path.change(fn=lambda audio: audio if audio else None, inputs=[audio_in_path], outputs=[audio_play_input])
-                audio_effects_refesh.click(fn=lambda: [change_audios_choices()]*2, inputs=[], outputs=[audio_in_path, audio_combination_input])
+                audio_effects_refesh.click(fn=lambda: [change_audios_choices(audio_in_path), change_audios_choices(audio_combination_input)], inputs=[], outputs=[audio_in_path, audio_combination_input])
             with gr.Row():
                 more_options.change(fn=lambda: [False]*8, inputs=[], outputs=[fade, bass_or_treble, limiter, resample_checkbox, distortion_checkbox, gain_checkbox, clipping_checkbox, bitcrush_checkbox])
                 audio_combination.change(fn=visible, inputs=[audio_combination], outputs=[audio_combination_input])
@@ -2484,7 +2475,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                     with gr.Row():
                         with gr.Column():
                             training_name = gr.Textbox(label=translations["modelname"], info=translations["training_model_name"], value="", placeholder=translations["modelname"], interactive=True)
-                            training_sr = gr.Radio(label=translations["sample_rate"], info=translations["sample_rate_info"], choices=["32k", "40k", "44.1k", "48k"], value="48k", interactive=True) 
+                            training_sr = gr.Radio(label=translations["sample_rate"], info=translations["sample_rate_info"], choices=["32k", "40k", "48k"], value="48k", interactive=True) 
                             training_ver = gr.Radio(label=translations["training_version"], info=translations["training_version_info"], choices=["v1", "v2"], value="v2", interactive=True) 
                             with gr.Row():
                                 clean_dataset = gr.Checkbox(label=translations["clear_dataset"], value=False, interactive=True)
@@ -2581,7 +2572,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                 training_f0.change(fn=vocoders_lock, inputs=[training_f0, vocoders], outputs=[vocoders])
                 unlock_full_method4.change(fn=unlock_f0, inputs=[unlock_full_method4], outputs=[extract_method])
             with gr.Row():
-                refesh_file.click(fn=change_models_choices, inputs=[], outputs=[model_file, index_file]) 
+                refesh_file.click(fn=change_models_choices, inputs=[model_file, index_file], outputs=[model_file, index_file]) 
                 zip_model.click(fn=zip_file, inputs=[training_name, model_file, index_file], outputs=[zip_output])                
                 dataset_path.change(fn=lambda folder: os.makedirs(folder, exist_ok=True), inputs=[dataset_path], outputs=[])
             with gr.Row():
@@ -2799,7 +2790,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                     with gr.Column():
                         with gr.Row():
                             pretrain_choices = gr.Dropdown(label=translations["select_pretrain"], info=translations["select_pretrain_info"], choices=list(fetch_pretrained_data().keys()), value="Titan_Medium", allow_custom_value=True, interactive=True, scale=6, visible=False)
-                            sample_rate_pretrain = gr.Dropdown(label=translations["pretrain_sr"], info=translations["pretrain_sr"], choices=["48k", "40k", "44.1k", "32k"], value="48k", interactive=True, visible=False)
+                            sample_rate_pretrain = gr.Dropdown(label=translations["pretrain_sr"], info=translations["pretrain_sr"], choices=["48k", "40k", "32k"], value="48k", interactive=True, visible=False)
                         download_pretrain_choices_button = gr.Button(translations["downloads"], scale=2, variant="primary", visible=False)
                     with gr.Row():
                         pretrain_upload_g = gr.File(label=translations["drop_pretrain"].format(dg="G"), file_types=[".pth"], visible=False)
@@ -2893,7 +2884,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
             with gr.Row():
                 upload_audio_file.upload(fn=lambda audio_in: shutil.move(audio_in.name, os.path.join("audios")), inputs=[upload_audio_file], outputs=[input_audio_path])
                 input_audio_path.change(fn=lambda audio: audio if os.path.isfile(audio) else None, inputs=[input_audio_path], outputs=[audioplay])
-                refesh_audio_button.click(fn=change_audios_choices, inputs=[], outputs=[input_audio_path])
+                refesh_audio_button.click(fn=change_audios_choices, inputs=[input_audio_path], outputs=[input_audio_path])
             with gr.Row():
                 extractor_button.click(
                     fn=f0_extract,
@@ -2932,6 +2923,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                         separate_stop = gr.Button(translations["stop_separate"])
                         convert_stop = gr.Button(translations["stop_convert"])
                         create_dataset_stop = gr.Button(translations["stop_create_dataset"])
+                        audioldm2_stop = gr.Button(translations["stop_audioldm2"])
                         with gr.Accordion(translations["stop_training"], open=False):
                             model_name_stop = gr.Textbox(label=translations["modelname"], info=translations["training_model_name"], value="", placeholder=translations["modelname"], interactive=True)
                             preprocess_stop = gr.Button(translations["stop_preprocess"])
@@ -2949,13 +2941,15 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                 changetheme.click(fn=None, js="setTimeout(function() {location.reload()}, 15000)", inputs=[], outputs=[])
                 font_button.click(fn=None, js="setTimeout(function() {location.reload()}, 15000)", inputs=[], outputs=[])
             with gr.Row():
-                separate_stop.click(fn=lambda: stop_pid("separate_pid", None), inputs=[], outputs=[])
-                convert_stop.click(fn=lambda: stop_pid("convert_pid", None), inputs=[], outputs=[])
-                create_dataset_stop.click(fn=lambda: stop_pid("create_dataset_pid", None), inputs=[], outputs=[])
+                separate_stop.click(fn=lambda: stop_pid("separate_pid", None, False), inputs=[], outputs=[])
+                convert_stop.click(fn=lambda: stop_pid("convert_pid", None, False), inputs=[], outputs=[])
+                create_dataset_stop.click(fn=lambda: stop_pid("create_dataset_pid", None, False), inputs=[], outputs=[])
             with gr.Row():
-                preprocess_stop.click(fn=lambda model_name_stop: stop_pid("preprocess_pid", model_name_stop), inputs=[model_name_stop], outputs=[])
-                extract_stop.click(fn=lambda model_name_stop: stop_pid("extract_pid", model_name_stop), inputs=[model_name_stop], outputs=[])
-                train_stop.click(fn=stop_train, inputs=[model_name_stop], outputs=[])
+                preprocess_stop.click(fn=lambda model_name_stop: stop_pid("preprocess_pid", model_name_stop, False), inputs=[model_name_stop], outputs=[])
+                extract_stop.click(fn=lambda model_name_stop: stop_pid("extract_pid", model_name_stop, False), inputs=[model_name_stop], outputs=[])
+                train_stop.click(fn=lambda model_name_stop: stop_pid("train_pid", model_name_stop, True), inputs=[model_name_stop], outputs=[])
+            with gr.Row():
+                audioldm2_stop.click(fn=lambda: stop_pid("audioldm2_pid", None, False), inputs=[], outputs=[])
 
         with gr.TabItem(translations["report_bugs"], visible=configs.get("report_bug_tab", True)):
             gr.Markdown(translations["report_bugs"])

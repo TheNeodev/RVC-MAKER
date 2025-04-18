@@ -39,7 +39,6 @@ from main.library.algorithm.synthesizers import Synthesizer
 from main.library.algorithm.commons import get_padding, slice_segments, clip_grad_value
 
 MATPLOTLIB_FLAG = False
-
 main_config = Config()
 translations = main_config.translations
 
@@ -965,6 +964,7 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, wri
                 pid_data.pop("process_pids", None)
                 json.dump(pid_data, pid_file, indent=4)
 
+            if os.path.exists(os.path.join(experiment_dir, "train_pid.txt")): os.remove(os.path.join(experiment_dir, "train_pid.txt"))
             model_add.append(os.path.join("assets", "weights", f"{model_name}_{epoch}e_{global_step}s.pth"))
             done = True
             

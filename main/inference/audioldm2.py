@@ -71,12 +71,14 @@ def main():
    
     start_time = time.time()
     logger.info(translations["start_edit"].format(input_path=input_path))
+    pid_path = os.path.join("assets", "audioldm2_pid.txt")
+    with open(pid_path, "w") as pid_file:
+        pid_file.write(str(os.getpid()))
     
     try:
         edit(input_path, output_path, audioldm_model, source_prompt, target_prompt, steps, cfg_scale_src, cfg_scale_tar, t_start, save_compute, sample_rate, config.device, export_format=export_format)
     except Exception as e:
         logger.error(translations["error_edit"].format(e=e))
-
         import traceback
         logger.debug(traceback.format_exc())
         
@@ -120,7 +122,6 @@ def sample(output_audio, sr, ldm_stable, zs, wts, extra_info, prompt_tar, tstart
 def edit(input_audio, output_audio, model_id, source_prompt = "", target_prompt = "", steps = 200, cfg_scale_src = 3.5, cfg_scale_tar = 12, t_start = 45, save_compute = True, sr = 44100, device = "cpu", export_format = "wav"):
     ldm_stable = load_model(model_id, device=device)
     ldm_stable.model.scheduler.set_timesteps(steps, device=device)
-
     x0, duration = load_audio(input_audio, ldm_stable.get_melspectrogram(), device=device)
     zs_tensor, wts_tensor, extra_info_list = invert(ldm_stable=ldm_stable, x0=x0, prompt_src=source_prompt, num_diffusion_steps=steps, cfg_scale_src=cfg_scale_src, duration=duration, save_compute=save_compute)
 
@@ -165,7 +166,6 @@ def inversion_forward_process(model, x0, etas = None, prompts = [""], cfg_scales
 
         xtm1 = xts[idx][None]
         z, xtm1, extra = model.get_zs_from_xts(xt, xtm1, noise_pred, t, eta=etas[idx], numerical_fix=numerical_fix, first_order=first_order)
-
         zs[idx] = z
         xts[idx] = xtm1
         extra_info[idx] = extra

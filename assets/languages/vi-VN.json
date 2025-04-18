@@ -803,5 +803,6 @@
     "font_info": "Phông chữ của giao diện\n\nTruy cập vào [Google Font](https://fonts.google.com) để lựa phông yêu thích của bạn.",
     "change_font": "Đổi Phông Chữ",
     "f0_unlock": "Mở khóa tất cả",
-    "f0_unlock_info": "Mở khóa toàn bộ phương pháp trích xuất cao độ"
+    "f0_unlock_info": "Mở khóa toàn bộ phương pháp trích xuất cao độ",
+    "stop_audioldm2": "Dừng chỉnh sửa nhạc"
 }

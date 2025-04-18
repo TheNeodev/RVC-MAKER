@@ -803,5 +803,6 @@
     "font_info": "Interface font\n\nVisit [Google Font](https://fonts.google.com) to choose your favorite font.",
     "change_font": "Change Font",
     "f0_unlock": "Unlock all",
-    "f0_unlock_info": "Unlock all pitch extraction methods"
+    "f0_unlock_info": "Unlock all pitch extraction methods",
+    "stop_audioldm2": "Stop Audioldm2"
 }
