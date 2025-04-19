@@ -5,7 +5,7 @@
 Công cụ chuyển đổi giọng nói chất lượng và hiệu suất cao đơn giản dành cho người Việt.
 
 [![Vietnamese RVC](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/PhamHuynhAnh16/Vietnamese-RVC)
-[![Open In Colab](https://img.shields.io/badge/Colab-F9AB00?style=for-the-badge&logo=googlecolab&color=525252)](https://colab.research.google.com/drive/18Ed5HbwcX0di6aJymX0EaUNz-xXU5uUc?hl=vi#scrollTo=ers351v_CMGN)
+[![Open In Colab](https://img.shields.io/badge/Colab-F9AB00?style=for-the-badge&logo=googlecolab&color=525252)](https://colab.research.google.com/github/PhamHuynhAnh16/Vietnamese-RVC-ipynb/blob/main/Vietnamese-RVC.ipynb)
 [![Licence](https://img.shields.io/github/license/saltstack/salt?style=for-the-badge)](https://github.com/PhamHuynhAnh16/Vietnamese-RVC/blob/main/LICENSE)
 
 </div>
@@ -98,161 +98,108 @@ Chạy tệp: tensorboard hoặc lệnh env\\Scripts\\python.exe main/app/tensor
 python main\\app\\parser.py --help
 ```
 
-# Các đường dẫn thư mục chính của mã nguồn:
-
-`assets\\f0`: **Thư mục chứa các tệp trích xuất F0**
-
-`assets\\languages`: **Thư mục chứa các tệp ngôn ngữ**
-
-`assets\\logs`: **Thư mục chứa các tệp nhật ký và tệp chỉ mục mô hình**
-
-`assets\\models\\audioldm2`: **Thư mục chứa các tệp mô hình audioldm2**
-
-`assets\\models\\embedders`: **Thư mục chứa các tệp mô hình nhúng**
-
-`assets\\models\\predictors`: **Thư mục chứa một số tệp mô hình trích xuất dữ liệu của crepe, crepe-tiny, harvest, dio, rmvpe, fcpe**
-
-`assets\\models\\pretrained_custom`: **Thư mục chứa các tệp mô hình huấn luyện trước tùy chỉnh**
-
-`assets\\models\\pretrained_v1`: **Thư mục chứa các tệp mô hình huấn luyện trước v1**
-
-`assets\\models\\pretrained_v2`: **Thư mục chứa các tệp mô hình huấn luyện trước v2**
-
-`assets\\models\\speaker_diarization\\assets`: **Thư mục chứa các tệp cài đặt của mô hình Whisper**
-
-`assets\\models\\speaker_diarization\\models`: **Thư mục chứa các tệp mô hình Whisper và Speech Brain**
-
-`assets\\models\\uvr5`: **Thư mục chứa các tệp mô hình tách nhạc của Demucs và MDX**
-
-`assets\\presets`: **Thư mục chứa các tệp cài đặt của chuyển đổi âm thanh**
-
-`assets\\weights`: **Thư mục chứa các tệp mô hình**
-
-`audios`: **Thư mục sẽ chứa các tệp âm thanh của bạn**
-
-`dataset`: **Thư mục sẽ chứa các tệp dữ liệu âm thanh dùng cho việc huấn luyện mô hình**
-
-# Các tệp tin cốt lỗi của mã nguồn
-
-`main\\app\\app.py`: **Tệp tin hệ thống, giao diện của mã nguồn**
-
-`main\\app\\tensorboard.py`: **Tệp tin hệ thống tensorboard**
-
-`main\\app\\parser.py`: **Tệp tin hệ thống gọi bằng cú pháp**
-
-`main\\configs\\v1`: **thư mục chứa các tệp cài đặt tốc độ lấy mẫu huấn luyện v1**
-
-`main\\configs\\v2`: **thư mục chứa các tệp cài đặt tốc độ lấy mẫu huấn luyện v2**
-
-`main\\configs\\config.json`: **Tệp tin cài đặt của giao diện**
-
-`main\\configs\\config.py`: **Tệp khởi chạy các cài đặt**
-
-`main\\inference\\audio_effects.py`: **Tệp tin thực hiện việc áp dụng hiệu ứng cho âm thanh**
-
-`main\\inference\\audioldm2.py`: **Tệp tin thực hiện việc chỉnh sửa âm thanh nhạc nền**
-
-`main\\inference\\convert.py`: **Tệp tin thực hiện xử lý và chuyển đổi âm thanh RVC**
-
-`main\\inference\\create_dataset.py`: **Tệp tin thực hiện xử lý và tạo dữ liệu huấn luyện từ đường dẫn Youtube**
-
-`main\\inference\\create_index.py`: **Tệp tin thực hiện việc tạo ra tệp tin chỉ mục**
-
-`main\\inference\\extract.py`: **Tệp tin thực hiện việc trích xuất cao độ và trích xuất nhúng**
-
-`main\\inference\\preprocess.py`: **Tệp tin thực hiện việc xử lý trước âm thanh dữ liệu huấn luyện trước khi trích xuất**
-
-`main\\inference\\separator_music.py`: **Tệp tin thực hiện việc tách nhạc**
-
-`main\\inference\\train.py`: **Tệp tin thực hiện việc huấn luyện mô hình RVC**
-
-`main\\library\\algorithm\\commons.py`: **Tệp tin chức năng chung của RVC**
-
-`main\\library\\algorithm\\modules.py`: **Tệp tin mô đun thuật toán sóng của RVC**
-
-`main\\library\\algorithm\\mrf_hifigan.py`: **Tệp tin thuật toán của bộ mã hóa âm thanh MRF HIFIGAN**
-
-`main\\library\\algorithm\\onnx_export.py`: **Tệp tin chuyển đổi mô hình RVC PYTORCH thành ONNX**
-
-`main\\library\\algorithm\\refinegan.py`: **Tệp tin thuật toán của bộ mã hóa âm thanh REFINEGAN**
-
-`main\\library\\algorithm\\residuals.py`: **Tệp tin chứa các lớp thuật toán như ResBlock,...**
-
-`main\\library\\algorithm\\separator.py`: **Tệp tin thuật toán tách nhạc chính của DEMUCS\MDX**
-
-`main\\library\\algorithm\\stftpitchshift.py`: **Tệp tin thuật toán dịch chuyển cao độ và âm sắc**
-
-`main\\library\\algorithm\\synthesizers.py`: **Tệp tin thuật toán tổng hợp**
-
-`main\\library\\architectures\\demucs_separator.py`: **Tệp tin cấu trúc của bộ tách nhạc Demucs**
-
-`main\\library\\architectures\\mdx_separator.py`: **Tệp tin cấu trúc của bộ tách nhạc MDX**
-
-`main\\library\\audioldm2\\models.py`: **Tệp tin chứa trình bao bộc Wrapper của Audioldm2 được triển khai bằng transformers với diffusers**
-
-`main\\library\\audioldm2\\utils.py`: **Tệp tin chứa một số hàm cần thiết cho Wrapper Audioldm2**
-
-`main\\library\\predictors\\CREPE.py`: **Tệp tin bộ trích xuất cao độ F0 CREPE**
-
-`main\\library\\predictors\\FCPE.py`: **Tệp tin bộ trích xuất cao độ F0 FCPE**
-
-`main\\library\\predictors\\RMVPE.py`: **Tệp tin bộ trích xuất cao độ F0 RMVPE**
-
-`main\\library\\predictors\\SWIPE.py`: **Tệp tin thuật toán trích xuất cao độ F0 SWIPE**
-
-`main\\library\\predictors\\WORLD_WRAPPER.py`: **Tệp tin trình bao bộc trích xuất cao độ F0 HARVEST VÀ DIO**
-
-`main\\library\\speaker_diarization\\audio.py`: **Tệp tin chứa lớp dùng để xử lí âm thanh**
-
-`main\\library\\speaker_diarization\\ECAPA_TDNN.py`: **Tệp tin kiến trúc ECAPA-TDNN**
-
-`main\\library\\speaker_diarization\\embedding.py`: **Tệp tin chứa các hàm liên quan đến trích xuất embedding giọng nói.**
-
-`main\\library\\speaker_diarization\\encoder.py`: **Tệp tin chứa các lớp mã hóa (encoder) để trích xuất đặc trưng giọng nói.**
-
-`main\\library\\speaker_diarization\\features.py`: **Tệp tin chứa các hàm xử lý và trích xuất đặc trưng từ tín hiệu âm thanh.**
-
-`main\\library\\speaker_diarization\\parameter_transfer.py`: **Tệp tin quản lý việc tải và chuyển giao tham số mô hình.**
-
-`main\\library\\speaker_diarization\\segment.py`: **Tệp tin chứa lớp đại diện cho một đoạn âm thanh với thời gian bắt đầu và kết thúc**
-
-`main\\library\\speaker_diarization\\speechbrain.py`: **Tệp tin chứa mô hình speechbrain**
-
-`main\\library\\speaker_diarization\\whisper.py`: **Tệp tin chứa mô hình whisper**
-
-`main\\library\\uvr5_separator\\demucs\\apply.py`: **Tệp tin áp dụng dành riêng cho DEMUCS**
-
-`main\\library\\uvr5_separator\\demucs\\demucs.py`: **Tệp tin thư viện tách nhạc cho mô hình DEMUCS**
-
-`main\\library\\uvr5_separator\\demucs\\hdemucs.py`: **Tệp tin thư viện tách nhạc cho mô hình HDEMUCS**
-
-`main\\library\\uvr5_separator\\demucs\\htdemucs.py`: **Tệp tin thư viện tách nhạc cho mô hình HTDEMUCS**
-
-`main\\library\\uvr5_separator\\demucs\\states.py`: **Tệp tin trạng thái dành riêng cho DEMUCS**
-
-`main\\library\\uvr5_separator\\demucs\\utils.py`: **Tệp tin tiện ích dành riêng cho DEMUCS**
-
-`main\\library\\uvr5_separator\\common_separator.py`: **Tệp tin chức năng chung của hệ thống tách nhạc MDX và DEMUCS**
-
-`main\\library\\uvr5_separator\\spec_utils.py`: **Tệp tin thông số kỷ thuật của hệ thống tách nhạc**
-
-`main\\library\\utils.py`: **Tệp tin chứa các tiện ích như: xử lý, tải âm thanh, kiểm tra và tải xuống mô hình thiếu**
-
-`main\\tools\\edge_tts.py`: **Tệp tin công cụ chuyển đổi văn bản thành giọng nói của EDGE**
-
-`main\\tools\\gdown.py`: **Tệp tin tải xuống tệp tin từ google drive**
-
-`main\\tools\\google_tts.py`: **Tệp tin công cụ chuyển đổi văn bản thành giọng nói của google**
-
-`main\\tools\\huggingface.py`: **Tệp tin tải xuống tệp tin từ huggingface**
-
-`main\\tools\\mediafire.py`: **Tệp tin tải xuống tệp từ mediafire**
-
-`main\\tools\\meganz.py`: **Tệp tin tải xuống tệp từ MegaNZ**
-
-`main\\tools\\noisereduce.py`: **Tệp tin công cụ giảm tiếng ồn âm thanh**
-
-`main\\tools\\pixeldrain.py`: **Tệp tin tải xuống tệp từ pixeldrain**
+# Cấu trúc chính của mã nguồn:
+
+<pre>
+Vietnamese-RVC-main
+├── assets
+│   ├── f0
+│   ├── languages
+│   ├── logs
+│   ├── models
+│   │   ├── audioldm2
+│   │   ├── embedders
+│   │   ├── predictors
+│   │   ├── pretrained_custom
+│   │   ├── pretrained_v1
+│   │   ├── pretrained_v2
+│   │   ├── speaker_diarization
+│   │   │   ├── assets
+│   │   │   └── models
+│   │   └── uvr5
+│   ├── presets
+│   └── weights
+├── audios
+├── dataset
+└── main
+    ├── app
+    │   ├── app.py
+    │   ├── tensorboard.py
+    │   └── parser.py
+    ├── configs
+    │   ├── v1
+    │   │   ├── 32000.json
+    │   │   ├── 40000.json
+    │   │   └── 48000.json
+    │   ├── v2
+    │   │   ├── 32000.json
+    │   │   ├── 40000.json
+    │   │   └── 48000.json
+    │   ├── config.json
+    │   └── config.py
+    ├── inference
+    │   ├── audio_effects.py
+    │   ├── audioldm2.py
+    │   ├── convert.py
+    │   ├── create_dataset.py
+    │   ├── create_index.py
+    │   ├── extract.py
+    │   ├── preprocess.py
+    │   ├── separator_music.py
+    │   └── train.py
+    ├── library
+    │   ├── algorithm
+    │   │   ├── commons.py
+    │   │   ├── modules.py
+    │   │   ├── mrf_hifigan.py
+    │   │   ├── onnx_export.py
+    │   │   ├── refinegan.py
+    │   │   ├── residuals.py
+    │   │   ├── separator.py
+    │   │   └── stftpitchshift.py
+    │   ├── architectures
+    │   │   ├── demucs_separator.py
+    │   │   └── mdx_separator.py
+    │   ├── audioldm2
+    │   │   ├── models.py
+    │   │   └── utils.py
+    │   ├── predictors
+    │   │   ├── CREPE.py
+    │   │   ├── FCPE.py
+    │   │   ├── RMVPE.py
+    │   │   ├── SWIPE.py
+    │   │   └── WORLD_WRAPPER.py
+    │   ├── speaker_diarization
+    │   │   ├── audio.py
+    │   │   ├── ECAPA_TDNN.py
+    │   │   ├── embedding.py
+    │   │   ├── encoder.py
+    │   │   ├── features.py
+    │   │   ├── parameter_transfer.py
+    │   │   ├── segment.py
+    │   │   ├── speechbrain.py
+    │   │   └── whisper.py
+    │   ├── uvr5_separator
+    │   │   ├── common_separator.py
+    │   │   ├── spec_utils.py
+    │   │   └── demucs
+    │   │       ├── apply.py
+    │   │       ├── demucs.py
+    │   │       ├── hdemucs.py
+    │   │       ├── htdemucs.py
+    │   │       ├── states.py
+    │   │       └── utils.py
+    │   └── utils.py
+    └── tools
+        ├── edge_tts.py
+        ├── gdown.py
+        ├── google_tts.py
+        ├── huggingface.py
+        ├── mediafire.py
+        ├── meganz.py
+        ├── noisereduce.py
+        └── pixeldrain.py
+</pre>
 
 # LƯU Ý
 
