@@ -6,6 +6,8 @@ import json
 import torch
 import codecs
 import shutil
+import asyncio
+import librosa
 import logging
 import datetime
 import platform
@@ -15,6 +17,7 @@ import threading
 import subprocess
 import logging.handlers
 
+import numpy as np
 import gradio as gr
 import pandas as pd
 
@@ -103,6 +106,8 @@ for _, row in cached_data.iterrows():
             break
 
     if url: models[filename] = url
+
+
 
 def gr_info(message):
     gr.Info(message, duration=2)
@@ -209,8 +214,11 @@ def valueEmpty_visible1(inp1):
     return {"value": "", "visible": inp1, "__type__": "update"}
 
 def process_input(file_path):
-    with open(file_path, "r", encoding="utf-8") as file:
-        file_contents = file.read()
+    file_contents = ""
+
+    if not file_path.endswith(".srt"):
+        with open(file_path, "r", encoding="utf-8") as file:
+            file_contents = file.read()
 
     gr_info(translations["upload_success"].format(name=translations["text"]))
     return file_contents
@@ -218,6 +226,7 @@ def process_input(file_path):
 def fetch_pretrained_data():
     response = requests.get(codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/erfbyir/znva/wfba/phfgbz_cergenvarq.wfba", "rot13"))
     response.raise_for_status()
+
     return response.json()
 
 def update_sample_rate_dropdown(model):
@@ -710,8 +719,61 @@ def audio_effects(input_path, output_path, resample, resample_sr, chorus_depth, 
     gr_info(translations["success"])
     return output_path.replace("wav", export_format)
 
-async def TTS(prompt, voice, speed, output, pitch, google):
-    if not prompt:
+def synthesize_tts(prompt, voice, speed, output, pitch, google):
+    if not google: 
+        from main.tools import edge_tts
+
+        asyncio.run(edge_tts.Communicate(text=prompt, voice=voice, rate=f"+{speed}%" if speed >= 0 else f"{speed}%", pitch=f"+{pitch}Hz" if pitch >= 0 else f"{pitch}Hz").save(output))
+    else: 
+        from main.tools import google_tts
+
+        google_tts.google_tts(text=prompt, lang=voice, speed=speed, pitch=pitch, output_file=output)
+
+def time_stretch(y, sr, target_duration):
+    rate = (len(y) / sr) / target_duration
+    if rate != 1.0: y = librosa.effects.time_stretch(y=y.astype(np.float32), rate=rate)
+
+    n_target = int(round(target_duration * sr))
+    return np.pad(y, (0, n_target - len(y))) if len(y) < n_target else y[:n_target]
+
+def pysrttime_to_seconds(t):
+    return (t.hours * 60 + t.minutes) * 60 + t.seconds + t.milliseconds / 1000
+
+def srt_tts(srt_file, out_file, voice, rate = 0, sr = 24000, google = False):
+    import pysrt
+    import tempfile
+
+    import soundfile as sf
+
+    subs = pysrt.open(srt_file)
+    if not subs: raise ValueError(translations["srt"])
+
+    final_audio = np.zeros(int(round(pysrttime_to_seconds(subs[-1].end) * sr)), dtype=np.float32)
+
+    with tempfile.TemporaryDirectory() as tempdir:
+        for idx, seg in enumerate(subs):
+            wav_path = os.path.join(tempdir, f"seg_{idx}.wav")
+            synthesize_tts(" ".join(seg.text.splitlines()), voice, 0, wav_path, rate, google)
+
+            audio, file_sr = sf.read(wav_path, dtype=np.float32)
+            if file_sr != sr: audio = np.interp(np.linspace(0, len(audio) - 1, int(len(audio) * sr / file_sr)), np.arange(len(audio)), audio)
+            adjusted = time_stretch(audio, sr, pysrttime_to_seconds(seg.duration))
+
+            start_sample = int(round(pysrttime_to_seconds(seg.start) * sr))
+            end_sample = start_sample + adjusted.shape[0]
+
+            if end_sample > final_audio.shape[0]:
+                adjusted = adjusted[: final_audio.shape[0] - start_sample]
+                end_sample = final_audio.shape[0]
+
+            final_audio[start_sample:end_sample] += adjusted
+
+    sf.write(out_file, final_audio, sr)
+
+def TTS(prompt, voice, speed, output, pitch, google, srt_input):
+    if not srt_input: srt_input = ""
+
+    if not prompt and not srt_input.endswith(".srt"):
         gr_warning(translations["enter_the_text"])
         return None
     
@@ -729,14 +791,8 @@ async def TTS(prompt, voice, speed, output, pitch, google):
     output_dir = os.path.dirname(output) or output
     if not os.path.exists(output_dir): os.makedirs(output_dir, exist_ok=True)
 
-    if not google: 
-        from main.tools import edge_tts
-
-        await edge_tts.Communicate(text=prompt, voice=voice, rate=f"+{speed}%" if speed >= 0 else f"{speed}%", pitch=f"+{pitch}Hz" if pitch >= 0 else f"{pitch}Hz").save(output)
-    else: 
-        from main.tools import google_tts
-
-        google_tts.google_tts(text=prompt, lang=voice, speed=speed, pitch=pitch, output_file=output)
+    if srt_input.endswith(".srt"): srt_tts(srt_input, output, voice, 0, 24000, google)
+    else: synthesize_tts(prompt, voice, speed, output, pitch, google)
 
     gr_info(translations["success"])
     return output
@@ -948,10 +1004,6 @@ def convert_selection(clean, autotune, use_audio, use_original, convert_backing,
         return [{"choices": [], "value": "", "interactive": False, "visible": False, "__type__": "update"}, main_convert[0], None, None, None, None, {"visible": True, "__type__": "update"}]
     
 def convert_with_whisper(num_spk, model_size, cleaner, clean_strength, autotune, f0_autotune_strength, checkpointing, model_1, model_2, model_index_1, model_index_2, pitch_1, pitch_2, index_strength_1, index_strength_2, export_format, input_audio, output_audio, onnx_f0_mode, method, hybrid_method, hop_length, embed_mode, embedders, custom_embedders, resample_sr, filter_radius, volume_envelope, protect, formant_shifting, formant_qfrency_1, formant_timbre_1, formant_qfrency_2, formant_timbre_2):
-    import librosa
-
-    import numpy as np
-    
     from pydub import AudioSegment
     from sklearn.cluster import AgglomerativeClustering
     
@@ -1368,10 +1420,6 @@ def f0_extract(audio, f0_method, f0_onnx):
     if not audio or not os.path.exists(audio) or os.path.isdir(audio): 
         gr_warning(translations["input_not_valid"])
         return [None]*2
-    
-    import librosa
-
-    import numpy as np
 
     from matplotlib import pyplot as plt
     from main.library.utils import check_predictors
@@ -1458,6 +1506,14 @@ def change_fp(fp):
 
 def unlock_f0(value):
     return {"choices": method_f0_full if value else method_f0, "__type__": "update"} 
+
+def unlock_vocoder(value, vocoder):
+    return {"value": vocoder if value == "v2" else "Default", "interactive": value == "v2", "__type__": "update"} 
+
+def unlock_ver(value, vocoder):
+    return {"value": "v2" if vocoder == "Default" else value, "interactive": vocoder == "Default", "__type__": "update"}
+
+
 
 with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style> @import url('{fonts}'); * {{font-family: 'Courgette', cursive !important;}} body, html {{font-family: 'Courgette', cursive !important;}} h1, h2, h3, h4, h5, h6, p, button, input, textarea, label, span, div, select {{font-family: 'Courgette', cursive !important;}} </style>".format(fonts=font or "https://fonts.googleapis.com/css2?family=Courgette&display=swap")) as app:
     gr.HTML("<h1 style='text-align: center;'>🎵VIETNAMESE RVC BY ANH🎵</h1>")
@@ -2020,7 +2076,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                 convert_button0 = gr.Button(translations["tts_2"], variant="secondary", scale=2)
             with gr.Row():
                 with gr.Column():
-                    txt_input = gr.File(label=translations["drop_text"], file_types=[".txt"], visible=use_txt.value)  
+                    txt_input = gr.File(label=translations["drop_text"], file_types=[".txt", ".srt"], visible=use_txt.value)  
                     tts_voice = gr.Dropdown(label=translations["voice"], choices=edgetts, interactive=True, value="vi-VN-NamMinhNeural")
                     tts_pitch = gr.Slider(minimum=-20, maximum=20, step=1, info=translations["pitch_info_2"], label=translations["pitch"], value=0, interactive=True)
                 with gr.Column():
@@ -2104,7 +2160,8 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                         speed, 
                         output_audio0,
                         tts_pitch,
-                        google_tts_check_box
+                        google_tts_check_box,
+                        txt_input
                     ], 
                     outputs=[tts_voice_audio],
                     api_name="text-to-speech"
@@ -2581,6 +2638,8 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                 clean_dataset.change(fn=visible, inputs=[clean_dataset], outputs=[clean_dataset_strength])
             with gr.Row():
                 custom_dataset.change(fn=lambda custom_dataset: [visible(custom_dataset), "dataset"],inputs=[custom_dataset], outputs=[dataset_path, dataset_path])
+                training_ver.change(fn=unlock_vocoder, inputs=[training_ver, vocoders], outputs=[vocoders])
+                vocoders.change(fn=unlock_ver, inputs=[training_ver, vocoders], outputs=[training_ver])
                 upload_dataset.upload(
                     fn=lambda files, folder: [shutil.move(f.name, os.path.join(folder, os.path.split(f.name)[1])) for f in files] if folder != "" else gr_warning(translations["dataset_folder1"]),
                     inputs=[upload_dataset, dataset_path], 
@@ -2975,6 +3034,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
 
     logger.info(translations["start_app"])
     logger.info(translations["set_lang"].format(lang=language))
+
     port = configs.get("app_port", 7860)
 
     for i in range(configs.get("num_of_restart", 5)):
