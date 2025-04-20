@@ -57,6 +57,10 @@ translations = config.translations
 configs_json = os.path.join("main", "configs", "config.json")
 configs = json.load(open(configs_json, "r"))
 
+if torch.__version__ >= "2.4.0":
+    os.environ["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
+    os.environ["TORCH_FORCE_WEIGHTS_ONLY_LOAD"] = "0"
+
 if config.device in ["cpu", "mps"]  and configs.get("fp16", False):
     logger.warning(translations["fp16_not_support"])
     configs["fp16"] = config.is_half = False
@@ -106,8 +110,6 @@ for _, row in cached_data.iterrows():
             break
 
     if url: models[filename] = url
-
-
 
 def gr_info(message):
     gr.Info(message, duration=2)
@@ -1512,8 +1514,6 @@ def unlock_vocoder(value, vocoder):
 
 def unlock_ver(value, vocoder):
     return {"value": "v2" if vocoder == "Default" else value, "interactive": vocoder == "Default", "__type__": "update"}
-
-
 
 with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style> @import url('{fonts}'); * {{font-family: 'Courgette', cursive !important;}} body, html {{font-family: 'Courgette', cursive !important;}} h1, h2, h3, h4, h5, h6, p, button, input, textarea, label, span, div, select {{font-family: 'Courgette', cursive !important;}} </style>".format(fonts=font or "https://fonts.googleapis.com/css2?family=Courgette&display=swap")) as app:
     gr.HTML("<h1 style='text-align: center;'>🎵VIETNAMESE RVC BY ANH🎵</h1>")
