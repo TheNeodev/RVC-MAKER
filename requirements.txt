@@ -39,7 +39,7 @@ pandas
 matplotlib==3.7.2
 
 # Implementation and web framework
-gradio>=5.14.0
+gradio==5.23.3
 requests>=2.32.3
 aiohttp
 pysrt
