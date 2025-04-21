@@ -213,7 +213,7 @@ class FeatureInput:
     def get_swipe(self, x):
         from main.library.predictors.SWIPE import swipe
 
-        f0, _ = swipe(x.astype(np.float32), self.fs, f0_floor=self.f0_min, f0_ceil=self.f0_max, frame_period=1000 * self.hop / self.fs, device=self.device)
+        f0, _ = swipe(x.astype(np.float32), self.fs, f0_floor=self.f0_min, f0_ceil=self.f0_max, frame_period=1000 * self.hop / self.fs)
         return f0
     
     def get_yin(self, x, hop_length, mode="yin"):

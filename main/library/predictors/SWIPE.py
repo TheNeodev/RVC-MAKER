@@ -1,97 +1,137 @@
 import math
-import torch
+import logging
 
 import numpy as np
-import torch.nn.functional as F
 
-def swipe(x, fs, f0_floor=50, f0_ceil=1100, frame_period=10, sTHR=0.3, device='cpu'):
-    t = torch.arange(0, int(1000 * len(x) / fs / frame_period + 1), device=device, dtype=torch.float32) * (frame_period / 1000)
-    plim = torch.tensor([f0_floor, f0_ceil], dtype=torch.float32, device=device)
-    log2pc = torch.arange(torch.log2(plim[0]) * 96, torch.log2(plim[1]) * 96, device=device) / 96.0
-    pc = torch.pow(2, log2pc)
-    S = torch.zeros((len(pc), len(t)), device=device, dtype=torch.float32)
-    
-    logWs = [int(round(math.log2(4 * 2 * fs / float(val)))) for val in plim.cpu().numpy()]
-    ws_vals = 2 ** np.arange(logWs[0], logWs[1] - 1, -1)
-    p0 = 4 * 2 * fs / torch.tensor(ws_vals, dtype=torch.float32, device=device)
-    d = 1 + log2pc - math.log2(4 * 2 * fs / ws_vals[0])
-    fERBs = erbs2hz_torch(torch.arange(hz2erbs_torch(pc[0] / 4), hz2erbs_torch(torch.tensor(fs / 2, device=device)), 0.1, device=device))
-    
-    for i, ws in enumerate(ws_vals):
-        ws = int(ws)
-        dn = int(round(4 * fs / p0[i].item()))
+from matplotlib import mlab
+from scipy import interpolate
+from decimal import Decimal, ROUND_HALF_UP
 
-        X_abs = torch.abs(torch.stft(torch.cat([torch.zeros(ws // 2, device=device), torch.tensor(x, dtype=torch.float32, device=device), torch.zeros(dn + ws // 2, device=device)]), n_fft=ws, hop_length=dn, window=torch.hann_window(ws, device=device), return_complex=True))
-        f = torch.linspace(0, fs/2, steps=X_abs.shape[0], device=device, dtype=torch.float32)
-        
-        if i == len(ws_vals) - 1:
-            j = (d - (i + 1) > -1).nonzero(as_tuple=True)[0]
-            k = (d[j] - (i + 1) < 0).nonzero(as_tuple=True)[0]
+logging.getLogger("matplotlib").setLevel(logging.ERROR)
+
+
+def swipe(x, fs, f0_floor=50, f0_ceil=1100, frame_period=10, sTHR=0.3):
+    plim = np.array([f0_floor, f0_ceil])
+    t = np.arange(0, int(1000 * len(x) / fs / (frame_period) + 1)) * (frame_period / 1000)
+
+    log2pc = np.arange(np.log2(plim[0]) * 96, np.log2(plim[-1]) * 96)
+    log2pc *= (1 / 96)
+
+    pc = 2 ** log2pc
+    S = np.zeros((len(pc), len(t))) 
+
+    logWs = [round_matlab(elm) for elm in np.log2(4 * 2 * fs / plim)]
+
+    ws = 2 ** np.arange(logWs[0], logWs[1] - 1, -1) 
+    p0 = 4 * 2 * fs / ws 
+
+    d = 1 + log2pc - np.log2(4 * 2 * fs / ws[0])
+    fERBs = erbs2hz(np.arange(hz2erbs(pc[0] / 4), hz2erbs(fs / 2), 0.1))
+
+    for i in range(len(ws)):
+        dn = round_matlab(4 * fs / p0[i]) 
+        X, f, ti = mlab.specgram(x=np.r_[np.zeros(int(ws[i] / 2)), np.r_[x, np.zeros(int(dn + ws[i] / 2))]], NFFT=ws[i], Fs=fs, window=np.hanning(ws[i] + 2)[1:-1], noverlap=max(0, np.round(ws[i] - dn)), mode='complex')
+
+        ti = np.r_[0, ti[:-1]]
+        M = np.maximum(0, interpolate.interp1d(f, np.abs(X.T), kind='cubic')(fERBs)).T
+
+        if i == len(ws) - 1:
+            j = np.where(d - (i + 1) > -1)[0]
+            k = np.where(d[j] - (i + 1) < 0)[0]
         elif i == 0:
-            j = (d - (i + 1) < 1).nonzero(as_tuple=True)[0]
-            k = (d[j] - (i + 1) > 0).nonzero(as_tuple=True)[0]
+            j = np.where(d - (i + 1) < 1)[0]
+            k = np.where(d[j] - (i + 1) > 0)[0]
         else:
-            j = (torch.abs(d - (i + 1)) < 1).nonzero(as_tuple=True)[0]
-            k = torch.arange(len(j), device=device)
-        
-        mu = torch.ones(j.shape, device=device, dtype=torch.float32)
-        if k.numel() > 0: mu[k] = 1 - torch.abs(d[j][k] - (i+1))
-        
-        S[j, :] = S[j, :] + mu.unsqueeze(1) * F.interpolate(pitchStrengthAllCandidates(fERBs, torch.sqrt(torch.clamp(torch.stack([linear_interpolate_1d(f, X_abs[:, col], fERBs) for col in range(X_abs.shape[-1])], dim=1) , min=0)), pc[j]).unsqueeze(1), size=len(t), mode='linear', align_corners=True).squeeze(1)
+            j = np.where(np.abs(d - (i + 1)) < 1)[0]
+            k = np.arange(len(j))
 
-    p = torch.full((S.shape[1],), float('nan'), device=device, dtype=torch.float32)
-    s = torch.full((S.shape[1],), float('nan'), device=device, dtype=torch.float32)
-    
+        Si = pitchStrengthAllCandidates(fERBs, np.sqrt(M), pc[j])
+        Si = interpolate.interp1d(ti, Si, bounds_error=False, fill_value='nan')(t) if Si.shape[1] > 1 else np.full((len(Si), len(t)), np.nan)
+
+        mu = np.ones(j.shape)
+        mu[k] = 1 - np.abs(d[j[k]] - i - 1)
+
+        S[j, :] = S[j, :] + np.tile(mu.reshape(-1, 1), (1, Si.shape[1])) * Si
+
+
+    p = np.full((S.shape[1], 1), np.nan)
+    s = np.full((S.shape[1], 1), np.nan)
+
     for j in range(S.shape[1]):
-        s_val, i = torch.max(S[:, j], dim=0)
-        s[j] = s_val
+        s[j] = np.max(S[:, j])
+        i = np.argmax(S[:, j])
 
-        if s_val < sTHR: continue
+        if s[j] < sTHR: continue
 
-        if i == 0 or i == len(pc)-1: p[j] = pc[0]
+        if i == 0: p[j] = pc[0]
+        elif i == len(pc) - 1: p[j] = pc[0]
         else:
-            I = torch.arange(i-1, i+2, device=device)
-
+            I = np.arange(i-1, i+2)
             tc = 1 / pc[I]
-            ntc = (tc / tc[1] - 1) * 2 * math.pi
 
-            idx = torch.isfinite(S[I, j])
-            pval = S[I, j][0] * torch.ones(10, device=device) if I[idx].numel() < 2 else polyval(polyfit(ntc[idx], S[I, j][idx], deg=2), torch.linspace(ntc[0], ntc[-1], steps=10, device=device))
+            ntc = (tc / tc[1] - 1) * 2 * np.pi
+            idx = np.isfinite(S[I, j])
 
-            s[j] = torch.max(pval)
-            p[j] = 2 ** (torch.log2(pc[I[0]]) + (torch.argmax(pval).item()) / (12 * 64))
-    
-    p[torch.isnan(p)] = 0
-    return p.cpu().numpy(), t.cpu().numpy()
+            c = np.zeros(len(ntc))
+            c += np.nan
+            
+            I_ = I[idx]
 
-def hz2erbs_torch(hz):
-    return 21.4 * torch.log10(1 + hz / 229)
+            if len(I_) < 2: c[idx] = (S[I, j])[0] / ntc[0]
+            else: c[idx] = np.polyfit(ntc[idx], (S[I_, j]), 2)
 
-def erbs2hz_torch(erbs):
-    return (torch.pow(10, erbs / 21.4) - 1) * 229
+            pval = np.polyval(c, ((1 / (2 ** np.arange(np.log2(pc[I[0]]), np.log2(pc[I[2]]) + 1 / 12 / 64, 1 / 12 / 64))) / tc[1] - 1) * 2 * np.pi)
 
-def linear_interpolate_1d(x, y, x_new):
-    inds = torch.clamp(torch.searchsorted(x, x_new), 1, len(x)-1)
+            s[j] = np.max(pval)
+            p[j] = 2 ** (np.log2(pc[I[0]]) + (np.argmax(pval)) / 12 / 64)
 
-    x0 = x[inds - 1]
-    y0 = y[inds - 1]
+    p = p.flatten()
+    p[np.isnan(p)] = 0
 
-    return y0 + ((x_new - x0) / (x[inds] - x0)) * (y[inds] - y0)
+    return np.array(p, dtype=np.float32), np.array(t, dtype=np.float32)
 
-def polyfit(x, y, deg=2):
-    return torch.linalg.lstsq(torch.stack([x**i for i in range(deg, -1, -1)], dim=1), y).solution
+def round_matlab(n):
+    return int(Decimal(n).quantize(0, ROUND_HALF_UP))
 
-def polyval(coeffs, x):
-    deg = coeffs.numel() - 1
-    y = torch.zeros_like(x)
+def pitchStrengthAllCandidates(f, L, pc):
+    den = np.sqrt(np.sum(L * L, axis=0))
+    den = np.where(den == 0, 2.220446049250313e-16, den)
 
-    for i, c in enumerate(coeffs):
-        y = y + c * x ** (deg - i)
+    L = L / den
 
-    return y
+    S = np.zeros((len(pc), L.shape[1]))
+
+    for j in range(len(pc)):
+        S[j,:] = pitchStrengthOneCandidate(f, L, pc[j])
+
+    return S
+
+def pitchStrengthOneCandidate(f, L, pc):
+    k = np.zeros(len(f)) 
+    q = f / pc 
+
+    for i in ([1] + sieve(int(np.fix(f[-1] / pc - 0.75)))):
+        a = np.abs(q - i)
+        p = a < 0.25
+        
+        k[p] = np.cos(2 * np.pi * q[p])
+
+        v = np.logical_and((0.25 < a), (a < 0.75))
+        k[v] = k[v] + np.cos(2 * np.pi * q[v]) / 2
+
+    k *= np.sqrt(1 / f)
+    k /= np.linalg.norm(k[k>0])
+
+    return k @ L
+
+def hz2erbs(hz):
+    return 21.4 * np.log10(1 + hz / 229)
+
+def erbs2hz(erbs):
+    return (10 ** (erbs / 21.4) - 1) * 229
 
 def sieve(n):
-    primes = list(range(2, n+1))
+    primes = list(range(2, n + 1))
     num = 2
 
     while num < math.sqrt(n):
@@ -99,6 +139,7 @@ def sieve(n):
 
         while i <= n:
             i += num
+
             if i in primes: primes.remove(i)
                 
         for j in primes:
@@ -107,24 +148,3 @@ def sieve(n):
                 break
 
     return primes
-
-def pitchStrengthOneCandidate(f, L, pc):
-    q = f / pc
-    k = torch.zeros_like(f)
-
-    for m in [1] + sieve(int(math.floor(f[-1].item() / pc - 0.75))):
-        a = torch.abs(q - m)
-
-        mask1 = a < 0.25
-        mask2 = (a > 0.25) & (a < 0.75)
-
-        k[mask1] = torch.cos(2 * math.pi * q[mask1])
-        k[mask2] = k[mask2] + torch.cos(2 * math.pi * q[mask2]) / 2
-
-    k = k * torch.sqrt(1 / f)
-    pos = k > 0
-
-    return torch.matmul(k / torch.norm(k[pos]) if torch.any(pos) else torch.tensor(1.0, device=k.device), L)
-
-def pitchStrengthAllCandidates(f, L, pc_candidates):
-    return torch.stack([pitchStrengthOneCandidate(f, L, pc) for pc in pc_candidates], dim=0)

@@ -266,7 +266,7 @@ class VC:
     def get_f0_swipe(self, x):
         from main.library.predictors.SWIPE import swipe
 
-        f0, _ = swipe(x.astype(np.float32), self.sample_rate, f0_floor=self.f0_min, f0_ceil=self.f0_max, frame_period=10, device=self.device)
+        f0, _ = swipe(x.astype(np.float32), self.sample_rate, f0_floor=self.f0_min, f0_ceil=self.f0_max, frame_period=10)
         return f0
     
     def get_f0_yin(self, x, hop_length, p_len, mode="yin"):
