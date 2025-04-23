@@ -75,12 +75,29 @@ EMBEDDERS_TRANSFORMERS: Tất cả mô hình nhúng ở trên điều có phiên
 - B3: **Tải mã nguồn về và giải nén ra**
 - B4: **Vào thư mục mã nguồn và mở Command Prompt hoặc Terminal**
 - B5: **Nhập lệnh để cài đặt thư viện cần thiết để hoạt động**
+
 ```
 python -m venv env
 env\\Scripts\\activate
 python -m pip install pywebview
+```
+
+Nếu có GPU NVIDIA thì chạy bước này tùy theo cuda của bạn có thể thay đổi cu117 thành cu128...
+
+```
+# Nếu sử dụng Torch 2.3.1
+python -m pip install torch==2.3.1 torchaudio==2.3.1 torchvision==0.18.1 --index-url https://download.pytorch.org/whl/cu117
+
+# Nếu sử dụng Torch 2.6.0
+python -m pip install torch==2.6.0 torchaudio==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu117
+```
+
+Tiếp theo chạy
+
+```
 python -m pip install -r requirements.txt
 ```
+
 - B5: **Chạy tệp run_app để mở giao diện sử dụng(Lưu ý: không tắt Command Prompt hoặc Terminal của giao diện)**
 - Hoặc sử dụng cửa sổ Command Prompt hoặc cửa sổ Terminal trong thư mục mã nguồn
 - Nếu muốn cho phép giao diện truy cập được các tệp ngoài dự án hãy thêm --allow_all_disk vào lệnh
