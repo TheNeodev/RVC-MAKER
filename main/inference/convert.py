@@ -233,7 +233,7 @@ class VC:
     def get_f0_fcpe(self, x, p_len, hop_length, onnx=False, legacy=False):
         from main.library.predictors.FCPE import FCPE
 
-        model_fcpe = FCPE(os.path.join("assets", "models", "predictors", ("fcpe_legacy" if legacy else"fcpe") + (".onnx" if onnx else ".pt")), hop_length=int(hop_length), f0_min=int(self.f0_min), f0_max=int(self.f0_max), dtype=torch.float32, device=self.device, sample_rate=self.sample_rate, threshold=0.03 if legacy else 0.006, providers=get_providers(), onnx=onnx, legacy=legacy, is_half=self.is_half)
+        model_fcpe = FCPE(os.path.join("assets", "models", "predictors", ("fcpe_legacy" if legacy else "fcpe") + (".onnx" if onnx else ".pt")), hop_length=int(hop_length), f0_min=int(self.f0_min), f0_max=int(self.f0_max), dtype=torch.float32, device=self.device, sample_rate=self.sample_rate, threshold=0.03 if legacy else 0.006, providers=get_providers(), onnx=onnx, legacy=legacy, is_half=self.is_half)
         f0 = model_fcpe.compute_f0(x, p_len=p_len)
 
         del model_fcpe

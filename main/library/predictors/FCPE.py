@@ -21,6 +21,7 @@ from librosa.filters import mel as librosa_mel_fn
 
 os.environ["LRU_CACHE_CAPACITY"] = "3"
 
+
 def exists(val):
     return val is not None
 
@@ -32,9 +33,6 @@ def max_neg_value(tensor):
 
 def empty(tensor):
     return tensor.numel() == 0
-
-def cast_tuple(val):
-    return (val,) if not isinstance(val, tuple) else val
 
 def l2norm(tensor):
     return F.normalize(tensor, dim = -1).type(tensor.dtype)
@@ -249,6 +247,8 @@ def ensemble_f0(f0s, key_shift_list, tta_uv_penalty):
         min_indices = backtrack[:, t - i, min_indices]
 
     return f0_result.unsqueeze(-1)
+
+
 
 class LocalAttention(nn.Module):
     def __init__(self, window_size, causal = False, look_backward = 1, look_forward = None, dropout = 0., shared_qk = False, rel_pos_emb_config = None, dim = None, autopad = False, exact_windowsize = False, scale = None, use_rotary_pos_emb = True, use_xpos = False, xpos_scale_base = None):
@@ -1050,7 +1050,7 @@ class DotDict(dict):
 
 class FCPE:
     def __init__(self, model_path, hop_length=512, f0_min=50, f0_max=1100, dtype=torch.float32, device=None, sample_rate=44100, threshold=0.05, providers=None, onnx=False, legacy=False, is_half=False):
-        self.fcpe = FCPEInfer_LEGACY(model_path, device=device, providers=providers, onnx=onnx) if legacy else FCPEInfer(model_path, device=device, providers=providers, onnx=onnx, is_half=is_half)
+        self.fcpe = FCPEInfer_LEGACY(model_path, device=device, providers=providers, onnx=onnx, is_half=is_half) if legacy else FCPEInfer(model_path, device=device, providers=providers, onnx=onnx, is_half=is_half)
         self.hop_length = hop_length
         self.f0_min = f0_min
         self.f0_max = f0_max
