@@ -792,7 +792,7 @@
     "title": "Công cụ huấn luyện, chuyển đổi nhạc cụ và giọng nói chất lượng và hiệu suất cao đơn giản dành cho người Việt",
     "fp16_not_support": "CPU Không hỗ trợ tốt fp16, chuyển đổi fp16 -> fp32",
     "precision": "Độ chính xác",
-    "precision_info": "Độ chính xác của suy luận và huấn luyện mô hình\n\nLưu ý: CPU Không hỗ trợ fp16",
+    "precision_info": "Độ chính xác của suy luận và huấn luyện mô hình\n\nLưu ý: CPU Không hỗ trợ fp16\n\nĐối với RefineGAN và MRF HIFIGAN khi chuyển đổi nên sử dụng fp32 vì fp16 có thể khiến chúng cho ra đầu ra kì lạ",
     "update_precision": "Cập Nhật Độ Chính Xác",
     "start_update_precision": "Bắt đầu cập nhật độ chính xác",
     "deterministic": "Thuật toán xác định",

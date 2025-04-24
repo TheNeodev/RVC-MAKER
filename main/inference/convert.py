@@ -32,7 +32,7 @@ translations = config.translations
 logger = logging.getLogger(__name__)
 logger.propagate = False
 
-for l in ["torch", "faiss", "httpx", "fairseq", "httpcore", "faiss.loader", "numba.core", "urllib3", "transformers"]:
+for l in ["torch", "faiss", "httpx", "fairseq", "httpcore", "faiss.loader", "numba.core", "urllib3", "transformers", "matplotlib"]:
     logging.getLogger(l).setLevel(logging.ERROR)
 
 if logger.hasHandlers(): logger.handlers.clear()
@@ -233,7 +233,7 @@ class VC:
     def get_f0_fcpe(self, x, p_len, hop_length, onnx=False, legacy=False):
         from main.library.predictors.FCPE import FCPE
 
-        model_fcpe = FCPE(os.path.join("assets", "models", "predictors", ("fcpe_legacy" if legacy else "fcpe") + (".onnx" if onnx else ".pt")), hop_length=int(hop_length), f0_min=int(self.f0_min), f0_max=int(self.f0_max), dtype=torch.float32, device=self.device, sample_rate=self.sample_rate, threshold=0.03 if legacy else 0.006, providers=get_providers(), onnx=onnx, legacy=legacy, is_half=self.is_half)
+        model_fcpe = FCPE(os.path.join("assets", "models", "predictors", ("fcpe_legacy" if legacy else "fcpe") + (".onnx" if onnx else ".pt")), hop_length=int(hop_length), f0_min=int(self.f0_min), f0_max=int(self.f0_max), dtype=torch.float32, device=self.device, sample_rate=self.sample_rate, threshold=0.03 if legacy else 0.006, providers=get_providers(), onnx=onnx, legacy=legacy)
         f0 = model_fcpe.compute_f0(x, p_len=p_len)
 
         del model_fcpe
@@ -576,7 +576,6 @@ class VoiceConverter:
                 self.net_g.load_state_dict(self.cpt["weight"], strict=False)
                 self.net_g.eval().to(self.device)
                 self.net_g = (self.net_g.half() if self.config.is_half else self.net_g.float())
-
                 self.n_spk = self.cpt["config"][-3]
                 self.suffix = ".pth"
             else:
@@ -595,6 +594,7 @@ class VoiceConverter:
                 self.version = metadata_dict.get("version", "v1")
                 self.suffix = ".onnx"
 
+            if self.vocoder != "Default": self.config.is_half = False
             self.vc = VC(self.tgt_sr, self.config)
 
 if __name__ == "__main__": main()

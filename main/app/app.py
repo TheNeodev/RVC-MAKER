@@ -138,9 +138,9 @@ def change_audios_choices(input_audio):
 def change_separate_choices():
     return [{"choices": sorted([os.path.join("assets", "models", "uvr5", models) for models in os.listdir(os.path.join("assets", "models", "uvr5")) if model.endswith((".th", ".yaml", ".onnx"))]), "__type__": "update"}]
 
-def change_models_choices(model_pth, model_index):
+def change_models_choices():
     model, index = sorted(list(model for model in os.listdir(os.path.join("assets", "weights")) if model.endswith((".pth", ".onnx")) and not model.startswith("G_") and not model.startswith("D_"))), sorted([os.path.join(root, name) for root, _, files in os.walk(os.path.join("assets", "logs"), topdown=False) for name in files if name.endswith(".index")])
-    return [{"value": model_pth if model_pth != "" else (model[0] if len(model) >= 1 else ""), "choices": model, "__type__": "update"}, {"value": model_index if model_index != "" else (index[0] if len(index) >= 1 else ""), "choices": index, "__type__": "update"}]
+    return [{"value": model[0] if len(model) >= 1 else "", "choices": model, "__type__": "update"}, {"value": index[0] if len(index) >= 1 else "", "choices": index, "__type__": "update"}]
 
 def change_allpretrained_choices():
     return [{"choices": sorted([os.path.join("assets", "models", path, model) for path in ["pretrained_v1", "pretrained_v2", "pretrained_custom"] for model in os.listdir(os.path.join("assets", "models", path)) if model.endswith(".pth") and ("D" in model or "G" in model)]), "__type__": "update"}]
@@ -1816,7 +1816,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                 method.change(fn=lambda method, hybrid: [visible(method == "hybrid"), hoplength_show(method, hybrid)], inputs=[method, hybrid_method], outputs=[hybrid_method, hop_length])
             with gr.Row():
                 hybrid_method.change(fn=hoplength_show, inputs=[method, hybrid_method], outputs=[hop_length])
-                refesh.click(fn=change_models_choices, inputs=[model_pth, model_index], outputs=[model_pth, model_index])
+                refesh.click(fn=change_models_choices, inputs=[], outputs=[model_pth, model_index])
                 model_pth.change(fn=get_index, inputs=[model_pth], outputs=[model_index])
             with gr.Row():
                 input0.upload(fn=lambda audio_in: shutil.move(audio_in.name, os.path.join("audios")), inputs=[input0], outputs=[input_audio0])
@@ -1999,10 +1999,10 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                 method3.change(fn=lambda method, hybrid: [visible(method == "hybrid"), hoplength_show(method, hybrid)], inputs=[method3, hybrid_method3], outputs=[hybrid_method3, hop_length3])
             with gr.Row():
                 hybrid_method3.change(fn=hoplength_show, inputs=[method3, hybrid_method3], outputs=[hop_length3])
-                refesh2.click(fn=change_models_choices, inputs=[model_pth2, model_index2], outputs=[model_pth2, model_index2])
+                refesh2.click(fn=change_models_choices, inputs=[], outputs=[model_pth2, model_index2])
                 model_pth2.change(fn=get_index, inputs=[model_pth2], outputs=[model_index2])
             with gr.Row():
-                refesh3.click(fn=change_models_choices, inputs=[model_pth3, model_index3], outputs=[model_pth3, model_index3])
+                refesh3.click(fn=change_models_choices, inputs=[], outputs=[model_pth3, model_index3])
                 model_pth3.change(fn=get_index, inputs=[model_pth3], outputs=[model_index3])
                 input2.upload(fn=lambda audio_in: shutil.move(audio_in.name, os.path.join("audios")), inputs=[input2], outputs=[input_audio1])
             with gr.Row():
@@ -2143,7 +2143,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                 method0.change(fn=lambda method, hybrid: [visible(method == "hybrid"), hoplength_show(method, hybrid)], inputs=[method0, hybrid_method0], outputs=[hybrid_method0, hop_length0])
                 hybrid_method0.change(fn=hoplength_show, inputs=[method0, hybrid_method0], outputs=[hop_length0])
             with gr.Row():
-                refesh1.click(fn=change_models_choices, inputs=[model_pth0, model_index0], outputs=[model_pth0, model_index0])
+                refesh1.click(fn=change_models_choices, inputs=[], outputs=[model_pth0, model_index0])
                 embedders0.change(fn=lambda embedders: visible(embedders == "custom"), inputs=[embedders0], outputs=[custom_embedders0])
                 formant_shifting1.change(fn=lambda a: [visible(a)]*2, inputs=[formant_shifting1], outputs=[formant_qfrency1, formant_timbre1])
             with gr.Row():
@@ -2629,7 +2629,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                 training_f0.change(fn=vocoders_lock, inputs=[training_f0, vocoders], outputs=[vocoders])
                 unlock_full_method4.change(fn=unlock_f0, inputs=[unlock_full_method4], outputs=[extract_method])
             with gr.Row():
-                refesh_file.click(fn=change_models_choices, inputs=[model_file, index_file], outputs=[model_file, index_file]) 
+                refesh_file.click(fn=change_models_choices, inputs=[], outputs=[model_file, index_file]) 
                 zip_model.click(fn=zip_file, inputs=[training_name, model_file, index_file], outputs=[zip_output])                
                 dataset_path.change(fn=lambda folder: os.makedirs(folder, exist_ok=True), inputs=[dataset_path], outputs=[])
             with gr.Row():

@@ -1,14 +1,10 @@
 import math
-import logging
 
 import numpy as np
 
 from matplotlib import mlab
 from scipy import interpolate
 from decimal import Decimal, ROUND_HALF_UP
-
-logging.getLogger("matplotlib").setLevel(logging.ERROR)
-
 
 def swipe(x, fs, f0_floor=50, f0_ceil=1100, frame_period=10, sTHR=0.3):
     plim = np.array([f0_floor, f0_ceil])
@@ -21,7 +17,6 @@ def swipe(x, fs, f0_floor=50, f0_ceil=1100, frame_period=10, sTHR=0.3):
     S = np.zeros((len(pc), len(t))) 
 
     logWs = [round_matlab(elm) for elm in np.log2(4 * 2 * fs / plim)]
-
     ws = 2 ** np.arange(logWs[0], logWs[1] - 1, -1) 
     p0 = 4 * 2 * fs / ws 
 
@@ -31,7 +26,6 @@ def swipe(x, fs, f0_floor=50, f0_ceil=1100, frame_period=10, sTHR=0.3):
     for i in range(len(ws)):
         dn = round_matlab(4 * fs / p0[i]) 
         X, f, ti = mlab.specgram(x=np.r_[np.zeros(int(ws[i] / 2)), np.r_[x, np.zeros(int(dn + ws[i] / 2))]], NFFT=ws[i], Fs=fs, window=np.hanning(ws[i] + 2)[1:-1], noverlap=max(0, np.round(ws[i] - dn)), mode='complex')
-
         ti = np.r_[0, ti[:-1]]
         M = np.maximum(0, interpolate.interp1d(f, np.abs(X.T), kind='cubic')(fERBs)).T
 
@@ -50,7 +44,6 @@ def swipe(x, fs, f0_floor=50, f0_ceil=1100, frame_period=10, sTHR=0.3):
 
         mu = np.ones(j.shape)
         mu[k] = 1 - np.abs(d[j[k]] - i - 1)
-
         S[j, :] = S[j, :] + np.tile(mu.reshape(-1, 1), (1, Si.shape[1])) * Si
 
 
@@ -81,7 +74,6 @@ def swipe(x, fs, f0_floor=50, f0_ceil=1100, frame_period=10, sTHR=0.3):
             else: c[idx] = np.polyfit(ntc[idx], (S[I_, j]), 2)
 
             pval = np.polyval(c, ((1 / (2 ** np.arange(np.log2(pc[I[0]]), np.log2(pc[I[2]]) + 1 / 12 / 64, 1 / 12 / 64))) / tc[1] - 1) * 2 * np.pi)
-
             s[j] = np.max(pval)
             p[j] = 2 ** (np.log2(pc[I[0]]) + (np.argmax(pval)) / 12 / 64)
 
@@ -98,7 +90,6 @@ def pitchStrengthAllCandidates(f, L, pc):
     den = np.where(den == 0, 2.220446049250313e-16, den)
 
     L = L / den
-
     S = np.zeros((len(pc), L.shape[1]))
 
     for j in range(len(pc)):
@@ -113,7 +104,6 @@ def pitchStrengthOneCandidate(f, L, pc):
     for i in ([1] + sieve(int(np.fix(f[-1] / pc - 0.75)))):
         a = np.abs(q - i)
         p = a < 0.25
-        
         k[p] = np.cos(2 * np.pi * q[p])
 
         v = np.logical_and((0.25 < a), (a < 0.75))

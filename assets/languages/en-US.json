@@ -792,7 +792,7 @@
     "title": "Simple high-quality and high-performance voice and instrument conversion and training tool for Vietnamese people",
     "fp16_not_support": "CPU does not support fp16 well, convert fp16 -> fp32",
     "precision": "Precision",
-    "precision_info": "Precision of inference and model training\n\nNote: CPU Does not support fp16",
+    "precision_info": "Precision of inference and model training\n\nNote: CPU Does not support fp16\n\nFor RefineGAN and MRF HIFIGAN when converting use fp32 as fp16 can cause them to give weird output",
     "update_precision": "Update Precision",
     "start_update_precision": "Start updating precision",
     "deterministic": "Deterministic algorithm",
