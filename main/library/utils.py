@@ -22,7 +22,7 @@ translations = Config().translations
 
 
 def check_predictors(method, f0_onnx=False):
-    if f0_onnx and method not in ["harvestw", "diow"]: method += "-onnx"
+    if f0_onnx: method += "-onnx"
 
     def download(predictors):
         if not os.path.exists(os.path.join("assets", "models", "predictors", predictors)): huggingface.HF_download_file(codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/erfbyir/znva/cerqvpgbef/", "rot13") + predictors, os.path.join("assets", "models", "predictors", predictors))
