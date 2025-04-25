@@ -283,7 +283,7 @@ def zip_file(name, pth, index):
     pth_path = os.path.join("assets", "weights", pth)
     if not pth or not os.path.exists(pth_path) or not pth.endswith((".pth", ".onnx")): return gr_warning(translations["provide_file"].format(filename=translations["model"]))
 
-    zip_file_path = os.path.join("assets", "logs", pth.replace(".pth", ""), name + ".zip")
+    zip_file_path = os.path.join("assets", "logs", name, name + ".zip")
     gr_info(translations["start"].format(start=translations["zip"]))
 
     import zipfile
