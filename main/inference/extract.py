@@ -165,7 +165,6 @@ class FeatureInput:
         audio = torch.from_numpy(x.astype(np.float32)).to(self.device)
         audio /= torch.quantile(torch.abs(audio), 0.999)
         audio = audio.unsqueeze(0)
-
         source = predict(audio, self.fs, hop_length, self.f0_min, self.f0_max, model=model, batch_size=hop_length * 2, device=self.device, pad=True, providers=get_providers(), onnx=onnx).squeeze(0).cpu().float().numpy()
         source[source < 0.001] = np.nan
 
@@ -219,15 +218,8 @@ class FeatureInput:
     def get_yin(self, x, hop_length, mode="yin"):
         import librosa
 
-        if mode == "yin":
-            source = np.array(librosa.yin(x.astype(np.float32), sr=self.fs, fmin=self.f0_min, fmax=self.f0_max, hop_length=hop_length))
-            source[source < 0.001] = np.nan
-        else:
-            f0, _, _ = librosa.pyin(x.astype(np.float32), fmin=self.f0_min, fmax=self.f0_max, sr=self.fs, hop_length=hop_length)
-
-            source = np.array(f0)
-            source[source < 0.001] = np.nan
-
+        source = np.array(librosa.yin(x.astype(np.float32), sr=self.fs, fmin=self.f0_min, fmax=self.f0_max, hop_length=hop_length) if mode == "yin" else librosa.pyin(x.astype(np.float32), fmin=self.f0_min, fmax=self.f0_max, sr=self.fs, hop_length=hop_length)[0])
+        source[source < 0.001] = np.nan
         return np.nan_to_num(np.interp(np.arange(0, len(source) * (x.size // self.hop), len(source)) / (x.size // self.hop), np.arange(0, len(source)), source))
     
     def coarse_f0(self, f0):
@@ -240,7 +232,6 @@ class FeatureInput:
         try:
             feature_pit = self.compute_f0(np_arr, f0_method, hop_length, f0_onnx)
             if isinstance(feature_pit, tuple): feature_pit = feature_pit[0]
-
             np.save(opt_path2, feature_pit, allow_pickle=False)
             np.save(opt_path1, self.coarse_f0(feature_pit), allow_pickle=False)
         except Exception as e:
@@ -303,7 +294,6 @@ def process_file_embedding(file, wav_path, out_path, model, device, version, sav
 def run_embedding_extraction(exp_dir, version, gpus, embedder_model, embedders_mode, is_half):
     wav_path, out_path = setup_paths(exp_dir, version)
     logger.info(translations["start_extract_hubert"])
-
     start_time = time.time()
     models, saved_cfg, embed_suffix = load_embedders_model(embedder_model, embedders_mode, providers=get_providers())
     devices = [get_device(gpu) for gpu in (gpus.split("-") if gpus != "-" else ["cpu"])]

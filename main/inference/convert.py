@@ -1,5 +1,6 @@
 import re
 import os
+import gc
 import sys
 import time
 import faiss
@@ -150,6 +151,11 @@ def change_rms(source_audio, source_rate, target_audio, target_rate, rate):
     rms2 = F.interpolate(torch.from_numpy(librosa.feature.rms(y=target_audio, frame_length=target_rate // 2 * 2, hop_length=target_rate // 2)).float().unsqueeze(0), size=target_audio.shape[0], mode="linear").squeeze()
     return (target_audio * (torch.pow(F.interpolate(torch.from_numpy(librosa.feature.rms(y=source_audio, frame_length=source_rate // 2 * 2, hop_length=source_rate // 2)).float().unsqueeze(0), size=target_audio.shape[0], mode="linear").squeeze(), 1 - rate) * torch.pow(torch.maximum(rms2, torch.zeros_like(rms2) + 1e-6), rate - 1)).numpy())
 
+def clear_gpu_cache():
+    gc.collect()
+    if torch.cuda.is_available(): torch.cuda.empty_cache()
+    elif torch.backends.mps.is_available(): torch.mps.empty_cache()
+
 def get_providers():
     ort_providers = onnxruntime.get_available_providers()
 
@@ -270,11 +276,7 @@ class VC:
         return f0
     
     def get_f0_yin(self, x, hop_length, p_len, mode="yin"):
-        if mode == "yin": source = np.array(librosa.yin(x.astype(np.float32), sr=self.sample_rate, fmin=self.f0_min, fmax=self.f0_max, hop_length=hop_length))
-        else:
-            f0, _, _ = librosa.pyin(x.astype(np.float32), fmin=self.f0_min, fmax=self.f0_max, sr=self.sample_rate, hop_length=hop_length)
-            source = np.array(f0)
-
+        source = np.array(librosa.yin(x.astype(np.float32), sr=self.sample_rate, fmin=self.f0_min, fmax=self.f0_max, hop_length=hop_length) if mode == "yin" else librosa.pyin(x.astype(np.float32), fmin=self.f0_min, fmax=self.f0_max, sr=self.sample_rate, hop_length=hop_length)[0])
         source[source < 0.001] = np.nan
         return np.nan_to_num(np.interp(np.arange(0, len(source) * p_len, len(source)) / p_len, np.arange(0, len(source)), source))
 
@@ -329,7 +331,6 @@ class VC:
 
         if feats.dim() == 2: feats = feats.mean(-1)
         assert feats.dim() == 1, feats.dim()
-
         feats = feats.view(1, -1)
 
         with torch.no_grad():
@@ -381,10 +382,7 @@ class VC:
 
         if self.embed_suffix == ".pt": del padding_mask
         del feats, p_len, net_g
-
-        if torch.cuda.is_available(): torch.cuda.empty_cache()
-        elif torch.backends.mps.is_available(): torch.mps.empty_cache()
-
+        clear_gpu_cache()
         return audio1
     
     def pipeline(self, model, net_g, sid, audio, pitch, f0_method, file_index, index_rate, pitch_guidance, filter_radius, volume_envelope, version, protect, hop_length, f0_autotune, f0_autotune_strength, suffix, embed_suffix, f0_file=None, f0_onnx=False, pbar=None):
@@ -448,16 +446,14 @@ class VC:
             
         audio_opt.append(self.voice_conversion(model, net_g, sid, audio_pad[t:], (pitch[:, t // self.window :] if t is not None else pitch) if pitch_guidance else None, (pitchf[:, t // self.window :] if t is not None else pitchf) if pitch_guidance else None, index, big_npy, index_rate, version, protect)[self.t_pad_tgt : -self.t_pad_tgt])
         audio_opt = np.concatenate(audio_opt)
-
         if volume_envelope != 1: audio_opt = change_rms(audio, self.sample_rate, audio_opt, self.sample_rate, volume_envelope)
         audio_max = np.abs(audio_opt).max() / 0.99
         if audio_max > 1: audio_opt /= audio_max
+
         if pitch_guidance: del pitch, pitchf
         del sid
-
+        clear_gpu_cache()
         pbar.update(1)
-        if torch.cuda.is_available(): torch.cuda.empty_cache()
-        elif torch.backends.mps.is_available(): torch.mps.empty_cache()
 
         return audio_opt
 
@@ -476,13 +472,14 @@ class VoiceConverter:
         self.loaded_model = None
         self.vocoder = "Default"
         self.checkpointing = False
+        self.sample_rate = 16000
         self.sid = sid
         self.get_vc(model_path, sid)
 
     def convert_audio(self, audio_input_path, audio_output_path, index_path, embedder_model, pitch, f0_method, index_rate, volume_envelope, protect, hop_length, f0_autotune, f0_autotune_strength, filter_radius, clean_audio, clean_strength, export_format, resample_sr = 0, checkpointing = False, f0_file = None, f0_onnx = False, embedders_mode = "fairseq", formant_shifting = False, formant_qfrency = 0.8, formant_timbre = 0.8, split_audio = False):
         try:
             with tqdm(total=10, desc=translations["convert_audio"], ncols=100, unit="a") as pbar:
-                audio = load_audio(logger, audio_input_path, 16000, formant_shifting=formant_shifting, formant_qfrency=formant_qfrency, formant_timbre=formant_timbre)
+                audio = load_audio(logger, audio_input_path, self.sample_rate, formant_shifting=formant_shifting, formant_qfrency=formant_qfrency, formant_timbre=formant_timbre)
                 self.checkpointing = checkpointing
                 audio_max = np.abs(audio).max() / 0.95
                 if audio_max > 1: audio /= audio_max
@@ -494,11 +491,11 @@ class VoiceConverter:
                     self.embed_suffix = embed_suffix
 
                 pbar.update(1)
-                if self.tgt_sr != resample_sr >= 16000: self.tgt_sr = resample_sr
+                if self.tgt_sr != resample_sr >= self.sample_rate: self.tgt_sr = resample_sr
                 target_sr = min([8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 96000], key=lambda x: abs(x - self.tgt_sr))
 
                 if split_audio:
-                    chunks = cut(audio, 16000, db_thresh=-60, min_interval=500)  
+                    chunks = cut(audio, self.sample_rate, db_thresh=-60, min_interval=500)  
                     pbar.total = len(chunks) * 4 + 6
                     logger.info(f"{translations['split_total']}: {len(chunks)}")
                 else: chunks = [(audio, 0, 0)]
@@ -511,7 +508,7 @@ class VoiceConverter:
                 
                 pbar.update(1)
                 audio_output = restore(converted_chunks, total_len=len(audio), dtype=converted_chunks[0][2].dtype) if split_audio else converted_chunks[0][2]
-                if target_sr >= 16000 and self.tgt_sr != target_sr: audio_output = librosa.resample(audio_output, orig_sr=self.tgt_sr, target_sr=target_sr, res_type="soxr_vhq")
+                if target_sr >= self.sample_rate and self.tgt_sr != target_sr: audio_output = librosa.resample(audio_output, orig_sr=self.tgt_sr, target_sr=target_sr, res_type="soxr_vhq")
 
                 pbar.update(1)
                 if clean_audio:
@@ -528,9 +525,7 @@ class VoiceConverter:
     def get_vc(self, weight_root, sid):
         if sid == "" or sid == []:
             self.cleanup()
-
-            if torch.cuda.is_available(): torch.cuda.empty_cache()
-            elif torch.backends.mps.is_available(): torch.mps.empty_cache()
+            clear_gpu_cache()
 
         if not self.loaded_model or self.loaded_model != weight_root:
             self.loaded_model = weight_root
@@ -541,15 +536,10 @@ class VoiceConverter:
         if self.hubert_model is not None:
             del self.net_g, self.n_spk, self.vc, self.hubert_model, self.tgt_sr
             self.hubert_model = self.net_g = self.n_spk = self.vc = self.tgt_sr = None
-
-            if torch.cuda.is_available(): torch.cuda.empty_cache()
-            elif torch.backends.mps.is_available(): torch.mps.empty_cache()
+            clear_gpu_cache()
 
         del self.net_g, self.cpt
-
-        if torch.cuda.is_available(): torch.cuda.empty_cache()
-        elif torch.backends.mps.is_available(): torch.mps.empty_cache()
-
+        clear_gpu_cache()
         self.cpt = None
 
     def load_model(self):

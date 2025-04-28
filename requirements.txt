@@ -6,7 +6,7 @@ onnxruntime; sys_platform == 'darwin'
 onnxruntime-gpu; sys_platform != 'darwin'
 
 # Core dependencies
-PyYAML
+PyYAML>=6.0
 tiktoken
 hyperpyyaml
 torch>=2.3.1
@@ -36,7 +36,7 @@ numpy>=1.25.2,<2.0.0
 numba>=0.57.0
 scipy>=1.15.0
 pandas
-matplotlib==3.7.2
+matplotlib>=3.7.2
 
 # Implementation and web framework
 gradio==5.23.3
@@ -58,4 +58,4 @@ onnxsim>=0.4.36
 onnx2torch>=1.5.15
 
 # Cryptography section
-pycryptodome==3.9.6
+pycryptodome>=3.9.6,<4.0.0
