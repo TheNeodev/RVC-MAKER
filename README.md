@@ -79,7 +79,6 @@ EMBEDDERS_TRANSFORMERS: Tất cả mô hình nhúng ở trên điều có phiên
 ```
 python -m venv env
 env\\Scripts\\activate
-python -m pip install pywebview
 ```
 
 Nếu có GPU NVIDIA thì chạy bước này tùy theo cuda của bạn có thể thay đổi cu117 thành cu128...
@@ -102,7 +101,7 @@ python -m pip install -r requirements.txt
 - Hoặc sử dụng cửa sổ Command Prompt hoặc cửa sổ Terminal trong thư mục mã nguồn
 - Nếu muốn cho phép giao diện truy cập được các tệp ngoài dự án hãy thêm --allow_all_disk vào lệnh
 ```
-env\\Scripts\\python.exe main\\app\\app.py --app
+env\\Scripts\\python.exe main\\app\\app.py --open
 ```
 
 **Với trường hợp bạn sử dụng Tensorboard để kiểm tra huấn luyện**
@@ -176,6 +175,7 @@ Vietnamese-RVC-main
     │   │   └── stftpitchshift.py
     │   ├── architectures
     │   │   ├── demucs_separator.py
+    │   │   ├── fairseq.py
     │   │   └── mdx_separator.py
     │   ├── audioldm2
     │   │   ├── models.py
@@ -208,9 +208,7 @@ Vietnamese-RVC-main
     │   │       └── utils.py
     │   └── utils.py
     └── tools
-        ├── edge_tts.py
         ├── gdown.py
-        ├── google_tts.py
         ├── huggingface.py
         ├── mediafire.py
         ├── meganz.py
@@ -244,6 +242,7 @@ Vietnamese-RVC-main
 
 - **[RVC-ONNX-INFER-BY-Anh](https://github.com/PhamHuynhAnh16/RVC_Onnx_Infer)**
 - **[Torch-Onnx-Crepe-By-Anh](https://github.com/PhamHuynhAnh16/TORCH-ONNX-CREPE)**
+- **[Hubert-No-Fairseq](https://github.com/PhamHuynhAnh16/hubert-no-fairseq)**
 - **[Local-attention](https://github.com/lucidrains/local-attention)**
 - **[TorchFcpe](https://github.com/CNChTu/FCPE/tree/main)**
 - **[FcpeONNX](https://github.com/deiteris/voice-changer/blob/master-custom/server/utils/fcpe_onnx.py)**
@@ -252,7 +251,6 @@ Vietnamese-RVC-main
 - **[Noisereduce](https://github.com/timsainb/noisereduce)**
 - **[World.py-By-Anh](https://github.com/PhamHuynhAnh16/world.py)**
 - **[Mega.py](https://github.com/odwyersoftware/mega.py)**
-- **[Edge-TTS](https://github.com/rany2/edge-tts)**
 - **[Gdown](https://github.com/wkentaro/gdown)**
 - **[Whisper](https://github.com/openai/whisper)**
 - **[PyannoteAudio](https://github.com/pyannote/pyannote-audio)**

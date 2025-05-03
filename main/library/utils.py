@@ -130,9 +130,9 @@ def load_embedders_model(embedder_model, embedders_mode="fairseq", providers=Non
 
     try:
         if embedders_mode == "fairseq":
-            from fairseq import checkpoint_utils
+            from main.library.architectures import fairseq
 
-            models, saved_cfg, _ = checkpoint_utils.load_model_ensemble_and_task([embedder_model_path], suffix="")
+            models, saved_cfg, _ = fairseq.load_model(embedder_model_path)
             embed_suffix = ".pt"
             hubert_model = models[0]
         elif embedders_mode == "onnx":

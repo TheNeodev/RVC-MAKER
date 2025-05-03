@@ -20,6 +20,7 @@ import logging.handlers
 import numpy as np
 import gradio as gr
 import pandas as pd
+import soundfile as sf
 
 from time import sleep
 from multiprocessing import cpu_count
@@ -83,10 +84,10 @@ language, theme, edgetts, google_tts_voice, mdx_model, uvr_model, font = configs
 
 csv_path = os.path.join("assets", "spreadsheet.csv")
 logger.info(config.device)
-app_mode = "--app" in sys.argv
 
 if "--allow_all_disk" in sys.argv:
     import win32api
+
     allow_disk = win32api.GetLogicalDriveStrings().split('\x00')[:-1]
 else: allow_disk = []
 
@@ -109,6 +110,8 @@ for _, row in cached_data.iterrows():
             break
 
     if url: models[filename] = url
+
+
 
 def gr_info(message):
     gr.Info(message, duration=2)
@@ -722,13 +725,24 @@ def audio_effects(input_path, output_path, resample, resample_sr, chorus_depth, 
 
 def synthesize_tts(prompt, voice, speed, output, pitch, google):
     if not google: 
-        from main.tools import edge_tts
+        from edge_tts import Communicate
 
-        asyncio.run(edge_tts.Communicate(text=prompt, voice=voice, rate=f"+{speed}%" if speed >= 0 else f"{speed}%", pitch=f"+{pitch}Hz" if pitch >= 0 else f"{pitch}Hz").save(output))
+        asyncio.run(Communicate(text=prompt, voice=voice, rate=f"+{speed}%" if speed >= 0 else f"{speed}%", pitch=f"+{pitch}Hz" if pitch >= 0 else f"{pitch}Hz").save(output))
     else: 
-        from main.tools import google_tts
+        response = requests.get(codecs.decode("uggcf://genafyngr.tbbtyr.pbz/genafyngr_ggf", "rot13"), params={"ie": "UTF-8", "q": prompt, "tl": voice, "ttsspeed": speed, "client": "tw-ob"}, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"})
 
-        google_tts.google_tts(text=prompt, lang=voice, speed=speed, pitch=pitch, output_file=output)
+        if response.status_code == 200:
+            with open(output, "wb") as f:
+                f.write(response.content)
+
+            if pitch != 0 or speed != 0:
+                y, sr = librosa.load(output, sr=None)
+
+                if pitch != 0: y = librosa.effects.pitch_shift(y, sr=sr, n_steps=pitch)
+                if speed != 0: y = librosa.effects.time_stretch(y, rate=speed)
+
+                sf.write(file=output, data=y, samplerate=sr, format=os.path.splitext(os.path.basename(output))[-1].lower().replace('.', ''))
+        else: gr_error(f"{response.status_code}, {response.text}")
 
 def time_stretch(y, sr, target_duration):
     rate = (len(y) / sr) / target_duration
@@ -743,8 +757,6 @@ def pysrttime_to_seconds(t):
 def srt_tts(srt_file, out_file, voice, rate = 0, sr = 24000, google = False):
     import pysrt
     import tempfile
-
-    import soundfile as sf
 
     subs = pysrt.open(srt_file)
     if not subs: raise ValueError(translations["srt"])
@@ -1513,6 +1525,7 @@ def unlock_vocoder(value, vocoder):
 
 def unlock_ver(value, vocoder):
     return {"value": "v2" if vocoder == "Default" else value, "interactive": vocoder == "Default", "__type__": "update"}
+
 
 
 with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style> @import url('{fonts}'); * {{font-family: 'Courgette', cursive !important;}} body, html {{font-family: 'Courgette', cursive !important;}} h1, h2, h3, h4, h5, h6, p, button, input, textarea, label, span, div, select {{font-family: 'Courgette', cursive !important;}} </style>".format(fonts=font or "https://fonts.googleapis.com/css2?family=Courgette&display=swap")) as app:
@@ -3044,10 +3057,9 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                 server_name=configs.get("server_name", "0.0.0.0"), 
                 server_port=port, 
                 show_error=configs.get("app_show_error", False), 
-                inbrowser="--open" in sys.argv and not app_mode, 
-                share="--share" in sys.argv and not app_mode, 
-                allowed_paths=allow_disk, 
-                prevent_thread_lock=app_mode
+                inbrowser="--open" in sys.argv, 
+                share="--share" in sys.argv, 
+                allowed_paths=allow_disk
             )
             break
         except OSError:
@@ -3056,15 +3068,3 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
         except Exception as e:
             logger.error(translations["error_occurred"].format(e=e))
             sys.exit(1)
-
-if app_mode:
-    import webview
-
-    def on_closed():
-        logger.info(translations["close"])
-        sys.exit(0)
-
-    window = webview.create_window("Vietnamese RVC BY ANH", f"localhost:{port}", width=1600, height=900, min_size=(800, 600))
-    window.events.closed += on_closed
-
-    webview.start(icon=os.path.join("assets", "ico.png"), debug=False)
