@@ -2406,7 +2406,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
             with gr.Row():
                 upload_audio.upload(fn=lambda audio_in: shutil.move(audio_in.name, os.path.join("audios")), inputs=[upload_audio], outputs=[audio_in_path])
                 audio_in_path.change(fn=lambda audio: audio if audio else None, inputs=[audio_in_path], outputs=[audio_play_input])
-                audio_effects_refesh.click(fn=lambda: [change_audios_choices(audio_in_path), change_audios_choices(audio_combination_input)], inputs=[], outputs=[audio_in_path, audio_combination_input])
+                audio_effects_refesh.click(fn=lambda a, b: [change_audios_choices(a), change_audios_choices(b)], inputs=[audio_in_path, audio_combination_input], outputs=[audio_in_path, audio_combination_input])
             with gr.Row():
                 more_options.change(fn=lambda: [False]*8, inputs=[], outputs=[fade, bass_or_treble, limiter, resample_checkbox, distortion_checkbox, gain_checkbox, clipping_checkbox, bitcrush_checkbox])
                 audio_combination.change(fn=visible, inputs=[audio_combination], outputs=[audio_combination_input])

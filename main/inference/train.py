@@ -41,7 +41,6 @@ from main.library.algorithm.commons import get_padding, slice_segments, clip_gra
 MATPLOTLIB_FLAG = False
 main_config = Config()
 translations = main_config.translations
-
 warnings.filterwarnings("ignore")
 logging.getLogger("torch").setLevel(logging.ERROR)
 
@@ -106,10 +105,8 @@ model_name, save_every_epoch, total_epoch, pretrainG, pretrainD, version, gpus, 
 experiment_dir = os.path.join("assets", "logs", model_name)
 training_file_path = os.path.join(experiment_dir, "training_data.json")
 config_save_path = os.path.join(experiment_dir, "config.json")
-
 torch.backends.cudnn.deterministic = args.deterministic
 torch.backends.cudnn.benchmark = args.benchmark
-
 lowest_value = {"step": 0, "value": float("inf"), "epoch": 0}
 global_step, last_loss_gen_all, overtrain_save_epoch = 0, 0, 0
 loss_gen_history, smoothed_loss_gen_history, loss_disc_history, smoothed_loss_disc_history = [], [], [], []
@@ -220,7 +217,6 @@ def plot_spectrogram_to_numpy(spectrogram):
         MATPLOTLIB_FLAG = True
 
     fig, ax = plt.subplots(figsize=(10, 2))
-
     plt.colorbar(ax.imshow(spectrogram, aspect="auto", origin="lower", interpolation="none"), ax=ax)
     plt.xlabel("Frames")
     plt.ylabel("Channels")
@@ -228,7 +224,12 @@ def plot_spectrogram_to_numpy(spectrogram):
     fig.canvas.draw()
     plt.close(fig)
 
-    return np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8).reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    try:
+        data = np.array(fig.canvas.renderer.buffer_rgba(), dtype=np.uint8).reshape(fig.canvas.get_width_height()[::-1] + (4,))[:, :, :3]
+    except:
+        data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep="").reshape(fig.canvas.get_width_height()[::-1] + (3,))
+
+    return data
 
 def verify_checkpoint_shapes(checkpoint_path, model):
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
@@ -829,7 +830,6 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, scaler, train_loader, wri
     else: data_iterator = enumerate(train_loader)
 
     epoch_recorder = EpochRecorder()
-
     with tqdm(total=len(train_loader), leave=False) as pbar:
         for batch_idx, info in data_iterator:
             if device.type == "cuda" and not cache_data_in_gpu: info = [tensor.cuda(device_id, non_blocking=True) for tensor in info]

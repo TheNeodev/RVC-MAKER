@@ -559,6 +559,7 @@ class VoiceConverter:
                 self.use_f0 = self.cpt.get("f0", 1)
                 self.version = self.cpt.get("version", "v1")
                 self.vocoder = self.cpt.get("vocoder", "Default")
+                if self.vocoder != "Default": self.config.is_half = False
 
                 self.net_g = Synthesizer(*self.cpt["config"], use_f0=self.use_f0, text_enc_hidden_dim=768 if self.version == "v2" else 256, vocoder=self.vocoder, checkpointing=self.checkpointing)
                 del self.net_g.enc_q
@@ -584,7 +585,6 @@ class VoiceConverter:
                 self.version = metadata_dict.get("version", "v1")
                 self.suffix = ".onnx"
 
-            if self.vocoder != "Default": self.config.is_half = False
             self.vc = VC(self.tgt_sr, self.config)
 
 if __name__ == "__main__": main()
