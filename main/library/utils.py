@@ -39,8 +39,9 @@ def check_predictors(method, f0_onnx=False):
 
 def check_embedders(hubert, embedders_mode="fairseq"):
     huggingface_url = codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/erfbyir/znva/rzorqqref/", "rot13")
+    if embedders_mode == "spin": embedders_mode, hubert = "transformers", "spin"
 
-    if hubert in ["contentvec_base", "hubert_base", "japanese_hubert_base", "korean_hubert_base", "chinese_hubert_base", "portuguese_hubert_base"]:
+    if hubert in ["contentvec_base", "hubert_base", "japanese_hubert_base", "korean_hubert_base", "chinese_hubert_base", "portuguese_hubert_base", "spin"]:
         if embedders_mode == "fairseq": hubert += ".pt"
         elif embedders_mode == "onnx": hubert += ".onnx"
 
@@ -51,13 +52,15 @@ def check_embedders(hubert, embedders_mode="fairseq"):
         elif embedders_mode == "onnx": 
             if not os.path.exists(model_path): huggingface.HF_download_file("".join([huggingface_url, "onnx/", hubert]), model_path)
         elif embedders_mode == "transformers":
+            url, hubert = ("transformers/", hubert) if hubert != "spin" else ("spin", "")
+
             bin_file = os.path.join(model_path, "model.safetensors")
             config_file = os.path.join(model_path, "config.json")
 
             os.makedirs(model_path, exist_ok=True)
 
-            if not os.path.exists(bin_file): huggingface.HF_download_file("".join([huggingface_url, "transformers/", hubert, "/model.safetensors"]), bin_file)
-            if not os.path.exists(config_file): huggingface.HF_download_file("".join([huggingface_url, "transformers/", hubert, "/config.json"]), config_file)
+            if not os.path.exists(bin_file): huggingface.HF_download_file("".join([huggingface_url, url, hubert, "/model.safetensors"]), bin_file)
+            if not os.path.exists(config_file): huggingface.HF_download_file("".join([huggingface_url, url, hubert, "/config.json"]), config_file)
         else: raise ValueError(translations["option_not_valid"])
     
 def check_spk_diarization(model_size):
@@ -69,15 +72,18 @@ def check_spk_diarization(model_size):
 
     for f in ["classifier.ckpt", "config.json", "embedding_model.ckpt", "hyperparams.yaml", "mean_var_norm_emb.ckpt"]:
         speechbrain_model = os.path.join(speechbrain_path, f)
+
         if not os.path.exists(speechbrain_model): huggingface.HF_download_file(codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/erfbyir/znva/fcrnxre_qvnevmngvba/fcrrpuoenva/", "rot13") + f, speechbrain_model)
 
 def check_audioldm2(model):
     for f in ["feature_extractor", "language_model", "projection_model", "scheduler", "text_encoder", "text_encoder_2", "tokenizer", "tokenizer_2", "unet", "vae", "vocoder"]:
         folder_path = os.path.join("assets", "models", "audioldm2", model, f)
+
         if not os.path.exists(folder_path): os.makedirs(folder_path, exist_ok=True)
 
     for f in ["feature_extractor/preprocessor_config.json","language_model/config.json","language_model/model.safetensors","model_index.json","projection_model/config.json","projection_model/diffusion_pytorch_model.safetensors","scheduler/scheduler_config.json","text_encoder/config.json","text_encoder/model.safetensors","text_encoder_2/config.json","text_encoder_2/model.safetensors","tokenizer/merges.txt","tokenizer/special_tokens_map.json","tokenizer/tokenizer.json","tokenizer/tokenizer_config.json","tokenizer/vocab.json","tokenizer_2/special_tokens_map.json","tokenizer_2/spiece.model","tokenizer_2/tokenizer.json","tokenizer_2/tokenizer_config.json","unet/config.json","unet/diffusion_pytorch_model.safetensors","vae/config.json","vae/diffusion_pytorch_model.safetensors","vocoder/config.json","vocoder/model.safetensors"]:
         model_path = os.path.join("assets", "models", "audioldm2", model, f)
+
         if not os.path.exists(model_path): huggingface.HF_download_file("".join([codecs.decode("uggcf://uhttvatsnpr.pb/NauC/Ivrganzrfr-EIP-Cebwrpg/erfbyir/znva/nhqvbyqz/", "rot13"), model, "/", f]), model_path)
 
 def load_audio(logger, file, sample_rate=16000, formant_shifting=False, formant_qfrency=0.8, formant_timbre=0.8):
@@ -108,6 +114,7 @@ def load_audio(logger, file, sample_rate=16000, formant_shifting=False, formant_
 def pydub_convert(audio):
     samples = np.frombuffer(audio.raw_data, dtype=np.int16)
     if samples.dtype != np.int16: samples = (samples * 32767).astype(np.int16)
+
     return AudioSegment(samples.tobytes(), frame_rate=audio.frame_rate, sample_width=samples.dtype.itemsize, channels=audio.channels)
 
 def pydub_load(input_path):
@@ -124,6 +131,7 @@ def pydub_load(input_path):
 def load_embedders_model(embedder_model, embedders_mode="fairseq", providers=None):
     if embedders_mode == "fairseq": embedder_model += ".pt"
     elif embedders_mode == "onnx": embedder_model += ".onnx"
+    elif embedders_mode == "spin": embedders_mode, embedder_model = "transformers", "spin"
 
     embedder_model_path = os.path.join("assets", "models", "embedders", embedder_model)
     if not os.path.exists(embedder_model_path): raise FileNotFoundError(f"{translations['not_found'].format(name=translations['model'])}: {embedder_model}")
@@ -133,6 +141,7 @@ def load_embedders_model(embedder_model, embedders_mode="fairseq", providers=Non
             from main.library.architectures import fairseq
 
             models, saved_cfg, _ = fairseq.load_model(embedder_model_path)
+            
             embed_suffix = ".pt"
             hubert_model = models[0]
         elif embedders_mode == "onnx":
@@ -140,6 +149,7 @@ def load_embedders_model(embedder_model, embedders_mode="fairseq", providers=Non
 
             sess_options = onnxruntime.SessionOptions()
             sess_options.log_severity_level = 3
+
             embed_suffix, saved_cfg = ".onnx", None
             hubert_model = onnxruntime.InferenceSession(embedder_model_path, sess_options=sess_options, providers=providers)
         elif embedders_mode == "transformers":

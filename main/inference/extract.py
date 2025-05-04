@@ -53,7 +53,7 @@ def generate_config(rvc_version, sample_rate, model_path):
     config_save_path = os.path.join(model_path, "config.json")
     if not os.path.exists(config_save_path): shutil.copy(os.path.join("main", "configs", rvc_version, f"{sample_rate}.json"), config_save_path)
 
-def generate_filelist(pitch_guidance, model_path, rvc_version, sample_rate):
+def generate_filelist(pitch_guidance, model_path, rvc_version, sample_rate, embedders_mode = "fairseq"):
     gt_wavs_dir, feature_dir = os.path.join(model_path, "sliced_audios"), os.path.join(model_path, f"{rvc_version}_extracted")
     f0_dir, f0nsf_dir = None, None
     
@@ -63,7 +63,7 @@ def generate_filelist(pitch_guidance, model_path, rvc_version, sample_rate):
     names = gt_wavs_files & feature_files & set(name.split(".")[0] for name in os.listdir(f0_dir)) & set(name.split(".")[0] for name in os.listdir(f0nsf_dir)) if pitch_guidance else gt_wavs_files & feature_files
 
     options = []
-    mute_base_path = os.path.join("assets", "logs", "mute")
+    mute_base_path = os.path.join("assets", "logs", "mute" if embedders_mode != "spin" else "mute_spin")
 
     for name in names:
         options.append(f"{gt_wavs_dir}/{name}.wav|{feature_dir}/{name}.npy|{f0_dir}/{name}.wav.npy|{f0nsf_dir}/{name}.wav.npy|0" if pitch_guidance else f"{gt_wavs_dir}/{name}.wav|{feature_dir}/{name}.npy|0")
@@ -348,7 +348,7 @@ def main():
         run_pitch_extraction(exp_dir, f0_method, hop_length, num_processes, gpus, f0_onnx, config.is_half)
         run_embedding_extraction(exp_dir, version, gpus, embedder_model, embedders_mode, config.is_half)
         generate_config(version, sample_rate, exp_dir)
-        generate_filelist(pitch_guidance, exp_dir, version, sample_rate)
+        generate_filelist(pitch_guidance, exp_dir, version, sample_rate, embedders_mode)
     except Exception as e:
         logger.error(f"{translations['extract_error']}: {e}")
         import traceback

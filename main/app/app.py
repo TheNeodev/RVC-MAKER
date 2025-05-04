@@ -68,12 +68,15 @@ if config.device in ["cpu", "mps"]  and configs.get("fp16", False):
         json.dump(configs, f, indent=4)
 
 models, model_options = {}, {}
+
 method_f0 = ["mangio-crepe-full", "crepe-full", "fcpe", "rmvpe", "harvest", "pyin"]
 method_f0_full = ["pm", "dio", "mangio-crepe-tiny", "mangio-crepe-small", "mangio-crepe-medium", "mangio-crepe-large", "mangio-crepe-full", "crepe-tiny", "crepe-small", "crepe-medium", "crepe-large", "crepe-full", "fcpe", "fcpe-legacy", "rmvpe", "rmvpe-legacy", "harvest", "yin", "pyin", "swipe"]
+
+embedders_mode = ["fairseq", "onnx", "transformers", "spin"]
 embedders_model = ["contentvec_base", "hubert_base", "japanese_hubert_base", "korean_hubert_base", "chinese_hubert_base", "portuguese_hubert_base", "custom"]
 
 paths_for_files = sorted([os.path.abspath(os.path.join(root, f)) for root, _, files in os.walk("audios") for f in files if os.path.splitext(f)[1].lower() in (".wav", ".mp3", ".flac", ".ogg", ".opus", ".m4a", ".mp4", ".aac", ".alac", ".wma", ".aiff", ".webm", ".ac3")])
-model_name, index_path, delete_index = sorted(list(model for model in os.listdir(os.path.join("assets", "weights")) if model.endswith((".pth", ".onnx")) and not model.startswith("G_") and not model.startswith("D_"))), sorted([os.path.join(root, name) for root, _, files in os.walk(os.path.join("assets", "logs"), topdown=False) for name in files if name.endswith(".index")]), sorted([os.path.join("assets", "logs", f) for f in os.listdir(os.path.join("assets", "logs")) if "mute" not in f and os.path.isdir(os.path.join("assets", "logs", f))])
+model_name, index_path, delete_index = sorted(list(model for model in os.listdir(os.path.join("assets", "weights")) if model.endswith((".pth", ".onnx")) and not model.startswith("G_") and not model.startswith("D_"))), sorted([os.path.join(root, name) for root, _, files in os.walk(os.path.join("assets", "logs"), topdown=False) for name in files if name.endswith(".index") and "trained" not in name]), sorted([os.path.join("assets", "logs", f) for f in os.listdir(os.path.join("assets", "logs")) if f not in ["mute", "mute_spin"] and os.path.isdir(os.path.join("assets", "logs", f))])
 pretrainedD, pretrainedG, Allpretrained = ([model for model in os.listdir(os.path.join("assets", "models", "pretrained_custom")) if model.endswith(".pth") and "D" in model], [model for model in os.listdir(os.path.join("assets", "models", "pretrained_custom")) if model.endswith(".pth") and "G" in model], [os.path.join("assets", "models", path, model) for path in ["pretrained_v1", "pretrained_v2", "pretrained_custom"] for model in os.listdir(os.path.join("assets", "models", path)) if model.endswith(".pth") and ("D" in model or "G" in model)])
 
 separate_model = sorted([os.path.join("assets", "models", "uvr5", models) for models in os.listdir(os.path.join("assets", "models", "uvr5")) if models.endswith((".th", ".yaml", ".onnx"))])
@@ -142,7 +145,7 @@ def change_separate_choices():
     return [{"choices": sorted([os.path.join("assets", "models", "uvr5", models) for models in os.listdir(os.path.join("assets", "models", "uvr5")) if model.endswith((".th", ".yaml", ".onnx"))]), "__type__": "update"}]
 
 def change_models_choices():
-    model, index = sorted(list(model for model in os.listdir(os.path.join("assets", "weights")) if model.endswith((".pth", ".onnx")) and not model.startswith("G_") and not model.startswith("D_"))), sorted([os.path.join(root, name) for root, _, files in os.walk(os.path.join("assets", "logs"), topdown=False) for name in files if name.endswith(".index")])
+    model, index = sorted(list(model for model in os.listdir(os.path.join("assets", "weights")) if model.endswith((".pth", ".onnx")) and not model.startswith("G_") and not model.startswith("D_"))), sorted([os.path.join(root, name) for root, _, files in os.walk(os.path.join("assets", "logs"), topdown=False) for name in files if name.endswith(".index") and "trained" not in name])
     return [{"value": model[0] if len(model) >= 1 else "", "choices": model, "__type__": "update"}, {"value": index[0] if len(index) >= 1 else "", "choices": index, "__type__": "update"}]
 
 def change_allpretrained_choices():
@@ -152,7 +155,7 @@ def change_pretrained_choices():
     return [{"choices": sorted([model for model in os.listdir(os.path.join("assets", "models", "pretrained_custom")) if model.endswith(".pth") and "D" in model]), "__type__": "update"}, {"choices": sorted([model for model in os.listdir(os.path.join("assets", "models", "pretrained_custom")) if model.endswith(".pth") and "G" in model]), "__type__": "update"}]
 
 def change_choices_del():
-    return [{"choices": sorted(list(model for model in os.listdir(os.path.join("assets", "weights")) if model.endswith(".pth") and not model.startswith("G_") and not model.startswith("D_"))), "__type__": "update"}, {"choices": sorted([os.path.join("assets", "logs", f) for f in os.listdir(os.path.join("assets", "logs")) if "mute" not in f and os.path.isdir(os.path.join("assets", "logs", f))]), "__type__": "update"}]
+    return [{"choices": sorted(list(model for model in os.listdir(os.path.join("assets", "weights")) if model.endswith(".pth") and not model.startswith("G_") and not model.startswith("D_"))), "__type__": "update"}, {"choices": sorted([os.path.join("assets", "logs", f) for f in os.listdir(os.path.join("assets", "logs")) if f not in ["mute", "mute_spin"] and os.path.isdir(os.path.join("assets", "logs", f))]), "__type__": "update"}]
 
 def change_preset_choices():
     return {"value": "", "choices": sorted(list(f for f in os.listdir(os.path.join("assets", "presets")) if f.endswith(".json"))), "__type__": "update"}
@@ -1526,6 +1529,9 @@ def unlock_vocoder(value, vocoder):
 def unlock_ver(value, vocoder):
     return {"value": "v2" if vocoder == "Default" else value, "interactive": vocoder == "Default", "__type__": "update"}
 
+def visible_embedders(value):
+    return {"visible": value != "spin", "__type__": "update"}
+
 
 
 with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style> @import url('{fonts}'); * {{font-family: 'Courgette', cursive !important;}} body, html {{font-family: 'Courgette', cursive !important;}} h1, h2, h3, h4, h5, h6, p, button, input, textarea, label, span, div, select {{font-family: 'Courgette', cursive !important;}} </style>".format(fonts=font or "https://fonts.googleapis.com/css2?family=Courgette&display=swap")) as app:
@@ -1692,9 +1698,9 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                             f0_file_dropdown = gr.Dropdown(label=translations["f0_file_2"], value="", choices=f0_file, allow_custom_value=True, interactive=True)
                             refesh_f0_file = gr.Button(translations["refesh"])
                         with gr.Accordion(translations["hubert_model"], open=False):
-                            embed_mode = gr.Radio(label=translations["embed_mode"], info=translations["embed_mode_info"], value="fairseq", choices=["fairseq", "onnx", "transformers"], interactive=True, visible=True)
+                            embed_mode = gr.Radio(label=translations["embed_mode"], info=translations["embed_mode_info"], value="fairseq", choices=embedders_mode, interactive=True, visible=True)
                             embedders = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=embedders_model, value="hubert_base", interactive=True)
-                            custom_embedders = gr.Textbox(label=translations["modelname"], info=translations["modelname_info"], value="", placeholder="hubert_base", interactive=True, visible=embedders.value == "custom")
+                            custom_embedders = gr.Textbox(label=translations["modelname"], info=translations["modelname_info"], value="", placeholder="hubert_base", interactive=True, visible=embedders.value == "custom")    
                         with gr.Accordion(translations["use_presets"], open=False):
                             with gr.Row():
                                 presets_name = gr.Dropdown(label=translations["file_preset"], choices=presets_file, value=presets_file[0] if len(presets_file) > 0 else '', interactive=True, allow_custom_value=True)
@@ -1884,6 +1890,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                     outputs=[audio_select, main_convert, backing_convert, main_backing, original_convert, vocal_instrument, convert_button],
                     api_name="convert_selection"
                 )
+                embed_mode.change(fn=visible_embedders, inputs=[embed_mode], outputs=[embedders])
                 convert_button_2.click(
                     fn=convert_audio,
                     inputs=[
@@ -1985,7 +1992,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                                 hybrid_method3 = gr.Dropdown(label=translations["f0_method_hybrid"], info=translations["f0_method_hybrid_info"], choices=["hybrid[pm+dio]", "hybrid[pm+crepe-tiny]", "hybrid[pm+crepe]", "hybrid[pm+fcpe]", "hybrid[pm+rmvpe]", "hybrid[pm+harvest]", "hybrid[pm+yin]", "hybrid[dio+crepe-tiny]", "hybrid[dio+crepe]", "hybrid[dio+fcpe]", "hybrid[dio+rmvpe]", "hybrid[dio+harvest]", "hybrid[dio+yin]", "hybrid[crepe-tiny+crepe]", "hybrid[crepe-tiny+fcpe]", "hybrid[crepe-tiny+rmvpe]", "hybrid[crepe-tiny+harvest]", "hybrid[crepe+fcpe]", "hybrid[crepe+rmvpe]", "hybrid[crepe+harvest]", "hybrid[crepe+yin]", "hybrid[fcpe+rmvpe]", "hybrid[fcpe+harvest]", "hybrid[fcpe+yin]", "hybrid[rmvpe+harvest]", "hybrid[rmvpe+yin]", "hybrid[harvest+yin]"], value="hybrid[pm+dio]", interactive=True, allow_custom_value=True, visible=method3.value == "hybrid")
                             hop_length3 = gr.Slider(label="Hop length", info=translations["hop_length_info"], minimum=1, maximum=512, value=128, step=1, interactive=True, visible=False)
                         with gr.Accordion(translations["hubert_model"], open=False):
-                            embed_mode3 = gr.Radio(label=translations["embed_mode"], info=translations["embed_mode_info"], value="fairseq", choices=["fairseq", "onnx", "transformers"], interactive=True, visible=True)
+                            embed_mode3 = gr.Radio(label=translations["embed_mode"], info=translations["embed_mode_info"], value="fairseq", choices=embedders_mode, interactive=True, visible=True)
                             embedders3 = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=embedders_model, value="hubert_base", interactive=True)
                             custom_embedders3 = gr.Textbox(label=translations["modelname"], info=translations["modelname_info"], value="", placeholder="hubert_base", interactive=True, visible=embedders3.value == "custom")
                         with gr.Column():      
@@ -2028,6 +2035,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                 model_index3.change(fn=index_strength_show, inputs=[model_index3], outputs=[index_strength3])
             with gr.Row():
                 unlock_full_method2.change(fn=unlock_f0, inputs=[unlock_full_method2], outputs=[method3])
+                embed_mode3.change(fn=visible_embedders, inputs=[embed_mode3], outputs=[embedders3])
                 convert_button3.click(
                     fn=convert_with_whisper,
                     inputs=[
@@ -2119,7 +2127,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                             f0_file_dropdown0 = gr.Dropdown(label=translations["f0_file_2"], value="", choices=f0_file, allow_custom_value=True, interactive=True)
                             refesh_f0_file0 = gr.Button(translations["refesh"])
                         with gr.Accordion(translations["hubert_model"], open=False):
-                            embed_mode1 = gr.Radio(label=translations["embed_mode"], info=translations["embed_mode_info"], value="fairseq", choices=["fairseq", "onnx", "transformers"], interactive=True, visible=True)
+                            embed_mode1 = gr.Radio(label=translations["embed_mode"], info=translations["embed_mode_info"], value="fairseq", choices=embedders_mode, interactive=True, visible=True)
                             embedders0 = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=embedders_model, value="hubert_base", interactive=True)
                             custom_embedders0 = gr.Textbox(label=translations["modelname"], info=translations["modelname_info"], value="", placeholder="hubert_base", interactive=True, visible=embedders0.value == "custom")
                         with gr.Group():
@@ -2149,6 +2157,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                 upload_f0_file0.upload(fn=lambda inp: shutil.move(inp.name, os.path.join("assets", "f0")), inputs=[upload_f0_file0], outputs=[f0_file_dropdown0])
                 refesh_f0_file0.click(fn=change_f0_choices, inputs=[], outputs=[f0_file_dropdown0])
             with gr.Row():
+                embed_mode1.change(fn=visible_embedders, inputs=[embed_mode1], outputs=[embedders0])
                 autotune3.change(fn=visible, inputs=[autotune3], outputs=[f0_autotune_strength0])
                 model_pth0.change(fn=get_index, inputs=[model_pth0], outputs=[model_index0])
             with gr.Row():
@@ -2572,7 +2581,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                                 extract_hop_length = gr.Slider(label="Hop length", info=translations["hop_length_info"], minimum=1, maximum=512, value=128, step=1, interactive=True, visible=False)
                             with gr.Accordion(label=translations["hubert_model"], open=False):
                                 with gr.Group():
-                                    embed_mode2 = gr.Radio(label=translations["embed_mode"], info=translations["embed_mode_info"], value="fairseq", choices=["fairseq", "onnx", "transformers"], interactive=True, visible=True)
+                                    embed_mode2 = gr.Radio(label=translations["embed_mode"], info=translations["embed_mode_info"], value="fairseq", choices=embedders_mode, interactive=True, visible=True)
                                     extract_embedders = gr.Radio(label=translations["hubert_model"], info=translations["hubert_info"], choices=embedders_model, value="hubert_base", interactive=True)
                                 with gr.Row():
                                     extract_embedders_custom = gr.Textbox(label=translations["modelname"], info=translations["modelname_info"], value="", placeholder="hubert_base", interactive=True, visible=extract_embedders.value == "custom")
@@ -2680,6 +2689,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
                     api_name="preprocess"
                 )
             with gr.Row():
+                embed_mode2.change(fn=visible_embedders, inputs=[embed_mode2], outputs=[extract_embedders])
                 extract_method.change(fn=hoplength_show, inputs=[extract_method], outputs=[extract_hop_length])
                 extract_embedders.change(fn=lambda extract_embedders: visible(extract_embedders == "custom"), inputs=[extract_embedders], outputs=[extract_embedders_custom])
             with gr.Row():
