@@ -30,7 +30,7 @@ translations = config.translations
 logger.propagate = False
 
 warnings.filterwarnings("ignore")
-for l in ["torch", "faiss", "httpx", "fairseq", "httpcore", "faiss.loader", "numba.core", "urllib3", "matplotlib"]:
+for l in ["torch", "faiss", "httpx", "httpcore", "faiss.loader", "numba.core", "urllib3", "matplotlib"]:
     logging.getLogger(l).setLevel(logging.ERROR)
 
 def parse_arguments():
@@ -92,7 +92,7 @@ def read_wave(wav_path, normalize = False, is_half = False):
     wav, sr = sf.read(wav_path, dtype=np.float32)
     assert sr == 16000, translations["sr_not_16000"]
 
-    feats = torch.from_numpy(wav).float()
+    feats = torch.from_numpy(wav)
     if feats.dim() == 2: feats = feats.mean(-1)
     feats = feats.view(1, -1)
 

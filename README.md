@@ -64,6 +64,8 @@ EMBEDDERS_ONNX: Tất cả mô hình nhúng ở trên điều có phiên bản �
 
 EMBEDDERS_TRANSFORMERS: Tất cả mô hình nhúng ở trên điều có phiên bản được chuyển đổi sẳn sang huggingface để sử dụng thay thế cho fairseq
 
+SPIN_EMBEDDERS: Một mô hình trích xuất nhúng mới, có thể mang đến chất lượng cao hơn các trích xuất cũ.
+
 # Hướng dẫn sử dụng
 
 **Sẽ có nếu tôi thực sự rảnh...**
@@ -121,7 +123,39 @@ Vietnamese-RVC-main
 ├── assets
 │   ├── f0
 │   ├── languages
+│   │   ├── en-US.json
+│   │   └── vi-VN.json
 │   ├── logs
+│   │   ├── mute
+│   │   │   ├── f0
+│   │   │   │   └── mute.wav.npy
+│   │   │   ├── f0_voiced
+│   │   │   │   └── mute.wav.npy
+│   │   │   ├── sliced_audios
+│   │   │   │   ├── mute32000.wav
+│   │   │   │   ├── mute40000.wav
+│   │   │   │   └── mute48000.wav
+│   │   │   ├── sliced_audios_16k
+│   │   │   │   └── mute.wav
+│   │   │   ├── v1_extracted
+│   │   │   │   └── mute.npy
+│   │   │   └── v2_extracted
+│   │   │       └── mute.npy
+│   │   └── mute_spin
+│   │       ├── f0
+│   │       │   └── mute.wav.npy
+│   │       ├── f0_voiced
+│   │       │   └── mute.wav.npy
+│   │       ├── sliced_audios
+│   │       │   ├── mute32000.wav
+│   │       │   ├── mute40000.wav
+│   │       │   └── mute48000.wav
+│   │       ├── sliced_audios_16k
+│   │       │   └── mute.wav
+│   │       ├── v1_extracted
+│   │       │   └── mute.npy
+│   │       └── v2_extracted
+│   │           └── mute.npy
 │   ├── models
 │   │   ├── audioldm2
 │   │   ├── embedders
@@ -131,89 +165,104 @@ Vietnamese-RVC-main
 │   │   ├── pretrained_v2
 │   │   ├── speaker_diarization
 │   │   │   ├── assets
+│   │   │   │   ├── gpt2.tiktoken
+│   │   │   │   ├── mel_filters.npz
+│   │   │   │   └── multilingual.tiktoken
 │   │   │   └── models
 │   │   └── uvr5
 │   ├── presets
-│   └── weights
+│   ├── weights
+│   └── ico.png
 ├── audios
 ├── dataset
-└── main
-    ├── app
-    │   ├── app.py
-    │   ├── tensorboard.py
-    │   └── parser.py
-    ├── configs
-    │   ├── v1
-    │   │   ├── 32000.json
-    │   │   ├── 40000.json
-    │   │   └── 48000.json
-    │   ├── v2
-    │   │   ├── 32000.json
-    │   │   ├── 40000.json
-    │   │   └── 48000.json
-    │   ├── config.json
-    │   └── config.py
-    ├── inference
-    │   ├── audio_effects.py
-    │   ├── audioldm2.py
-    │   ├── convert.py
-    │   ├── create_dataset.py
-    │   ├── create_index.py
-    │   ├── extract.py
-    │   ├── preprocess.py
-    │   ├── separator_music.py
-    │   └── train.py
-    ├── library
-    │   ├── algorithm
-    │   │   ├── commons.py
-    │   │   ├── modules.py
-    │   │   ├── mrf_hifigan.py
-    │   │   ├── onnx_export.py
-    │   │   ├── refinegan.py
-    │   │   ├── residuals.py
-    │   │   ├── separator.py
-    │   │   └── stftpitchshift.py
-    │   ├── architectures
-    │   │   ├── demucs_separator.py
-    │   │   ├── fairseq.py
-    │   │   └── mdx_separator.py
-    │   ├── audioldm2
-    │   │   ├── models.py
-    │   │   └── utils.py
-    │   ├── predictors
-    │   │   ├── CREPE.py
-    │   │   ├── FCPE.py
-    │   │   ├── RMVPE.py
-    │   │   ├── SWIPE.py
-    │   │   └── WORLD_WRAPPER.py
-    │   ├── speaker_diarization
-    │   │   ├── audio.py
-    │   │   ├── ECAPA_TDNN.py
-    │   │   ├── embedding.py
-    │   │   ├── encoder.py
-    │   │   ├── features.py
-    │   │   ├── parameter_transfer.py
-    │   │   ├── segment.py
-    │   │   ├── speechbrain.py
-    │   │   └── whisper.py
-    │   ├── uvr5_separator
-    │   │   ├── common_separator.py
-    │   │   ├── spec_utils.py
-    │   │   └── demucs
-    │   │       ├── apply.py
-    │   │       ├── demucs.py
-    │   │       ├── hdemucs.py
-    │   │       ├── htdemucs.py
-    │   │       ├── states.py
-    │   │       └── utils.py
-    │   └── utils.py
-    └── tools
-        ├── gdown.py
-        ├── huggingface.py
-        ├── mediafire.py
-        ├── meganz.py
-        ├── noisereduce.py
-        └── pixeldrain.py
+├── main
+│   ├── app
+│   │   ├── app.py
+│   │   ├── tensorboard.py
+│   │   └── parser.py
+│   ├── configs
+│   │   ├── v1
+│   │   │   ├── 32000.json
+│   │   │   ├── 40000.json
+│   │   │   └── 48000.json
+│   │   ├── v2
+│   │   │   ├── 32000.json
+│   │   │   ├── 40000.json
+│   │   │   └── 48000.json
+│   │   ├── config.json
+│   │   └── config.py
+│   ├── inference
+│   │   ├── audio_effects.py
+│   │   ├── audioldm2.py
+│   │   ├── convert.py
+│   │   ├── create_dataset.py
+│   │   ├── create_index.py
+│   │   ├── extract.py
+│   │   ├── preprocess.py
+│   │   ├── separator_music.py
+│   │   └── train.py
+│   ├── library
+│   │   ├── algorithm
+│   │   │   ├── commons.py
+│   │   │   ├── modules.py
+│   │   │   ├── mrf_hifigan.py
+│   │   │   ├── onnx_export.py
+│   │   │   ├── refinegan.py
+│   │   │   ├── residuals.py
+│   │   │   ├── separator.py
+│   │   │   └── stftpitchshift.py
+│   │   ├── architectures
+│   │   │   ├── demucs_separator.py
+│   │   │   ├── fairseq.py
+│   │   │   └── mdx_separator.py
+│   │   ├── audioldm2
+│   │   │   ├── models.py
+│   │   │   └── utils.py
+│   │   ├── predictors
+│   │   │   ├── CREPE.py
+│   │   │   ├── FCPE.py
+│   │   │   ├── RMVPE.py
+│   │   │   ├── SWIPE.py
+│   │   │   └── WORLD_WRAPPER.py
+│   │   ├── speaker_diarization
+│   │   │   ├── audio.py
+│   │   │   ├── ECAPA_TDNN.py
+│   │   │   ├── embedding.py
+│   │   │   ├── encoder.py
+│   │   │   ├── features.py
+│   │   │   ├── parameter_transfer.py
+│   │   │   ├── segment.py
+│   │   │   ├── speechbrain.py
+│   │   │   └── whisper.py
+│   │   ├── uvr5_separator
+│   │   │   ├── common_separator.py
+│   │   │   ├── spec_utils.py
+│   │   │   └── demucs
+│   │   │       ├── apply.py
+│   │   │       ├── demucs.py
+│   │   │       ├── hdemucs.py
+│   │   │       ├── htdemucs.py
+│   │   │       ├── states.py
+│   │   │       └── utils.py
+│   │   └── utils.py
+│   └── tools
+│       ├── gdown.py
+│       ├── huggingface.py
+│       ├── mediafire.py
+│       ├── meganz.py
+│       ├── noisereduce.py
+│       └── pixeldrain.py
+├── docker-compose-cpu.yaml
+├── docker-compose-cuda118.yaml
+├── docker-compose-cuda128.yaml
+├── Dockerfile
+├── Dockerfile.cuda118
+├── Dockerfile.cuda128
+├── LICENSE
+├── README.md
+├── requirements.txt
+├── run_app.bat
+└── tensorboard.bat
 </pre>
 
 # LƯU Ý
@@ -232,30 +281,28 @@ Vietnamese-RVC-main
 
 - Tôi sẽ không chịu trách nhiệm với bất kỳ thiệt hại trực tiếp hoặc gián tiếp nào phát sinh từ việc sử dụng dự án này.
 
-# Dự án này dựa trên một số dự án chính như
+# Dự án này được xây dựng dựa trên các dự án như sau
 
-- **[Applio](https://github.com/IAHispano/Applio/tree/main)**
-- **[Python-audio-separator](https://github.com/nomadkaraoke/python-audio-separator/tree/main)**
-- **[Retrieval-based-Voice-Conversion-WebUI](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/tree/main)**
-
-**và một số dự án khác**
-
-- **[RVC-ONNX-INFER-BY-Anh](https://github.com/PhamHuynhAnh16/RVC_Onnx_Infer)**
-- **[Torch-Onnx-Crepe-By-Anh](https://github.com/PhamHuynhAnh16/TORCH-ONNX-CREPE)**
-- **[Hubert-No-Fairseq](https://github.com/PhamHuynhAnh16/hubert-no-fairseq)**
-- **[Local-attention](https://github.com/lucidrains/local-attention)**
-- **[TorchFcpe](https://github.com/CNChTu/FCPE/tree/main)**
-- **[FcpeONNX](https://github.com/deiteris/voice-changer/blob/master-custom/server/utils/fcpe_onnx.py)**
-- **[ContentVec](https://github.com/auspicious3000/contentvec)**
-- **[Mediafiredl](https://github.com/Gann4Life/mediafiredl)**
-- **[Noisereduce](https://github.com/timsainb/noisereduce)**
-- **[World.py-By-Anh](https://github.com/PhamHuynhAnh16/world.py)**
-- **[Mega.py](https://github.com/odwyersoftware/mega.py)**
-- **[Gdown](https://github.com/wkentaro/gdown)**
-- **[Whisper](https://github.com/openai/whisper)**
-- **[PyannoteAudio](https://github.com/pyannote/pyannote-audio)**
-- **[AudioEditingCode](https://github.com/HilaManor/AudioEditingCode)**
-- **[StftPitchShift](https://github.com/jurihock/stftPitchShift)**
+- **[Applio](https://github.com/IAHispano/Applio/tree/main)** - IAHispano - MIT License
+- **[Python-audio-separator](https://github.com/nomadkaraoke/python-audio-separator/tree/main)** - Nomad Karaoke - MIT License
+- **[Retrieval-based-Voice-Conversion-WebUI](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/tree/main)** - RVC Project - MIT License
+- **[RVC-ONNX-INFER-BY-Anh](https://github.com/PhamHuynhAnh16/RVC_Onnx_Infer)** - Phạm Huỳnh Anh - MIT License
+- **[Torch-Onnx-Crepe-By-Anh](https://github.com/PhamHuynhAnh16/TORCH-ONNX-CREPE)** - Phạm Huỳnh Anh - MIT License
+- **[Hubert-No-Fairseq](https://github.com/PhamHuynhAnh16/hubert-no-fairseq)** - Phạm Huỳnh Anh - MIT License
+- **[Local-attention](https://github.com/lucidrains/local-attention)** - Phil Wang - MIT License
+- **[TorchFcpe](https://github.com/CNChTu/FCPE/tree/main)** - CN_ChiTu - MIT License
+- **[FcpeONNX](https://github.com/deiteris/voice-changer/blob/master-custom/server/utils/fcpe_onnx.py)** - Yury - MIT License
+- **[ContentVec](https://github.com/auspicious3000/contentvec)** - Kaizhi Qian - MIT License
+- **[Mediafiredl](https://github.com/Gann4Life/mediafiredl)** - Santiago Ariel Mansilla - MIT License
+- **[Noisereduce](https://github.com/timsainb/noisereduce)** - Tim Sainburg - MIT License
+- **[World.py-By-Anh](https://github.com/PhamHuynhAnh16/world.py)** - Phạm Huỳnh Anh - MIT License
+- **[Mega.py](https://github.com/odwyersoftware/mega.py)** - O'Dwyer Software - Apache 2.0 License
+- **[Gdown](https://github.com/wkentaro/gdown)** - Kentaro Wada - MIT License
+- **[Whisper](https://github.com/openai/whisper)** - OpenAI - MIT License
+- **[PyannoteAudio](https://github.com/pyannote/pyannote-audio)** - pyannote - MIT License
+- **[AudioEditingCode](https://github.com/HilaManor/AudioEditingCode)** - Hila Manor - MIT License
+- **[StftPitchShift](https://github.com/jurihock/stftPitchShift)** - Jürgen Hock - MIT License
+- **[Codename-RVC-Fork-3](https://github.com/codename0og/codename-rvc-fork-3)** - Codename;0 - MIT License
 
 # Kho mô hình của công cụ tìm kiếm mô hình
 

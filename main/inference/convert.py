@@ -33,7 +33,7 @@ translations = config.translations
 logger = logging.getLogger(__name__)
 logger.propagate = False
 
-for l in ["torch", "faiss", "httpx", "fairseq", "httpcore", "faiss.loader", "numba.core", "urllib3", "transformers", "matplotlib"]:
+for l in ["torch", "faiss", "httpx", "httpcore", "faiss.loader", "numba.core", "urllib3", "transformers", "matplotlib"]:
     logging.getLogger(l).setLevel(logging.ERROR)
 
 if logger.hasHandlers(): logger.handlers.clear()
