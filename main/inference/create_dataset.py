@@ -115,7 +115,7 @@ def main():
             
             if clean_dataset: 
                 from main.tools.noisereduce import reduce_noise
-                data = reduce_noise(y=data, prop_decrease=clean_strength, device=config.device)
+                data = reduce_noise(y=data, sr=sample_rate, prop_decrease=clean_strength, device=config.device)
 
             write(audio_path, data, sample_rate)
     except Exception as e:

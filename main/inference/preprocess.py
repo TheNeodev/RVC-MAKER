@@ -7,6 +7,7 @@ import argparse
 import logging.handlers
 
 import numpy as np
+import torch.multiprocessing as mp
 
 from tqdm import tqdm
 from scipy import signal
@@ -45,7 +46,6 @@ class Slicer:
     def __init__(self, sr, threshold = -40.0, min_length = 5000, min_interval = 300, hop_size = 20, max_sil_kept = 5000):
         if not min_length >= min_interval >= hop_size: raise ValueError(translations["min_length>=min_interval>=hop_size"])
         if not max_sil_kept >= hop_size: raise ValueError(translations["max_sil_kept>=hop_size"])
-
         min_interval = sr * min_interval / 1000
         self.threshold = 10 ** (threshold / 20.0)
         self.hop_size = round(sr * hop_size / 1000)
@@ -191,7 +191,6 @@ def process_file(args):
 
 def preprocess_training_set(input_root, sr, num_processes, exp_dir, per, cut_preprocess, process_effects, clean_dataset, clean_strength):
     start_time = time.time()
-
     pp = PreProcess(sr, exp_dir, per)
     logger.info(translations["start_preprocess"].format(num_processes=num_processes))
     files = []
@@ -228,7 +227,6 @@ def main():
 
     num_processes = args.cpu_cores
     num_processes = 2 if num_processes is None else int(num_processes)
-
     dataset, sample_rate, cut_preprocess, preprocess_effects, clean_dataset, clean_strength = args.dataset_path, args.sample_rate, args.cut_preprocess, args.process_effects, args.clean_dataset, args.clean_strength
 
     os.makedirs(experiment_directory, exist_ok=True)
@@ -267,4 +265,6 @@ def main():
     if os.path.exists(pid_path): os.remove(pid_path)
     logger.info(f"{translations['preprocess_model_success']} {args.model_name}")
 
-if __name__ == "__main__": main()
+if __name__ == "__main__": 
+    mp.set_start_method("spawn", force=True)
+    main()
