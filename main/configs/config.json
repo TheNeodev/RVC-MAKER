@@ -522,7 +522,7 @@
         "zh-TW",
         "zh"
     ],
-    "fp16": true,
+    "fp16": false,
     "separator_tab": true,
     "convert_tab": true,
     "convert_with_whisper": true,
