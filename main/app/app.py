@@ -1521,7 +1521,7 @@ def change_fp(fp):
         return "fp16" if fp16 else "fp32"
 
 def unlock_f0(value):
-    return {"choices": method_f0_full if value else method_f0, "__type__": "update"} 
+    return {"choices": method_f0_full if value else method_f0, "value": "rmvpe", "__type__": "update"} 
 
 def unlock_vocoder(value, vocoder):
     return {"value": vocoder if value == "v2" else "Default", "interactive": value == "v2", "__type__": "update"} 
