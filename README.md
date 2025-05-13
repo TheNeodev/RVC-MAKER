@@ -1,7 +1,5 @@
 <div align="center">
 <img alt="LOGO" src="assets/ico.png" width="300" height="300" />
-
-# RVC MAKER
 A high-quality voice conversion tool focused on ease of use and performance.
 
 [![RVC MAKER](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/TheNeodev/RVC-MAKER)
