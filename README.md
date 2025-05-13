@@ -123,6 +123,9 @@ python main\app\parser.py --help
 
 # This Project is Built Based on the Following Projects
 
+
+- **[Vietnamese-RVC](https://github.com/PhamHuynhAnh16/Vietnamese-RVC)** -  PhamHuynhAnh16 - Apache License Version 2.0
+                           
 - **[Applio](https://github.com/IAHispano/Applio/tree/main)** - IAHispano - MIT License
 - **[Python-audio-separator](https://github.com/nomadkaraoke/python-audio-separator/tree/main)** - Nomad Karaoke - MIT License
 - **[Retrieval-based-Voice-Conversion-WebUI](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/tree/main)** - RVC Project - MIT License
