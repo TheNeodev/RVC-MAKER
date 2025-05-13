@@ -1534,10 +1534,9 @@ def visible_embedders(value):
 
 
 
-with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style> @import url('{fonts}'); * {{font-family: 'Courgette', cursive !important;}} body, html {{font-family: 'Courgette', cursive !important;}} h1, h2, h3, h4, h5, h6, p, button, input, textarea, label, span, div, select {{font-family: 'Courgette', cursive !important;}} </style>".format(fonts=font or "https://fonts.googleapis.com/css2?family=Courgette&display=swap")) as app:
-    gr.HTML("<h1 style='text-align: center;'>🎵VIETNAMESE RVC BY ANH🎵</h1>")
-    gr.HTML(f"<h3 style='text-align: center;'>{translations['title']}</h3>")
-
+with gr.Blocks(title=" Ultimate RVC Maker ⚡", theme=theme, css="<style> @import url('{fonts}'); * {{font-family: 'Courgette', cursive !important;}} body, html {{font-family: 'Courgette', cursive !important;}} h1, h2, h3, h4, h5, h6, p, button, input, textarea, label, span, div, select {{font-family: 'Courgette', cursive !important;}} </style>".format(fonts=font or "https://fonts.googleapis.com/css2?family=Courgette&display=swap")) as app:
+    gr.HTML("<h1 style='text-align: center;'>Ultimate RVC Maker ⚡</h1>")
+    
     with gr.Tabs():      
         with gr.TabItem(translations["separator_tab"], visible=configs.get("separator_tab", True)):
             gr.Markdown(f"## {translations['separator_tab']}")
@@ -3048,8 +3047,7 @@ with gr.Blocks(title="📱 Vietnamese-RVC GUI BY ANH", theme=theme, css="<style>
             with gr.Row():
                 report_button.click(fn=report_bug, inputs=[report_text, agree_log], outputs=[])
 
-    with gr.Row(): 
-        gr.Markdown(translations["rick_roll"].format(rickroll=codecs.decode('uggcf://jjj.lbhghor.pbz/jngpu?i=qDj4j9JtKpD', 'rot13')))
+    
     with gr.Row(): 
         gr.Markdown(translations["terms_of_use"])
     with gr.Row():
