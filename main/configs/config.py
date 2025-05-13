@@ -28,14 +28,14 @@ class Config:
     
     def multi_language(self):
         try:
-            lang = self.configs.get("language", "vi-VN")
+            lang = self.configs.get("language", "en-US")
             if len([l for l in os.listdir(os.path.join("assets", "languages")) if l.endswith(".json")]) < 1: raise FileNotFoundError("Không tìm thấy bất cứ gói ngôn ngữ nào(No package languages found)")
 
-            if not lang: lang = "vi-VN"
-            if lang not in self.configs["support_language"]: raise ValueError("Ngôn ngữ không được hỗ trợ(Language not supported)")
+            if not lang: lang = "en-US"
+            if lang not in self.configs["support_language"]: raise ValueError("Language not supported....")
 
             lang_path = os.path.join("assets", "languages", f"{lang}.json")
-            if not os.path.exists(lang_path): lang_path = os.path.join("assets", "languages", "vi-VN.json")
+            if not os.path.exists(lang_path): lang_path = os.path.join("assets", "languages", "en-US.json")
 
             with open(lang_path, encoding="utf-8") as f:
                 translations = json.load(f)
