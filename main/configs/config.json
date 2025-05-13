@@ -539,7 +539,7 @@
     "f0_extractor_tab": true,
     "settings_tab": true,
     "report_bug_tab": true,
-    "font": "https://fonts.googleapis.com/css2?family=Shadows+Into+Light&display=swap",
+    "font": "",
     "app_port": 7860,
     "tensorboard_port": 6870,
     "num_of_restart": 5,
