@@ -107,7 +107,7 @@ python main\app\parser.py --help
 
 # NOTES
 
-- **This project only supports NVIDIA GPUs (AMD support may be added later if I have an AMD GPU to test with)**
+- **This project only supports NVIDIA GPUs**
 - **Currently, new encoders like MRF HIFIGAN do not yet have complete pre-trained datasets**
 - **MRF HIFIGAN and REFINEGAN encoders do not support training without pitch training**
 
