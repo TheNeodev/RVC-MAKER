@@ -1662,16 +1662,16 @@ with gr.Blocks(title=" Ultimate RVC Maker ⚡", theme=theme) as app:
                             convert_button_2 = gr.Button(translations["convert_audio"], visible=False)
             with gr.Row():
                 with gr.Column():
-                    convert_button = gr.Button(translations["convert_audio"], variant="primary")
+                    with gr.Accordion(translations["model_accordion"], open=True):
+                        with gr.Row():
+                            model_pth = gr.Dropdown(label=translations["model_name"], choices=model_name, value=model_name[0] if len(model_name) >= 1 else "", interactive=True, allow_custom_value=True)
+                            model_index = gr.Dropdown(label=translations["index_path"], choices=index_path, value=index_path[0] if len(index_path) >= 1 else "", interactive=True, allow_custom_value=True)
+                    
             with gr.Row():
                 with gr.Column():
                     input0 = gr.File(label=translations["drop_audio"], file_types=[".wav", ".mp3", ".flac", ".ogg", ".opus", ".m4a", ".mp4", ".aac", ".alac", ".wma", ".aiff", ".webm", ".ac3"])  
                     play_audio = gr.Audio(show_download_button=True, interactive=False, label=translations["input_audio"])
                 with gr.Column():
-                    with gr.Accordion(translations["model_accordion"], open=True):
-                        with gr.Row():
-                            model_pth = gr.Dropdown(label=translations["model_name"], choices=model_name, value=model_name[0] if len(model_name) >= 1 else "", interactive=True, allow_custom_value=True)
-                            model_index = gr.Dropdown(label=translations["index_path"], choices=index_path, value=index_path[0] if len(index_path) >= 1 else "", interactive=True, allow_custom_value=True)
                         with gr.Row():
                             refesh = gr.Button(translations["refesh"])
                         with gr.Row():
@@ -1740,6 +1740,7 @@ with gr.Blocks(title=" Ultimate RVC Maker ⚡", theme=theme) as app:
                             formant_qfrency = gr.Slider(value=1.0, label=translations["formant_qfrency"], info=translations["formant_qfrency"], minimum=0.0, maximum=16.0, step=0.1, interactive=True, visible=False)
                             formant_timbre = gr.Slider(value=1.0, label=translations["formant_timbre"], info=translations["formant_timbre"], minimum=0.0, maximum=16.0, step=0.1, interactive=True, visible=False)
             with gr.Row():
+                convert_button = gr.Button(translations["convert_audio"], variant="primary")
                 gr.Markdown(translations["output_convert"])
             with gr.Row():
                 main_convert = gr.Audio(show_download_button=True, interactive=False, label=translations["main_convert"])
