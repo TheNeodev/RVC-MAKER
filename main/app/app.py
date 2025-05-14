@@ -1676,6 +1676,7 @@ with gr.Blocks(title=" Ultimate RVC Maker ⚡", theme=theme) as app:
                             refesh = gr.Button(translations["refesh"])
                         with gr.Row():
                             index_strength = gr.Slider(label=translations["index_strength"], info=translations["index_strength_info"], minimum=0, maximum=1, value=0.5, step=0.01, interactive=True, visible=model_index.value != "")
+                with gr.Column():
                     with gr.Accordion(translations["input_output"], open=False):
                         with gr.Column():
                             export_format = gr.Radio(label=translations["export_format"], info=translations["export_info"], choices=["wav", "mp3", "flac", "ogg", "opus", "m4a", "mp4", "aac", "alac", "wma", "aiff", "webm", "ac3"], value="wav", interactive=True)
