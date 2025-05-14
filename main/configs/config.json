@@ -5,7 +5,7 @@
         "id_Id",
         "vi-VN"
     ],
-    "theme": "aliabid94/new-theme",
+    "theme": "gradio/base",
     "themes": [
         "NoCrypt/miku",
         "gstaff/xkcd",
