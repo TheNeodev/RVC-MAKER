@@ -1647,6 +1647,7 @@ with gr.Blocks(title=" Ultimate RVC Maker ⚡", theme=theme) as app:
                         with gr.Row():
                             model_pth = gr.Dropdown(label=translations["model_name"], choices=model_name, value=model_name[0] if len(model_name) >= 1 else "", interactive=True, allow_custom_value=True)
                             model_index = gr.Dropdown(label=translations["index_path"], choices=index_path, value=index_path[0] if len(index_path) >= 1 else "", interactive=True, allow_custom_value=True)
+                        refesh = gr.Button(translations["refesh"])
                     
             with gr.Row(): 
                 with gr.Column():
@@ -1657,10 +1658,8 @@ with gr.Blocks(title=" Ultimate RVC Maker ⚡", theme=theme) as app:
                     input0 = gr.File(label=translations["drop_audio"], file_types=[".wav", ".mp3", ".flac", ".ogg", ".opus", ".m4a", ".mp4", ".aac", ".alac", ".wma", ".aiff", ".webm", ".ac3"])  
                     play_audio = gr.Audio(show_download_button=True, interactive=False, label=translations["input_audio"])
                 with gr.Column():
-                        with gr.Row():
-                            refesh = gr.Button(translations["refesh"])
-                        with gr.Row():
-                            index_strength = gr.Slider(label=translations["index_strength"], info=translations["index_strength_info"], minimum=0, maximum=1, value=0.5, step=0.01, interactive=True, visible=model_index.value != "")
+                    with gr.Row():
+                        index_strength = gr.Slider(label=translations["index_strength"], info=translations["index_strength_info"], minimum=0, maximum=1, value=0.5, step=0.01, interactive=True, visible=model_index.value != "")
                 with gr.Column():
                     with gr.Accordion(translations["input_output"], open=False):
                         with gr.Column():
