@@ -1640,26 +1640,7 @@ with gr.Blocks(title=" Ultimate RVC Maker ⚡", theme=theme) as app:
             gr.Markdown(f"## {translations['convert_audio']}")
             with gr.Row():
                 gr.Markdown(translations["convert_info"])
-            with gr.Row():
-                with gr.Column():
-                    with gr.Group():
-                        with gr.Row():
-                            cleaner0 = gr.Checkbox(label=translations["clear_audio"], value=False, interactive=True)
-                            autotune = gr.Checkbox(label=translations["autotune"], value=False, interactive=True)
-                            use_audio = gr.Checkbox(label=translations["use_audio"], value=False, interactive=True)
-                            checkpointing = gr.Checkbox(label=translations["memory_efficient_training"], value=False, interactive=True)
-                        with gr.Row():
-                            use_original = gr.Checkbox(label=translations["convert_original"], value=False, interactive=True, visible=use_audio.value) 
-                            convert_backing = gr.Checkbox(label=translations["convert_backing"], value=False, interactive=True, visible=use_audio.value)   
-                            not_merge_backing = gr.Checkbox(label=translations["not_merge_backing"], value=False, interactive=True, visible=use_audio.value)
-                            merge_instrument = gr.Checkbox(label=translations["merge_instruments"], value=False, interactive=True, visible=use_audio.value) 
-                    with gr.Row():
-                        pitch = gr.Slider(minimum=-20, maximum=20, step=1, info=translations["pitch_info"], label=translations["pitch"], value=0, interactive=True)
-                        clean_strength0 = gr.Slider(label=translations["clean_strength"], info=translations["clean_strength_info"], minimum=0, maximum=1, value=0.5, step=0.1, interactive=True, visible=cleaner0.value)
-                    with gr.Row(): 
-                        with gr.Column():
-                            audio_select = gr.Dropdown(label=translations["select_separate"], choices=[], value="", interactive=True, allow_custom_value=True, visible=False)
-                            convert_button_2 = gr.Button(translations["convert_audio"], visible=False)
+            
             with gr.Row():
                 with gr.Column():
                     with gr.Accordion(translations["model_accordion"], open=True):
@@ -1667,7 +1648,11 @@ with gr.Blocks(title=" Ultimate RVC Maker ⚡", theme=theme) as app:
                             model_pth = gr.Dropdown(label=translations["model_name"], choices=model_name, value=model_name[0] if len(model_name) >= 1 else "", interactive=True, allow_custom_value=True)
                             model_index = gr.Dropdown(label=translations["index_path"], choices=index_path, value=index_path[0] if len(index_path) >= 1 else "", interactive=True, allow_custom_value=True)
                     
-            with gr.Row():
+            with gr.Row(): 
+                with gr.Column():
+                    audio_select = gr.Dropdown(label=translations["select_separate"], choices=[], value="", interactive=True, allow_custom_value=True, visible=False)
+                    convert_button_2 = gr.Button(translations["convert_audio"], visible=False)
+                            
                 with gr.Column():
                     input0 = gr.File(label=translations["drop_audio"], file_types=[".wav", ".mp3", ".flac", ".ogg", ".opus", ".m4a", ".mp4", ".aac", ".alac", ".wma", ".aiff", ".webm", ".ac3"])  
                     play_audio = gr.Audio(show_download_button=True, interactive=False, label=translations["input_audio"])
@@ -1685,6 +1670,20 @@ with gr.Blocks(title=" Ultimate RVC Maker ⚡", theme=theme) as app:
                         with gr.Column():
                             refesh0 = gr.Button(translations["refesh"])
                     with gr.Accordion(translations["setting"], open=False):
+                        with gr.Row():
+                            cleaner0 = gr.Checkbox(label=translations["clear_audio"], value=False, interactive=True)
+                            autotune = gr.Checkbox(label=translations["autotune"], value=False, interactive=True)
+                            use_audio = gr.Checkbox(label=translations["use_audio"], value=False, interactive=True)
+                            checkpointing = gr.Checkbox(label=translations["memory_efficient_training"], value=False, interactive=True)
+                        with gr.Row():
+                            use_original = gr.Checkbox(label=translations["convert_original"], value=False, interactive=True, visible=use_audio.value) 
+                            convert_backing = gr.Checkbox(label=translations["convert_backing"], value=False, interactive=True, visible=use_audio.value)   
+                            not_merge_backing = gr.Checkbox(label=translations["not_merge_backing"], value=False, interactive=True, visible=use_audio.value)
+                            merge_instrument = gr.Checkbox(label=translations["merge_instruments"], value=False, interactive=True, visible=use_audio.value) 
+                        with gr.Row():
+                            pitch = gr.Slider(minimum=-20, maximum=20, step=1, info=translations["pitch_info"], label=translations["pitch"], value=0, interactive=True)
+                            clean_strength0 = gr.Slider(label=translations["clean_strength"], info=translations["clean_strength_info"], minimum=0, maximum=1, value=0.5, step=0.1, interactive=True, visible=cleaner0.value)
+                        
                         with gr.Accordion(translations["f0_method"], open=False):
                             with gr.Group():
                                 with gr.Row():
@@ -1742,7 +1741,7 @@ with gr.Blocks(title=" Ultimate RVC Maker ⚡", theme=theme) as app:
                             formant_timbre = gr.Slider(value=1.0, label=translations["formant_timbre"], info=translations["formant_timbre"], minimum=0.0, maximum=16.0, step=0.1, interactive=True, visible=False)
             with gr.Row():
                 convert_button = gr.Button(translations["convert_audio"], variant="primary")
-                gr.Markdown(translations["output_convert"])
+            gr.Markdown(translations["output_convert"])
             with gr.Row():
                 main_convert = gr.Audio(show_download_button=True, interactive=False, label=translations["main_convert"])
                 backing_convert = gr.Audio(show_download_button=True, interactive=False, label=translations["convert_backing"], visible=convert_backing.value)
