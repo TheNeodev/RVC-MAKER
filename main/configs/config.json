@@ -3,6 +3,7 @@
     "support_language": [
         "en-US",
         "id_Id",
+        "ja-JP",
         "vi-VN"
     ],
     "theme": "gradio/base",
